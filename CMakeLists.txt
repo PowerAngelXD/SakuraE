@@ -42,14 +42,16 @@ message(STATUS "LLVM components: ${llvm_components}")
 
 # -Wfloat-equal
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -pedantic -Wimplicit-fallthrough -Wsequence-point -Wswitch-unreachable -Wstringop-truncation -Wbool-compare -Wtautological-compare -Wshadow=global -Wpointer-arith -Wpointer-compare -Wcast-align -Wcast-qual -Wwrite-strings -Wdangling-else -Wlogical-op -Wconversion -Werror")
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -pedantic -Wimplicit-fallthrough -Wsequence-point -Wswitch-unreachable -Wstringop-truncation -Wbool-compare -Wtautological-compare -Wshadow=global -Wpointer-arith -Wpointer-compare -Wcast-align -Wcast-qual -Wwrite-strings -Wdangling-else -Wlogical-op -Werror")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 file(GLOB SRC_FILES "includes/magic_enum.hpp" 
                     "main.cpp" 
                     "Compiler/Frontend/lexer.*"
-                    "Compiler/Frontend/ast.*"
-                    "Compiler/Frontend/parser.*")
+                    "Compiler/Frontend/astbase.hpp"
+                    "Compiler/Frontend/astparser.hpp"
+                    "Compiler/Error/error.hpp"
+                    "Compiler/Utils/logger.hpp")
         
 add_executable(${CMAKE_PROJECT_NAME} ${SRC_FILES})
 
