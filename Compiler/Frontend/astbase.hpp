@@ -103,7 +103,7 @@ namespace sakoraE {
         std::tuple<std::shared_ptr<Nodes>...> children;
 
         template<std::size_t Index>
-        static bool check_impl(TokenIter begin, TokenIter end) {
+        static bool checkImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index < sizeof...(Nodes)) {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
                 if (!CurrentType::lookahead(begin, end))
@@ -116,7 +116,7 @@ namespace sakoraE {
         }
 
         template<size_t Index, typename... ParsedNodes>
-        static Result<ConnectionNode> parse_impl(TokenIter begin, TokenIter end, std::tuple<ParsedNodes...>&& current_tuple) {
+        static Result<ConnectionNode> parseImpl(TokenIter begin, TokenIter end, std::tuple<ParsedNodes...>&& current_tuple) {
             if constexpr (Index == sizeof...(Nodes)) {
                 return ParseResult<ConnectionNode>(
                     true, 
@@ -137,7 +137,7 @@ namespace sakoraE {
                     std::make_tuple(result.val)
                 );
             
-                return parse_impl<Index + 1, ParsedNodes..., CurrentType*>(result.end, end, std::move(new_tuple));
+                return parseImpl<Index + 1, ParsedNodes..., CurrentType*>(result.end, end, std::move(new_tuple));
             }
         }
         
@@ -151,11 +151,11 @@ namespace sakoraE {
         ConnectionNode(std::tuple<std::shared_ptr<Nodes>...>&& _children): children(std::move(_children)) {}
         
         static bool check(TokenIter begin, TokenIter end) {
-            return check_impl<0>(begin, end);
+            return checkImpl<0>(begin, end);
         }
 
         static Result<ConnectionNode> parse(TokenIter begin, TokenIter end) {
-            return parse_impl<0>(begin, end, std::make_tuple());
+            return parseImpl<0>(begin, end, std::make_tuple());
         }
     };
 
@@ -165,25 +165,25 @@ namespace sakoraE {
         size_t _index;
 
         template<size_t Index>
-        static bool check_impl(TokenIter begin, TokenIter end) {
+        static bool checkImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index < sizeof...(Nodes)) {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
                 if (CurrentType::check(begin, end))
                     return true;
-                return check_impl<Index + 1>(begin, end);
+                return checkImpl<Index + 1>(begin, end);
             }
             return false;
         }
 
         template<size_t Index>
-        static Result<OptionsNode> parse_impl(TokenIter begin, TokenIter end) {
+        static Result<OptionsNode> parseImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index == sizeof...(Nodes)) {
                 return Result<OptionsNode>::failed(end);
             } else {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
 
                 if (!CurrentType::check(begin, end)) {
-                    return parse_impl<Index + 1>(begin, end);
+                    return parseImpl<Index + 1>(begin, end);
                 }
 
                 auto result = CurrentType::parse(begin, end);
@@ -193,7 +193,7 @@ namespace sakoraE {
                     return ParseResult<OptionsNode>(true, new OptionsNode(std::move(v), Index), result.end);
                 }
 
-                return parse_impl<Index + 1>(begin, end);
+                return parseImpl<Index + 1>(begin, end);
             }
         }
     public:
@@ -204,11 +204,11 @@ namespace sakoraE {
         size_t index() const { return _index; }
 
         static bool check(TokenIter begin, TokenIter end) {
-            return check_impl<0>(begin, end);
+            return checkImpl<0>(begin, end);
         }
 
         static Result<OptionsNode> parse(TokenIter begin, TokenIter end) {
-            return parse_impl<0>(begin, end);
+            return parseImpl<0>(begin, end);
         }
     };
 }
