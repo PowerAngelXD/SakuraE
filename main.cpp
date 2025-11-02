@@ -4,12 +4,12 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Compiler/Frontend/ast.h"
 #include "Compiler/Frontend/lexer.h"
-#include "Compiler/Frontend/parser.h"
+#include "Compiler/Frontend/astbase.hpp"
 
 // 示例程序源代码
 const std::string SOURCE_CODE = R"(
+let ch: char = 'k';
 let max_count: int = 100;
 
 data.list[1 + 2] = max_count * 2 + 5;
@@ -43,27 +43,19 @@ int main() {
     std::cout << "--- 源代码 ---\n" << SOURCE_CODE << "\n";
     
     try {
-        Parser parser(SOURCE_CODE);
+        sakoraE::Lexer lexer(SOURCE_CODE);
+        auto r = lexer.tokenize();
 
-        std::vector<std::shared_ptr<StmtNode>> program_ast = parser.parseProgram();
-
-        std::cout << "\n--- AST 结构 (toString 结果) ---\n";
-        if (program_ast.empty()) {
-            std::cout << "AST 是空的，可能源代码为空或解析失败。\n";
-        } else {
-            for (auto stmt : program_ast) {
-                if (stmt) {
-                    std::cout << stmt->toString() << "\n";
-                }
-            }
-            std::cout << "\n--- AST 解析成功！---\n";
+        for(auto t: r) {
+            std::cout << t.toString() << std::endl;
         }
-
-    } catch (const std::runtime_error& e) {
+    } 
+    catch (const std::runtime_error& e) {
         std::cerr << "\n--- 解析失败错误 ---\n";
-        std::cerr << "错误信息: " << e.what() << "\n";
+        std::cerr << e.what() << "\n";
         return 1;
-    } catch (const std::exception& e) {
+    } 
+    catch (const std::exception& e) {
         std::cerr << "\n--- 未知错误 ---\n";
         std::cerr << "错误信息: " << e.what() << "\n";
         return 1;
