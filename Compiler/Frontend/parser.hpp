@@ -1,5 +1,5 @@
-#ifndef SAKORAE_ASTPARSER_HPP
-#define SAKORAE_ASTPARSER_HPP
+#ifndef SAKORAE_PARSER_HPP
+#define SAKORAE_PARSER_HPP
 #include <memory>
 
 #include "astbase.hpp"
@@ -66,7 +66,7 @@ namespace sakoraE {
         }
     };
 
-    
+    class 
 }
 
 #endif

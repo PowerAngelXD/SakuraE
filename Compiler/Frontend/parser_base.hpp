@@ -1,5 +1,5 @@
-#ifndef SAKORAE_ASTBASE_HPP
-#define SAKORAE_ASTBASE_HPP
+#ifndef SAKORAE_PARSER_BASE_HPP
+#define SAKORAE_PARSER_BASE_HPP
 
 #include <iostream>
 #include <type_traits>
