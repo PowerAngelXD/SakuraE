@@ -48,10 +48,11 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 file(GLOB SRC_FILES "includes/magic_enum.hpp" 
                     "main.cpp" 
                     "Compiler/Frontend/lexer.*"
-                    "Compiler/Frontend/astbase.hpp"
-                    "Compiler/Frontend/astparser.hpp"
+                    "Compiler/Frontend/parser_base.hpp"
+                    "Compiler/Frontend/parser.hpp"
                     "Compiler/Error/error.hpp"
-                    "Compiler/Utils/logger.hpp")
+                    "Compiler/Utils/logger.hpp"
+                    "Compiler/Frontend/AST.h")
         
 add_executable(${CMAKE_PROJECT_NAME} ${SRC_FILES})
 
