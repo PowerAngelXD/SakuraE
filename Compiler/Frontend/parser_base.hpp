@@ -22,54 +22,51 @@ namespace sakoraE {
         TokenIter end;
 
         Result(ParseStatus sts, std::shared_ptr<T> value, TokenIter e):
-            status(sts), val(std::move(value)), end(e) {}
+            val(std::move(value)), status(sts), end(e) {}
 
         static Result<T> failed(TokenIter end) {
-            return ParseResult<T>(ParseStatus::FAILED, nullptr, end);
+            return Result<T>(ParseStatus::FAILED, nullptr, end);
         }
     };
 
     template<sakoraE::TokenType T>
-    struct BasicNode {
+    struct TokenParser {
         const std::shared_ptr<Token> token;
 
-        BasicNode(std::shared_ptr<Token> tok): token(std::move(tok)) {}
+        TokenParser(std::shared_ptr<Token> tok): token(std::move(tok)) {}
 
         static bool check(TokenIter begin, TokenIter end) {
             return begin != end && begin->type == T;
         }
 
-        static Result<BasicNode> parse(TokenIter begin, TokenIter end) {
-            std::shared_ptr<sakoraE::Token> token = begin;
-
+        static Result<TokenParser> parse(TokenIter begin, TokenIter end) {
             if (check(begin, end))
-                return Result<BasicNode>(ParseStatus::SUCCESS, std::make_shared<BasicNode>(begin), begin + 1);
+                return Result<TokenParser>(ParseStatus::SUCCESS, std::make_shared<TokenParser>(std::make_shared<Token>(*begin)), begin + 1);
             else
-                return Result<BasicNode>::failed(end);
+                return Result<TokenParser>::failed(end);
         }
     };
 
     template<sakoraE::TokenType T>
-    struct DiscardNode {
+    struct DiscardParser {
         static bool check(TokenIter begin, TokenIter end) {
             return begin != end && begin->type  == T;
         }
 
-        static Result<DiscardNode> parse(TokenIter begin, TokenIter end) {
-            std::shared_ptr<sakoraE::Token> token = begin;
-
+        static Result<DiscardParser> parse(TokenIter begin, TokenIter end) {
             if (check(begin, end))
-                return Result<DiscardNode>(ParseStatus::SUCCESS, nullptr, begin + 1);
+                return Result<DiscardParser>(ParseStatus::SUCCESS, nullptr, begin + 1);
             else
-                return Result<DiscardNode>::failed(end);
+                return Result<DiscardParser>::failed(end);
         }
     };
 
     template<typename T>
-    class ClosureNode {
+    class ClosureParser {
+    protected:
         std::vector<std::shared_ptr<T>> children;
     public:
-        ClosureNode(std::vector<std::shared_ptr<T>> _children): children(std::move(_children)) {}
+        ClosureParser(std::vector<std::shared_ptr<T>> _children): children(std::move(_children)) {}
         const std::vector<std::shared_ptr<T>> getChildren() {
             return children;
         }
@@ -78,7 +75,7 @@ namespace sakoraE {
             return T::check(begin, end);
         }
 
-        static Result<ClosureNode<T>> parse(TokenIter begin, TokenIter end) {
+        static Result<ClosureParser<T>> parse(TokenIter begin, TokenIter end) {
             std::vector<std::shared_ptr<T>> ch;
             TokenIter current = begin;
 
@@ -87,26 +84,27 @@ namespace sakoraE {
                     break;
                 auto result = T::parse(current, end);
 
-                if (!result.status != ParseStatus::SUCCESS)
+                if (result.status != ParseStatus::SUCCESS)
                     break;
 
                 ch.push_back(result.val);
                 current = result.end;
             }
 
-            return Result<ClosureNode<T>>(ParseStatus::SUCCESS, new ClosureNode<T>(std::move(ch)), current);
+            return Result<ClosureParser<T>>(ParseStatus::SUCCESS, std::make_shared<ClosureParser>(ClosureParser<T>(std::move(ch))), current);
         }
     };
 
     template<typename... Nodes>
-    class ConnectionNode {
+    class ConnectionParser {
+    protected:
         std::tuple<std::shared_ptr<Nodes>...> children;
 
         template<std::size_t Index>
         static bool checkImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index < sizeof...(Nodes)) {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
-                if (!CurrentType::lookahead(begin, end))
+                if (!CurrentType::check(begin, end))
                     return false;
 
 
@@ -116,20 +114,20 @@ namespace sakoraE {
         }
 
         template<size_t Index, typename... ParsedNodes>
-        static Result<ConnectionNode> parseImpl(TokenIter begin, TokenIter end, std::tuple<ParsedNodes...>&& current_tuple) {
+        static Result<ConnectionParser> parseImpl(TokenIter begin, TokenIter end, std::tuple<ParsedNodes...>&& current_tuple) {
             if constexpr (Index == sizeof...(Nodes)) {
-                return ParseResult<ConnectionNode>(
-                    true, 
-                    new ConnectionNode(std::move(current_tuple)),
+                return Result<ConnectionParser>(
+                    ParseStatus::SUCCESS, 
+                    std::make_shared<ConnectionParser>(ConnectionParser(std::move(current_tuple))),
                     begin
                 );
             } else {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
                 auto result = CurrentType::parse(begin, end);
                 
-                if (!result.success) {
+                if (result.status != ParseStatus::SUCCESS) {
                     cleanup_tuple(current_tuple);
-                    return Result<ConnectionNode>::failed(begin);
+                    return Result<ConnectionParser>::failed(begin);
                 }
                 
                 auto new_tuple = std::tuple_cat(
@@ -137,7 +135,7 @@ namespace sakoraE {
                     std::make_tuple(result.val)
                 );
             
-                return parseImpl<Index + 1, ParsedNodes..., CurrentType*>(result.end, end, std::move(new_tuple));
+                return parseImpl<Index + 1, ParsedNodes..., std::shared_ptr<CurrentType>>(result.end, end, std::move(new_tuple));
             }
         }
         
@@ -148,7 +146,7 @@ namespace sakoraE {
             }, tuple);
         }
     public:
-        ConnectionNode(std::tuple<std::shared_ptr<Nodes>...>&& _children): children(std::move(_children)) {}
+        ConnectionParser(std::tuple<std::shared_ptr<Nodes>...>&& _children): children(std::move(_children)) {}
         
         const std::tuple<std::shared_ptr<Nodes>...>& getChildren() const { 
             return children; 
@@ -158,13 +156,14 @@ namespace sakoraE {
             return checkImpl<0>(begin, end);
         }
 
-        static Result<ConnectionNode> parse(TokenIter begin, TokenIter end) {
+        static Result<ConnectionParser> parse(TokenIter begin, TokenIter end) {
             return parseImpl<0>(begin, end, std::make_tuple());
         }
     };
 
     template<typename... Nodes>
-    class OptionsNode {
+    class OptionsParser {
+    protected:
         std::variant<std::shared_ptr<Nodes>...> _child;
         size_t _index;
 
@@ -180,9 +179,9 @@ namespace sakoraE {
         }
 
         template<size_t Index>
-        static Result<OptionsNode> parseImpl(TokenIter begin, TokenIter end) {
+        static Result<OptionsParser> parseImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index == sizeof...(Nodes)) {
-                return Result<OptionsNode>::failed(end);
+                return Result<OptionsParser>::failed(end);
             } else {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
 
@@ -191,17 +190,17 @@ namespace sakoraE {
                 }
 
                 auto result = CurrentType::parse(begin, end);
-                if (result.success) {
+                if (result.status != ParseStatus::SUCCESS) {
                     std::variant<std::shared_ptr<Nodes>...> v;
                     v.template emplace<Index>(result.val);
-                    return ParseResult<OptionsNode>(true, new OptionsNode(std::move(v), Index), result.end);
+                    return Result<OptionsParser>(ParseStatus::SUCCESS, std::make_shared<OptionsParser>(OptionsParser(std::move(v), Index)), result.end);
                 }
 
                 return parseImpl<Index + 1>(begin, end);
             }
         }
     public:
-        OptionsNode(std::variant<std::shared_ptr<Nodes>...>&& child, size_t index)
+        OptionsParser(std::variant<std::shared_ptr<Nodes>...>&& child, size_t index)
             : _child(std::move(child)), _index(index) {}
 
         // Get the variant: 'child' (if you want to use it, try 'std::get<Index>()')
@@ -213,7 +212,7 @@ namespace sakoraE {
             return checkImpl<0>(begin, end);
         }
 
-        static Result<OptionsNode> parse(TokenIter begin, TokenIter end) {
+        static Result<OptionsParser> parse(TokenIter begin, TokenIter end) {
             return parseImpl<0>(begin, end);
         }
     };
