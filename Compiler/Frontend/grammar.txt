@@ -8,7 +8,8 @@
 Literal -> <number> | <string> | 'true' | 'false' | <char>
 IndexOp -> '[' AddExpr ']'
 CallingOp -> '(' WholeExpr (',' WholeExpr)* ')'
-IdentifierExpr -> Identifier (((IndexOp), (CallingOp), ('.')) Identifier)*
+AtomIdentifierExpr -> Identifier (IndexOp|CallingOp)*
+IdentifierExpr -> AtomIdentifierExpr ('.' AtomIdentifierExpr)*
 PrimExpr -> Literal | IdentifierExpr
 
 MulExpr -> PrimExpr (('*'|'/') PrimExpr)*
