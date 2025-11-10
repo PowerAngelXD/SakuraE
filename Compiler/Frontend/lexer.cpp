@@ -67,9 +67,18 @@ bool sakoraE::Lexer::isKeyword(const std::string& content) const {
     return std::find(keywords.begin(), keywords.end(), content) != keywords.end();
 }
 
+bool sakoraE::Lexer::isTypeField(const std::string &content) const {
+    return std::find(typeFields.begin(), typeFields.end(), content) != typeFields.end();
+}
+
 sakoraE::TokenType sakoraE::Lexer::str2KeywordType(std::string content) const {
     std::transform(content.begin(), content.end(), content.begin(), ::toupper);
     return magic_enum::enum_cast<TokenType>("KEYWORD_" + content).value();
+}
+
+sakoraE::TokenType sakoraE::Lexer::str2TypeField(std::string content) const {
+    std::transform(content.begin(), content.end(), content.begin(), ::toupper);
+    return magic_enum::enum_cast<TokenType>("TYPE_" + content).value();
 }
 
 sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
@@ -98,7 +107,12 @@ sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
             type = str2KeywordType(content);
             details = content;
         }
-    } else {
+    }
+    else if (isTypeField(content)) {
+        type = str2TypeField(content);
+        details = content;
+    } 
+    else {
         type = TokenType::IDENTIFIER;
         details = "identifier";
     }
@@ -336,7 +350,7 @@ sakoraE::Token sakoraE::Lexer::makeSymbol() {
             next();
             break;
         case ':':
-            type = TokenType::TYPE_CONSTRAINT;
+            type = TokenType::CONSTRAINT_OP;
             content = ":";
             next();
             break;
