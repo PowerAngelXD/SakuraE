@@ -50,6 +50,7 @@ file(GLOB SRC_FILES "includes/magic_enum.hpp"
                     "Compiler/Frontend/lexer.*"
                     "Compiler/Frontend/parser_base.hpp"
                     "Compiler/Frontend/parser.hpp"
+                    "Compiler/Frontend/parser.cpp"
                     "Compiler/Error/error.hpp"
                     "Compiler/Utils/logger.hpp"
                     "Compiler/Frontend/AST.h")
