@@ -2,33 +2,114 @@
 #define SAKORAE_AST_HPP
 
 #include <iostream>
+#include <map>
 
 #include "parser_base.hpp"
 
+#include "Compiler/Error/error.hpp"
+
+#include "includes/magic_enum.hpp"
+
 namespace sakoraE {
-    class NodeFormatter {
-        virtual std::string toString()=0;
-    };
-
-    class IToken: NodeFormatter {};
-    class IOperator: NodeFormatter {};
-    class IExpr: NodeFormatter {};
-    class IStatement: NodeFormatter {};
-
+    class Node;
     using TokenPtr = std::shared_ptr<Token>;
-
-    struct AddExprNode;
-
-    struct LiteralNode: public IToken {
-        TokenPtr literal = nullptr;
-
-        std::string toString() override;
+    enum class ASTTag {
+        // Empty
+        Empty, Token,
+        // Head
+        LiteralNode, IndexOpNode, CallingOpNode, AtomIdentifierNode,
+        IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
+        LogicExprNode, BoolExprNode, ArrayExprNode, WholeExprNode, 
+        BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
+        AssignExprNode,
+        // Token
+        Literal, Identifier, Symbol, Keyword,
+        // Branches
+        HeadExpr, Exprs, Op, Ops
     };
 
-    struct IndexOpNode: public IOperator {
-        std::shared_ptr<AddExprNode> index = nullptr;
+    using NodePtr = std::shared_ptr<Node>;
 
-        std::string toString() override;
+    class Node {
+        ASTTag tag;
+        std::variant<std::monostate, TokenPtr> content;
+        std::vector<std::pair<ASTTag, NodePtr>> children;
+
+        int hasSub(ASTTag t) {
+            for (std::size_t i = 0; i < children.size(); i ++) {
+                if (children.at(i).first == t) return i;
+            }
+            return -1;
+        }
+    public:
+        Node(TokenPtr tok): tag(ASTTag::Token), content(tok) {}
+        Node(TokenPtr tok, ASTTag t): tag(t), content(tok) {}
+        Node(ASTTag t): tag(t) {}
+        Node(): tag(ASTTag::Empty) {}
+
+        bool isLeaf() {
+            return std::holds_alternative<TokenPtr>(content);
+        }
+
+        bool hasNode(ASTTag t) {
+            for (auto n: children) {
+                if (n.first == t) return true;
+            }
+            return false;
+        }
+
+        ASTTag getTag() {
+            return tag;
+        }
+
+        Token getToken() {
+            return *std::get<TokenPtr>(content);
+        }
+
+        NodePtr& operator[] (ASTTag t) {
+            if (hasSub(t) == -1) {
+                children.push_back({t, std::make_shared<Node>(t)});
+                return children.at(hasSub(t)).second;
+            }
+            else {
+                return children.at(hasSub(t)).second;
+            }
+        }
+
+        void addChild(NodePtr node) {
+            if (!node) return;
+            ASTTag childTag = node->getTag();
+            children.push_back({childTag, node});
+        }
+
+        std::string toString() {
+            std::ostringstream oss;
+            oss << "{" << magic_enum::enum_name(tag) << ":";
+            if (std::holds_alternative<TokenPtr>(content)) {
+                oss << "(" << std::get<TokenPtr>(content)->content << ")";
+            }
+            if (!children.empty()) {
+                oss << ":[";
+            }
+            for (std::size_t i = 0; i < children.size(); i ++) {
+                if (i == children.size() - 1) {
+                    oss << children.at(i).second->toString();
+                } else {
+                    oss << children.at(i).second->toString() << ", ";
+                }
+            }
+            if (!children.empty()) {
+                oss << "]";
+            }
+            oss << "}";
+
+            return oss.str();
+        }
+    };
+
+    class ResourceFetcher {
+    public:
+        virtual NodePtr genResource()=0;
     };
 }
 
