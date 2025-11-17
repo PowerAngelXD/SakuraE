@@ -15,6 +15,7 @@ namespace sakoraE {
         SUCCESS, FAILED, UNPARSED
     };
 
+    // Parser Result: using to identify the result
     template<typename T>
     struct Result{
         std::shared_ptr<T> val = nullptr;
@@ -29,6 +30,7 @@ namespace sakoraE {
         }
     };
 
+    // Only to parse a single token
     template<sakoraE::TokenType T>
     struct TokenParser {
         const std::shared_ptr<Token> token;
@@ -47,6 +49,7 @@ namespace sakoraE {
         }
     };
 
+    // Parse single token, but ignore it (not include it in the value)
     template<sakoraE::TokenType T>
     struct DiscardParser {
         static bool check(TokenIter begin, TokenIter end) {
@@ -63,12 +66,17 @@ namespace sakoraE {
 
     template<typename T>
     class ClosureParser {
-    protected:
         std::vector<std::shared_ptr<T>> children;
     public:
         ClosureParser(std::vector<std::shared_ptr<T>> _children): children(std::move(_children)) {}
-        const std::vector<std::shared_ptr<T>> getChildren() {
+
+        // Get the Closure Content
+        const std::vector<std::shared_ptr<T>> getClosure() {
             return children;
+        }
+
+        bool isEmpty() {
+            return children.empty();
         }
 
         static bool check(TokenIter begin, TokenIter end) {
@@ -78,7 +86,6 @@ namespace sakoraE {
         static Result<ClosureParser<T>> parse(TokenIter begin, TokenIter end) {
             std::vector<std::shared_ptr<T>> ch;
             TokenIter current = begin;
-
             while (current != end) {
                 if (!T::check(current, end))
                     break;
@@ -91,13 +98,12 @@ namespace sakoraE {
                 current = result.end;
             }
 
-            return Result<ClosureParser<T>>(ParseStatus::SUCCESS, std::make_shared<ClosureParser>(ClosureParser<T>(std::move(ch))), current);
+            return Result<ClosureParser<T>>(ParseStatus::SUCCESS, std::make_shared<ClosureParser<T>>(std::move(ch)), current);
         }
     };
 
     template<typename... Nodes>
     class ConnectionParser {
-    protected:
         std::tuple<std::shared_ptr<Nodes>...> children;
 
         template<std::size_t Index>
@@ -147,8 +153,10 @@ namespace sakoraE {
         }
     public:
         ConnectionParser(std::tuple<std::shared_ptr<Nodes>...>&& _children): children(std::move(_children)) {}
-        
-        const std::tuple<std::shared_ptr<Nodes>...>& getChildren() const { 
+        ConnectionParser(ConnectionParser&& other) noexcept : children(std::move(other.children)) {}
+
+        // Get the tuple of ConnectionParser
+        const std::tuple<std::shared_ptr<Nodes>...>& getTuple() const { 
             return children; 
         }
 
@@ -163,7 +171,6 @@ namespace sakoraE {
 
     template<typename... Nodes>
     class OptionsParser {
-    protected:
         std::variant<std::shared_ptr<Nodes>...> _child;
         size_t _index;
 
@@ -190,7 +197,7 @@ namespace sakoraE {
                 }
 
                 auto result = CurrentType::parse(begin, end);
-                if (result.status != ParseStatus::SUCCESS) {
+                if (result.status != ParseStatus::FAILED) {
                     std::variant<std::shared_ptr<Nodes>...> v;
                     v.template emplace<Index>(result.val);
                     return Result<OptionsParser>(ParseStatus::SUCCESS, std::make_shared<OptionsParser>(OptionsParser(std::move(v), Index)), result.end);
@@ -202,9 +209,11 @@ namespace sakoraE {
     public:
         OptionsParser(std::variant<std::shared_ptr<Nodes>...>&& child, size_t index)
             : _child(std::move(child)), _index(index) {}
+        OptionsParser(OptionsParser&& other) noexcept : _child(std::move(other._child)), _index(other._index) {}
 
         // Get the variant: 'child' (if you want to use it, try 'std::get<Index>()')
-        const std::variant<std::shared_ptr<Nodes>...>& child() const { return _child; }
+        const std::variant<std::shared_ptr<Nodes>...>& option() const { return _child; }
+
         // Get the index of variant
         size_t index() const { return _index; }
 
