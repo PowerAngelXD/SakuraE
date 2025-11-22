@@ -19,7 +19,7 @@ namespace sakoraE {
         // Head
         LiteralNode, IndexOpNode, CallingOpNode, AtomIdentifierNode,
         IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
-        LogicExprNode, BoolExprNode, ArrayExprNode, WholeExprNode, 
+        LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode, 
         BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
         AssignExprNode,
         // Token
