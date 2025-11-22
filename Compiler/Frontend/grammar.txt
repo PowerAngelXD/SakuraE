@@ -25,7 +25,7 @@ BasicTypeModifier -> 'int'|'char'|'raw_string'|'float'|'double'|＜field>
 ArrayTypeModifier ->  '[' <number> ']' BasicTypeModifier
 TypeModifier -> ArrayTypeModifier | BasicTypeModifier
 
-LetStmt -> 'let' <field> (':' TypeModifier) '=' WholeExpr '；'
+DeclareStmt -> 'let' <field> (':' TypeModifier) '=' WholeExpr '；'
 ExprStmt -> IdentifierExpr | AssignExpr ';'
 BlockStmt -> '{' (Stmt)* '}'
 IfStmt -> 'if' '(' BinaryExpr ')' Stmt | BlockStmt
@@ -34,4 +34,4 @@ WhileStmt -> 'while' '(' BinaryExpr ')' Stmt | BlockStmt
 ForStmt -> 'for' '(' LetStmt BinaryExpr ';' WholeExpr ';' ')' Stmt | BlockStmt
 FuncDefineStmt -> 'func' <field> '(' (<field> ':' TypeModifier) (',' <field> ':' TypeModifier) ')' '->' TypeModifier BlockStmt
 ReturnStmt -> 'return' WholeExpr ';'
-Stmt -> LetStmt | ExprStmt |  BlockStmt | IfStmt | ElseStmt | WhileStmt | ForStmt | ReturnStmt
+Stmt -> DeclareStmt | ExprStmt | BlockStmt | IfStmt | ElseStmt | WhileStmt | ForStmt | ReturnStmt
