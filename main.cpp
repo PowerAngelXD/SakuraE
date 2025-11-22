@@ -10,7 +10,7 @@
 
 // 示例程序源代码
 const std::string SOURCE_CODE = R"(
-i[1*3] - 9 != 99
+WWWWi[1*3] - 9 != 99 && !MYID
 )";
 
 int main() {
@@ -31,7 +31,7 @@ int main() {
 
         auto res = result.val->genResource();
 
-        std::cout << res->toString() << std::endl;
+        std::cout << res->toFormatString(true) << std::endl;
     } 
     catch (const std::runtime_error& e) {
         std::cerr << e.what() << "\n";
