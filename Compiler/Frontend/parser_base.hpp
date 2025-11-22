@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <memory>
 #include <variant>
+#include <tuple>
 
 #include "lexer.h"
 
@@ -28,6 +29,12 @@ namespace sakoraE {
         static Result<T> failed(TokenIter end) {
             return Result<T>(ParseStatus::FAILED, nullptr, end);
         }
+    };
+
+    // Concept: Check if the parser type T has a static epsilonable() method.
+    template<typename T>
+    concept HasHasEpsilonable = requires {
+        { T::epsilonable() } -> std::convertible_to<bool>;
     };
 
     // Only to parse a single token
@@ -70,7 +77,6 @@ namespace sakoraE {
     public:
         ClosureParser(std::vector<std::shared_ptr<T>> _children): children(std::move(_children)) {}
 
-        // Get the Closure Content
         const std::vector<std::shared_ptr<T>> getClosure() {
             return children;
         }
@@ -78,6 +84,8 @@ namespace sakoraE {
         bool isEmpty() {
             return children.empty();
         }
+
+        static constexpr bool epsilonable() { return true; }
 
         static bool check(TokenIter begin, TokenIter end) {
             return T::check(begin, end);
@@ -91,8 +99,9 @@ namespace sakoraE {
                     break;
                 auto result = T::parse(current, end);
 
-                if (result.status != ParseStatus::SUCCESS)
+                if (result.status != ParseStatus::SUCCESS) {
                     break;
+                }
 
                 ch.push_back(result.val);
                 current = result.end;
@@ -102,62 +111,72 @@ namespace sakoraE {
         }
     };
 
+    template<typename T, typename = void>
+    struct has_epsilonable : std::false_type {};
+
+    template<typename T>
+    struct has_epsilonable<T, std::void_t<decltype(T::epsilonable())>> : std::true_type {};
+
     template<typename... Nodes>
     class ConnectionParser {
         std::tuple<std::shared_ptr<Nodes>...> children;
+
+        template<size_t Index, typename... ParsedNodes>
+        static Result<ConnectionParser> parseImpl(
+            TokenIter original_begin,
+            TokenIter current_begin,
+            TokenIter end,
+            std::tuple<ParsedNodes...>&& current_tuple) 
+        {
+            if constexpr (Index == sizeof...(Nodes)) {
+                auto instance = std::make_shared<ConnectionParser>(ConnectionParser(std::move(current_tuple)));
+                return Result<ConnectionParser>(ParseStatus::SUCCESS, instance, current_begin);
+            } 
+            else {
+                using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
+                
+                auto result = CurrentType::parse(current_begin, end);
+                
+                if (result.status == ParseStatus::SUCCESS) {
+                    return parseImpl<Index + 1>(
+                        original_begin,
+                        result.end,
+                        end,
+                        std::tuple_cat(std::move(current_tuple), std::make_tuple(result.val))
+                    );
+                } 
+                else {
+                    return Result<ConnectionParser>::failed(original_begin);
+                }
+            }
+        }
 
         template<std::size_t Index>
         static bool checkImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index < sizeof...(Nodes)) {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
-                if (!CurrentType::check(begin, end))
-                    return false;
-
-
-                return true;
-            }
-            return true;
-        }
-
-        template<size_t Index, typename... ParsedNodes>
-        static Result<ConnectionParser> parseImpl(TokenIter begin, TokenIter end, std::tuple<ParsedNodes...>&& current_tuple) {
-            if constexpr (Index == sizeof...(Nodes)) {
-                return Result<ConnectionParser>(
-                    ParseStatus::SUCCESS, 
-                    std::make_shared<ConnectionParser>(ConnectionParser(std::move(current_tuple))),
-                    begin
-                );
-            } else {
-                using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
-                auto result = CurrentType::parse(begin, end);
                 
-                if (result.status != ParseStatus::SUCCESS) {
-                    cleanup_tuple(current_tuple);
-                    return Result<ConnectionParser>::failed(begin);
+                if (CurrentType::check(begin, end)) {
+                    return true;
                 }
                 
-                auto new_tuple = std::tuple_cat(
-                    std::move(current_tuple),
-                    std::make_tuple(result.val)
-                );
-            
-                return parseImpl<Index + 1, ParsedNodes..., std::shared_ptr<CurrentType>>(result.end, end, std::move(new_tuple));
+                if constexpr (HasEpsilonable<CurrentType>){
+                    if (CurrentType::epsilonable()) {
+                        return checkImpl<Index + 1>(begin, end);
+                    }
+                }
+                
+                return false;
             }
+            return true; 
         }
-        
-        template<typename... Ts>
-        static void cleanup_tuple(const std::tuple<std::shared_ptr<Ts>...>& tuple) {
-            std::apply([](std::shared_ptr<auto>... ptrs) {
-                (ptrs.reset(), ...);
-            }, tuple);
-        }
-    public:
-        ConnectionParser(std::tuple<std::shared_ptr<Nodes>...>&& _children): children(std::move(_children)) {}
-        ConnectionParser(ConnectionParser&& other) noexcept : children(std::move(other.children)) {}
 
-        // Get the tuple of ConnectionParser
-        const std::tuple<std::shared_ptr<Nodes>...>& getTuple() const { 
-            return children; 
+    public:
+        ConnectionParser(std::tuple<std::shared_ptr<Nodes>...> ch) : children(std::move(ch)) {}
+        ConnectionParser() = default;
+
+        const std::tuple<std::shared_ptr<Nodes>...>& getTuple() const {
+            return children;
         }
 
         static bool check(TokenIter begin, TokenIter end) {
@@ -165,7 +184,7 @@ namespace sakoraE {
         }
 
         static Result<ConnectionParser> parse(TokenIter begin, TokenIter end) {
-            return parseImpl<0>(begin, end, std::make_tuple());
+            return parseImpl<0>(begin, begin, end, std::make_tuple());
         }
     };
 
@@ -175,6 +194,19 @@ namespace sakoraE {
         size_t _index;
 
         template<size_t Index>
+        static constexpr bool epsilonableImpl() {
+            if constexpr (Index < sizeof...(Nodes)) {
+                using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
+                
+                if constexpr (HasEpsilonable<CurrentType>) {
+                    if (CurrentType::epsilonable()) return true;
+                }
+                return epsilonableImpl<Index + 1>();
+            }
+            return false;
+        }
+
+        template<size_t Index>
         static bool checkImpl(TokenIter begin, TokenIter end) {
             if constexpr (Index < sizeof...(Nodes)) {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
@@ -182,7 +214,7 @@ namespace sakoraE {
                     return true;
                 return checkImpl<Index + 1>(begin, end);
             }
-            return false;
+            return epsilonable();
         }
 
         template<size_t Index>
@@ -197,6 +229,7 @@ namespace sakoraE {
                 }
 
                 auto result = CurrentType::parse(begin, end);
+
                 if (result.status != ParseStatus::FAILED) {
                     std::variant<std::shared_ptr<Nodes>...> v;
                     v.template emplace<Index>(result.val);
@@ -211,11 +244,12 @@ namespace sakoraE {
             : _child(std::move(child)), _index(index) {}
         OptionsParser(OptionsParser&& other) noexcept : _child(std::move(other._child)), _index(other._index) {}
 
-        // Get the variant: 'child' (if you want to use it, try 'std::get<Index>()')
         const std::variant<std::shared_ptr<Nodes>...>& option() const { return _child; }
-
-        // Get the index of variant
         size_t index() const { return _index; }
+
+        static constexpr bool epsilonable() {
+            return epsilonableImpl<0>();
+        }
 
         static bool check(TokenIter begin, TokenIter end) {
             return checkImpl<0>(begin, end);
