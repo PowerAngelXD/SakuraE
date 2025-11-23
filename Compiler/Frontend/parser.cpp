@@ -266,3 +266,30 @@ sakoraE::NodePtr sakoraE::TypeModifierParser::genResource() {
 
     return root;
 }
+
+// Stmt
+
+sakoraE::NodePtr sakoraE::DeclareStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::DeclareStmtNode);
+    bool hasTypeStriction = false;
+    bool hasInitialization = false;
+
+    (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
+    // If type striction existed, generate it
+    if (!std::get<2>(getTuple())->isEmpty()) {
+        (*root)[ASTTag::Type] = std::get<1>(std::get<2>(getTuple())->getClosure().at(0)->getTuple())->genResource();
+        hasTypeStriction = true;
+    }
+
+    if (std::get<3>(getTuple())->isEmpty() && !hasTypeStriction) {
+        auto info = (*root)[ASTTag::Identifier]->getToken().info;
+        sutils::reportError(OccurredTerm::PARSER, 
+                            "A DeclareStatement must have an initialization declaration if no type constraint is specified.",
+                            info);
+    }
+    else {
+        (*root)[ASTTag::AssignTerm] = std::get<1>(std::get<3>(getTuple())->getClosure().at(0)->getTuple())->genResource();
+    }
+
+    return root;
+}
