@@ -10,6 +10,7 @@ namespace sakoraE {
     class AddExprParser;
     class WholeExprParser;
     class BlockStmtParser;
+    class ElseStmtParser;
     //
 
     using LiteralParserRule = OptionsParser<
@@ -614,7 +615,10 @@ namespace sakoraE {
         TokenParser<TokenType::LEFT_PAREN>,
         BinaryExprParser,
         TokenParser<TokenType::LEFT_PAREN>,
-        BlockStmtParser
+        OptionsParser<
+            BlockStmtParser,
+            ElseStmtParser
+        >
     >;
     class IfStmtParser: public ResourceFetcher, public IfStmtParserRule {
     public:
@@ -688,30 +692,33 @@ namespace sakoraE {
         NodePtr genResource() override;
     };
 
-
+    using TraditionalConditionChain = 
+    ConnectionParser<
+        DeclareStmtParser,
+        WholeExprParser,
+        TokenParser<TokenType::STMT_END>,
+        WholeExprParser
+    >;
+    using RangeConditionChain = 
+    ConnectionParser<
+        TokenParser<TokenType::KEYWORD_LET>,
+        TokenParser<TokenType::IDENTIFIER>,
+        ClosureParser<
+            ConnectionParser<
+                TokenParser<TokenType::CONSTRAINT_OP>,
+                TypeModifierParser
+            >
+        >,
+        TokenParser<TokenType::ASSIGN_OP>,
+        RangeExprParser
+    >;
     using ForStmtParserRule = 
     ConnectionParser<
         TokenParser<TokenType::KEYWORD_FOR>,
         TokenParser<TokenType::LEFT_PAREN>,
         OptionsParser<
-            ConnectionParser<
-                DeclareStmtParser,
-                WholeExprParser,
-                TokenParser<TokenType::STMT_END>,
-                WholeExprParser
-            >,
-            ConnectionParser<
-                TokenParser<TokenType::KEYWORD_LET>,
-                TokenParser<TokenType::IDENTIFIER>,
-                ClosureParser<
-                    ConnectionParser<
-                        TokenParser<TokenType::CONSTRAINT_OP>,
-                        TypeModifierParser
-                    >
-                >,
-                TokenParser<TokenType::ASSIGN_OP>,
-                RangeExprParser
-            >
+            TraditionalConditionChain,
+            RangeConditionChain
         >,
         TokenParser<TokenType::LEFT_PAREN>,
         BlockStmtParser
@@ -735,7 +742,7 @@ namespace sakoraE {
         NodePtr genResource() override;
     };
     
-    using ContainableStmts = 
+    using ContainableStmt = 
     OptionsParser<
         DeclareStmtParser,
         ExprStmtParser,
@@ -746,7 +753,7 @@ namespace sakoraE {
     using BlockStmtParserRule = 
     ConnectionParser<
         TokenParser<TokenType::LEFT_BRACKET>,
-        ContainableStmts,
+        ClosureParser<ContainableStmt>,
         TokenParser<TokenType::RIGHT_BRACKET>
     >;
     class BlockStmtParser: public ResourceFetcher, public BlockStmtParserRule {
