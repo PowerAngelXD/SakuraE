@@ -369,3 +369,30 @@ sakoraE::NodePtr sakoraE::BlockStmtParser::genResource() {
     return root;
 }
 
+sakoraE::NodePtr sakoraE::FuncDefineStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::FuncDefineStmtNode);
+
+    (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
+    if (!std::get<3>(getTuple())->isEmpty()) {
+        for (auto arg: std::get<3>(getTuple())->getClosure()) {
+            auto type = std::get<2>(arg->getTuple())->genResource();
+            auto name = std::make_shared<Node>(std::get<0>(arg->getTuple()));
+
+            (*(*root)[ASTTag::Args])[ASTTag::Type]->addChild(type);
+            (*(*root)[ASTTag::Args])[ASTTag::Identifier]->addChild(name);
+        }
+    }
+
+    (*root)[ASTTag::Type] = std::get<6>(getTuple())->genResource();
+    (*root)[ASTTag::Block] = std::get<7>(getTuple())->genResource();
+
+    return root;
+}
+
+sakoraE::NodePtr sakoraE::ReturnStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::ReturnStmtNode);
+
+    (*root)[ASTTag::HeadExpr] = std::get<1>(getTuple())->genResource();
+
+    return root;
+}
