@@ -21,11 +21,11 @@ namespace sakoraE {
         IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
         LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode, 
         BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
-        AssignExprNode,
+        AssignExprNode, RangeExprNode,
         // Stmt Header
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
-        ReturnStmtNode,
+        ReturnStmtNode, Stmt, 
         // Token
         Literal, Identifier, Symbol, Keyword,
         // Branches
