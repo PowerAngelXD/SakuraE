@@ -562,7 +562,7 @@ namespace sakoraE {
         DeclareStmtParser(DeclareStmtParserRule&& base) : DeclareStmtParserRule(std::move(base)) {}
 
         static bool check(TokenIter begin, TokenIter end) {
-            return DeclareStmtParser::check(begin, end);
+            return DeclareStmtParserRule::check(begin, end);
         }
 
         static Result<DeclareStmtParser> parse(TokenIter begin, TokenIter end) {
@@ -592,7 +592,7 @@ namespace sakoraE {
         ExprStmtParser(ExprStmtParserRule&& base) : ExprStmtParserRule(std::move(base)) {}
 
         static bool check(TokenIter begin, TokenIter end) {
-            return ExprStmtParser::check(begin, end);
+            return ExprStmtParserRule::check(begin, end);
         }
 
         static Result<ExprStmtParser> parse(TokenIter begin, TokenIter end) {
@@ -614,7 +614,7 @@ namespace sakoraE {
         TokenParser<TokenType::KEYWORD_IF>,
         TokenParser<TokenType::LEFT_PAREN>,
         BinaryExprParser,
-        TokenParser<TokenType::LEFT_PAREN>,
+        TokenParser<TokenType::RIGHT_PAREN>,
         OptionsParser<
             BlockStmtParser,
             ElseStmtParser
@@ -670,7 +670,7 @@ namespace sakoraE {
         TokenParser<TokenType::KEYWORD_WHILE>,
         TokenParser<TokenType::LEFT_PAREN>,
         BinaryExprParser,
-        TokenParser<TokenType::LEFT_PAREN>,
+        TokenParser<TokenType::RIGHT_PAREN>,
         BlockStmtParser
     >;
     class WhileStmtParser: public ResourceFetcher, public WhileStmtParserRule {
@@ -720,7 +720,7 @@ namespace sakoraE {
             TraditionalConditionChain,
             RangeConditionChain
         >,
-        TokenParser<TokenType::LEFT_PAREN>,
+        TokenParser<TokenType::RIGHT_PAREN>,
         BlockStmtParser
     >;
     class ForStmtParser: public ResourceFetcher, public ForStmtParserRule {
@@ -741,6 +741,31 @@ namespace sakoraE {
 
         NodePtr genResource() override;
     };
+
+    using ReturnStmtParserRule = 
+    ConnectionParser<
+        TokenParser<TokenType::KEYWORD_RETURN>,
+        WholeExprParser,
+        TokenParser<TokenType::STMT_END>
+    >;
+    class ReturnStmtParser: public ResourceFetcher, public ReturnStmtParserRule {
+    public:
+        ReturnStmtParser(ReturnStmtParserRule&& base) : ReturnStmtParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return ReturnStmtParserRule::check(begin, end);
+        }
+
+        static Result<ReturnStmtParser> parse(TokenIter begin, TokenIter end) {
+            auto result = ReturnStmtParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end};
+            }
+            return {result.status, std::make_shared<ReturnStmtParser>(std::move(*result.val)), result.end};
+        }
+
+        NodePtr genResource() override;
+    };
     
     using ContainableStmt = 
     OptionsParser<
@@ -748,7 +773,8 @@ namespace sakoraE {
         ExprStmtParser,
         IfStmtParser,
         WhileStmtParser,
-        ForStmtParser
+        ForStmtParser,
+        ReturnStmtParser
     >;
     using BlockStmtParserRule = 
     ConnectionParser<
@@ -811,30 +837,36 @@ namespace sakoraE {
         NodePtr genResource() override;
     };
 
-    using ReturnStmtParserRule = 
-    ConnectionParser<
-        TokenParser<TokenType::KEYWORD_RETURN>,
-        WholeExprParser,
-        TokenParser<TokenType::STMT_END>
+    
+    using StatementParserRule = 
+    OptionsParser<
+        FuncDefineStmtParser,
+        DeclareStmtParser,
+        ExprStmtParser,
+        IfStmtParser,
+        WhileStmtParser,
+        ForStmtParser,
+        ReturnStmtParser
     >;
-    class ReturnStmtParser: public ResourceFetcher, public ReturnStmtParserRule {
-    public:
-        ReturnStmtParser(ReturnStmtParserRule&& base) : ReturnStmtParserRule(std::move(base)) {}
+    class StatementParser: public ResourceFetcher, public StatementParserRule {
+        public:
+        StatementParser(StatementParserRule&& base) : StatementParserRule(std::move(base)) {}
 
         static bool check(TokenIter begin, TokenIter end) {
-            return ReturnStmtParserRule::check(begin, end);
+            return StatementParserRule::check(begin, end);
         }
 
-        static Result<ReturnStmtParser> parse(TokenIter begin, TokenIter end) {
-            auto result = ReturnStmtParserRule::parse(begin, end);
+        static Result<StatementParser> parse(TokenIter begin, TokenIter end) {
+            auto result = StatementParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
                 return {result.status, nullptr, result.end};
             }
-            return {result.status, std::make_shared<ReturnStmtParser>(std::move(*result.val)), result.end};
+            return {result.status, std::make_shared<StatementParser>(std::move(*result.val)), result.end};
         }
 
         NodePtr genResource() override;
     };
+
 }
 
 #endif
