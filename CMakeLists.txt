@@ -53,7 +53,8 @@ file(GLOB SRC_FILES "includes/magic_enum.hpp"
                     "Compiler/Frontend/parser.cpp"
                     "Compiler/Error/error.hpp"
                     "Compiler/Utils/logger.hpp"
-                    "Compiler/Frontend/AST.h")
+                    "Compiler/Frontend/AST.h"
+                    "Compiler/IR/*.hpp")
         
 add_executable(${CMAKE_PROJECT_NAME} ${SRC_FILES})
 
