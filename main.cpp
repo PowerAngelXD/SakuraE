@@ -7,6 +7,7 @@
 #include "Compiler/Frontend/lexer.h"
 #include "Compiler/Frontend/parser_base.hpp"
 #include "Compiler/Frontend/parser.hpp"
+#include "Compiler/IR/value.hpp"
 
 const std::string SOURCE_CODE = R"(
 let VAR = "hello";
