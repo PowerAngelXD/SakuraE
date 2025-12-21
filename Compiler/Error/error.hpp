@@ -29,8 +29,10 @@ namespace sakoraE {
         const std::string toString() {
             std::ostringstream oss;
             oss << "During term: " << magic_enum::enum_name(term) << ", An Error Occurred:\n"
-                << "    Details: " << content << "\n"
-                << "    Occurred in: line: " << info.line << ", column: " << info.column << ";\n";
+                << "    Details: " << content << "\n";
+
+            if (term !=  OccurredTerm::SYSTEM)
+                oss << "    Occurred in: line: " << info.line << ", column: " << info.column << ";\n";
             
             return oss.str();
         }
