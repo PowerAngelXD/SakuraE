@@ -10,7 +10,16 @@
 #include "Compiler/IR/value.hpp"
 
 const std::string SOURCE_CODE = R"(
-let VAR = "hello";
+func foo(a: int, b: int, s: string) -> int {
+    let VAR = "hello";
+    let VAR1 = "hello11";
+
+    if (VAR != VAR1 && a == 2) {
+        return 0;
+    }
+    
+    return a + b;
+}
 )";
 
 int main() {
@@ -23,15 +32,18 @@ int main() {
         for(auto t: r) {
             std::cout << t.toString() << std::endl;
         }
+        sakoraE::TokenIter current = r.begin();
+        while ((*current).type != sakoraE::TokenType::_EOF_) {
+            auto result = sakoraE::StatementParser::parse(current, r.end());
+            if (result.status == sakoraE::ParseStatus::FAILED)
+                sutils::reportError(sakoraE::OccurredTerm::PARSER, "Parsering Failed...", {result.end->info.line, result.end->info.column, "system parser error"});
 
-        auto result = sakoraE::StatementParser::parse(r.begin(), r.end());
+            auto res = result.val->genResource();
 
-        if (result.status == sakoraE::ParseStatus::FAILED)
-            sutils::reportError(sakoraE::OccurredTerm::PARSER, "Parsering Failed...", {result.end->info.line, result.end->info.column, "system parser error"});
+            std::cout << res->toFormatString(true) << std::endl;
 
-        auto res = result.val->genResource();
-
-        std::cout << res->toFormatString(true) << std::endl;
+            current = result.end;
+        }
     } 
     catch (const std::runtime_error& e) {
         std::cerr << e.what() << "\n";
