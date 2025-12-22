@@ -392,7 +392,17 @@ sakoraE::NodePtr sakoraE::FuncDefineStmtParser::genResource() {
 
     (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
     if (!std::get<3>(getTuple())->isEmpty()) {
-        for (auto arg: std::get<3>(getTuple())->getClosure()) {
+        auto head_arg = std::get<3>(getTuple())->getClosure().at(0);
+
+        auto head_type = std::get<2>(head_arg->getTuple())->genResource();
+        auto head_name = std::make_shared<Node>(std::get<0>(head_arg->getTuple())->token);
+
+        (*(*root)[ASTTag::Args])[ASTTag::Type]->addChild(head_type);
+        (*(*root)[ASTTag::Args])[ASTTag::Identifier]->addChild(head_name);
+
+        for (std::size_t i = 0; i < std::get<4>(getTuple())->getClosure().size(); i ++) {
+            auto arg = std::get<1>(std::get<4>(getTuple())->getClosure().at(i)->getTuple());
+
             auto type = std::get<2>(arg->getTuple())->genResource();
             auto name = std::make_shared<Node>(std::get<0>(arg->getTuple())->token);
 
@@ -401,8 +411,8 @@ sakoraE::NodePtr sakoraE::FuncDefineStmtParser::genResource() {
         }
     }
 
-    (*root)[ASTTag::Type] = std::get<6>(getTuple())->genResource();
-    (*root)[ASTTag::Block] = std::get<7>(getTuple())->genResource();
+    (*root)[ASTTag::Type] = std::get<7>(getTuple())->genResource();
+    (*root)[ASTTag::Block] = std::get<8>(getTuple())->genResource();
 
     return root;
 }
