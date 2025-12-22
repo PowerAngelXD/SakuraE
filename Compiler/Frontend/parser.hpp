@@ -153,7 +153,6 @@ namespace sakoraE {
         }
 
         static Result<IdentifierExprParser> parse(TokenIter begin, TokenIter end) {
-            std::cout << "meet identifier!" << std::endl;
             auto result = IdentifierExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
                 return {result.status, nullptr, result.end};
@@ -431,7 +430,8 @@ namespace sakoraE {
         TokenParser<TokenType::TYPE_INT>,
         TokenParser<TokenType::TYPE_CHAR>, 
         TokenParser<TokenType::TYPE_FLOAT>, 
-        TokenParser<TokenType::TYPE_BOOL>
+        TokenParser<TokenType::TYPE_BOOL>,
+        TokenParser<TokenType::TYPE_STRING>
     >;
     class BasicTypeModifierParser: public ResourceFetcher, public BasicTypeModifierParserRule {
     public:
@@ -813,6 +813,12 @@ namespace sakoraE {
         TokenParser<TokenType::IDENTIFIER>,
         TokenParser<TokenType::LEFT_PAREN>,
         ClosureParser<MemberUnit>,
+        ClosureParser<
+            ConnectionParser<
+                DiscardParser<TokenType::COMMA>,
+                MemberUnit
+            >
+        >,
         TokenParser<TokenType::RIGHT_PAREN>,
         TokenParser<TokenType::ARROW>,
         TypeModifierParser,
