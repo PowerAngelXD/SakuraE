@@ -55,12 +55,12 @@ namespace sakoraE::IR {
 
         const ArrayModifier& getModAsArray() {
             if (!std::holds_alternative<ArrayModifier>(mod_content))
-                sutils::reportError(OccurredTerm::SYSTEM, "This Modifier's containing is not Array!", {0, 0, ""});
+                sutils::reportError(OccurredTerm::SYSTEM, "This Modifier's containing is not Array!", {});
             
             return std::get<ArrayModifier>(mod_content);
         }
         
-        const std::string& toString() {
+        std::string toString() {
             std::ostringstream oss;
             oss << "[ValueType: " << magic_enum::enum_name(tm_token) << ", Struct: ";
 
@@ -86,7 +86,11 @@ namespace sakoraE::IR {
 
         bool operator== (const TypeModifier& tm) {
             if (tm_token != tm.tm_token) return false;
-            else if (mod_content != tm.mod_content)
+            else if (std::holds_alternative<std::monostate>(mod_content) && 
+                    !std::holds_alternative<std::monostate>(tm.mod_content))
+                return false;
+            else if (std::holds_alternative<ArrayModifier>(mod_content) && 
+                    !std::holds_alternative<ArrayModifier>(tm.mod_content))
                 return false;
             else return true;
         }
@@ -106,7 +110,7 @@ namespace sakoraE::IR {
         const TypeToken& getType() { return token; }
         const TypeModifier& getModifier() { return mod; }
 
-        const std::string& toString() {
+        std::string toString() {
             std::ostringstream oss;
             oss << "{Type: " << magic_enum::enum_name(token) << ", Modifier: " <<  mod.toString() << "}";
             return oss.str();
