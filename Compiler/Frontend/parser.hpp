@@ -582,8 +582,8 @@ namespace sakoraE {
     using ExprStmtParserRule = 
     ConnectionParser<
         OptionsParser<
-            IdentifierExprParser,
-            AssignExprParser
+            AssignExprParser,
+            IdentifierExprParser
         >,
         TokenParser<TokenType::STMT_END>
     >;
