@@ -7,6 +7,8 @@
 #include <sstream>
 
 #include "includes/magic_enum.hpp"
+#include "includes/String.hpp"
+
 #include "Compiler/Utils/Logger.hpp"
 
 namespace sakoraE::IR {
@@ -60,7 +62,7 @@ namespace sakoraE::IR {
             return std::get<ArrayModifier>(mod_content);
         }
         
-        std::string toString() {
+        fzlib::String toString() {
             std::ostringstream oss;
             oss << "[ValueType: " << magic_enum::enum_name(tm_token) << ", Struct: ";
 
@@ -101,16 +103,17 @@ namespace sakoraE::IR {
     };
     
     class Type {
-        TypeToken token;
+        TypeToken token = TypeToken::Null;
         TypeModifier mod;
     public:
+        Type()=default;
         Type(TypeToken t): token(t) {}
         Type(TypeToken t, TypeModifier m): token(t), mod(m) {}
 
         const TypeToken& getType() { return token; }
         const TypeModifier& getModifier() { return mod; }
 
-        std::string toString() {
+        fzlib::String toString() {
             std::ostringstream oss;
             oss << "{Type: " << magic_enum::enum_name(token) << ", Modifier: " <<  mod.toString() << "}";
             return oss.str();

@@ -5,6 +5,8 @@
 #include "AST.hpp"
 #include "parser_base.hpp"
 
+#include "includes/String.hpp"
+
 namespace sakoraE {
     // Forward declare
     class AddExprParser;

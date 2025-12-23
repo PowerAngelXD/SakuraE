@@ -9,6 +9,7 @@
 #include "Compiler/Error/error.hpp"
 
 #include "includes/magic_enum.hpp"
+#include "includes/String.hpp"
 
 namespace sakoraE {
     class Node;
@@ -87,7 +88,7 @@ namespace sakoraE {
             children.push_back({childTag, node});
         }
 
-        std::string toString() {
+        fzlib::String toString() {
             std::ostringstream oss;
             oss << "" << magic_enum::enum_name(tag) << ":";
             if (std::holds_alternative<TokenPtr>(content)) {
@@ -109,11 +110,11 @@ namespace sakoraE {
             return oss.str();
         }
 
-        std::string toFormatString(int depth = 0) {
+        fzlib::String toFormatString(int depth = 0) {
             std::ostringstream oss;
             
-            std::string indent(depth * 2, ' '); 
-            std::string child_indent((depth + 1) * 2, ' ');
+            fzlib::String indent(depth * 2, ' '); 
+            fzlib::String child_indent((depth + 1) * 2, ' ');
 
             oss << magic_enum::enum_name(tag);
             if (std::holds_alternative<TokenPtr>(content)) {

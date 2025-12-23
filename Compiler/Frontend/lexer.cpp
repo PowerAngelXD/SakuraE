@@ -1,28 +1,29 @@
 #include "lexer.h"
 
-sakoraE::Token::Token(TokenType t, const std::string& c, int l, int col, const std::string& det)
+sakoraE::Token::Token(TokenType t, const fzlib::String& c, int l, int col, const fzlib::String& det)
     : content(c), type(t) {
     info.line = l;
     info.column = col;
     info.details = det;
 }
 
-std::string sakoraE::Token::typeToString() const {
-    return std::string(magic_enum::enum_name(type));
+fzlib::String sakoraE::Token::typeToString() const {
+    fzlib::String s = magic_enum::enum_name(type);
+    return fzlib::String(s);
 }
 
-std::string sakoraE::Token::toString() const {
+fzlib::String sakoraE::Token::toString() const {
     return "<" + content + ", " + typeToString() + ">";
 }
 
 // --- Lexer Implementations (构造函数从 .h 移动，其余为原有实现) ---
 
-sakoraE::Lexer::Lexer(const std::string& source) 
+sakoraE::Lexer::Lexer(const fzlib::String& source) 
     : source_code(source), current_pos(0), current_line(1), current_column(1) {}
 
 
 char sakoraE::Lexer::peek(int offset) const {
-    if (current_pos + offset >= source_code.length()) {
+    if (current_pos + offset >= source_code.len()) {
         return '\0';
     }
     return source_code[current_pos + offset];
@@ -63,28 +64,28 @@ void sakoraE::Lexer::skip() {
     }
 }
 
-bool sakoraE::Lexer::isKeyword(const std::string& content) const {
+bool sakoraE::Lexer::isKeyword(const fzlib::String& content) const {
     return std::find(keywords.begin(), keywords.end(), content) != keywords.end();
 }
 
-bool sakoraE::Lexer::isTypeField(const std::string &content) const {
+bool sakoraE::Lexer::isTypeField(const fzlib::String &content) const {
     return std::find(typeFields.begin(), typeFields.end(), content) != typeFields.end();
 }
 
-sakoraE::TokenType sakoraE::Lexer::str2KeywordType(std::string content) const {
+sakoraE::TokenType sakoraE::Lexer::str2KeywordType(fzlib::String content) const {
     std::transform(content.begin(), content.end(), content.begin(), ::toupper);
-    return magic_enum::enum_cast<TokenType>("KEYWORD_" + content).value();
+    return magic_enum::enum_cast<TokenType>(("KEYWORD_" + content).c_str()).value();
 }
 
-sakoraE::TokenType sakoraE::Lexer::str2TypeField(std::string content) const {
+sakoraE::TokenType sakoraE::Lexer::str2TypeField(fzlib::String content) const {
     std::transform(content.begin(), content.end(), content.begin(), ::toupper);
-    return magic_enum::enum_cast<TokenType>("TYPE_" + content).value();
+    return magic_enum::enum_cast<TokenType>(("TYPE_" + content).c_str()).value();
 }
 
 sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
     int start_line = current_line;
     int start_column = current_column;
-    std::string content;
+    fzlib::String content;
 
     if (!std::isalpha(peek()) && peek() != '_') {
         // Should not happen if called correctly
@@ -96,7 +97,7 @@ sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
     }
 
     TokenType type;
-    std::string details;
+    fzlib::String details;
 
     if (isKeyword(content)) {
         if (content == "true" || content == "false") {
@@ -123,9 +124,9 @@ sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
 sakoraE::Token sakoraE::Lexer::makeNumberLiteral() {
     int start_line = current_line;
     int start_column = current_column;
-    std::string content;
+    fzlib::String content;
     TokenType type = TokenType::INT_N;
-    std::string details = "integer";
+    fzlib::String details = "integer";
     bool has_decimal = false;
 
     while (std::isdigit(peek()) || (!has_decimal && peek() == '.' && std::isdigit(peek(1)))) {
@@ -143,7 +144,7 @@ sakoraE::Token sakoraE::Lexer::makeNumberLiteral() {
 sakoraE::Token sakoraE::Lexer::makeCharLiteral() {
     int start_line = current_line;
     int start_column = current_column;
-    std::string content;
+    fzlib::String content;
     TokenType type = TokenType::CHAR;
     next();
 
@@ -162,8 +163,8 @@ sakoraE::Token sakoraE::Lexer::makeStringLiteral() {
     int start_line = current_line;
     int start_column = current_column;
     TokenType type = TokenType::STRING;
-    std::string details = "string";
-    std::string content;
+    fzlib::String details = "string";
+    fzlib::String content;
     
     next();
 
@@ -185,9 +186,9 @@ sakoraE::Token sakoraE::Lexer::makeStringLiteral() {
 sakoraE::Token sakoraE::Lexer::makeSymbol() {
     int start_line = current_line;
     int start_column = current_column;
-    std::string content;
+    fzlib::String content;
     TokenType type = TokenType::UNKNOWN;
-    std::string details;
+    fzlib::String details;
     
     switch (peek()) {
         case '+':

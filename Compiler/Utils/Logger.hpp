@@ -4,17 +4,17 @@
 #include "Compiler/Error/error.hpp"
 
 namespace sutils {
-    inline void print(std::string content) {
-        std::cout << "[SakoraUtils|Debug]: " <<  content;
+    inline void print(fzlib::String content) {
+        std::cout << "[SakoraUtils|Debug]: " << content;
     }
 
-    inline void println(std::string content) {
+    inline void println(fzlib::String content) {
         std::cout << "[SakoraUtils|Debug]: " <<  content << std::endl;
     }
 
-    inline void reportError(sakoraE::OccurredTerm term, std::string content, sakoraE::PositionInfo pinfo) {
+    inline void reportError(sakoraE::OccurredTerm term, fzlib::String content, sakoraE::PositionInfo pinfo) {
         sakoraE::SakoraError error(term, content, pinfo);
-        throw std::runtime_error(error.toString());
+        throw std::runtime_error(error.toString().c_str());
     }
 }
 

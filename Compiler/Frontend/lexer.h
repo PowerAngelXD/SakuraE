@@ -9,6 +9,8 @@
 #include <cctype>
 
 #include "includes/magic_enum.hpp"
+#include "includes/String.hpp"
+
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Utils/Logger.hpp"
 
@@ -49,49 +51,49 @@ namespace sakoraE {
     class Token {
     public:
         PositionInfo info;      // PositionInfo
-        std::string content; // Raw content of the token
+        fzlib::String content; // Raw content of the token
         TokenType type;      // Type of the token
 
         // 声明: 构造函数
         Token(TokenType t = TokenType::UNKNOWN,
-              const std::string &c = "",
+              const fzlib::String &c = "default",
               int l = 0,
               int col = 0,
-              const std::string &det = "");
+              const fzlib::String &det = "default");
 
         // 声明: toString 实现
-        std::string typeToString() const;
-        std::string toString() const;
+        fzlib::String typeToString() const;
+        fzlib::String toString() const;
     };
 
     class Lexer {
     public:
-        Lexer(const std::string &source);
+        Lexer(const fzlib::String &source);
         std::vector<Token> tokenize();
 
     private:
-        std::string source_code;
+        fzlib::String source_code;
         size_t current_pos;
         int current_line;
         int current_column;
 
-        const std::vector<std::string> keywords = {
+        const std::vector<fzlib::String> keywords = {
             "if", "else", "while", "for", "func", 
             "return", "let", "const", "range", "true", 
             "false"
         };
 
-        const std::vector<std::string> typeFields = {
+        const std::vector<fzlib::String> typeFields = {
             "int", "float", "bool", "char", "string"
         };
 
         char peek(int offset = 0) const;
         char next();
         void skip();
-        bool isKeyword(const std::string &content) const;
-        bool isTypeField(const std::string &content) const;
-        TokenType str2KeywordType(std::string content) const;
-        TokenType str2TypeField(std::string content) const;
+        bool isKeyword(const fzlib::String &content) const;
+        bool isTypeField(const fzlib::String &content) const;
+        TokenType str2KeywordType(fzlib::String content) const;
+        TokenType str2TypeField(fzlib::String content) const;
         Token makeIdentifierOrKeyword();
         Token makeNumberLiteral();
         Token makeCharLiteral();
