@@ -10,7 +10,7 @@ namespace sakoraE {
     struct PositionInfo {
         int line = 0;
         int column = 0;
-        std::string details = "no details";
+        fzlib::String details = "no details";
     };
 
     // Point the term where occurred the error
@@ -20,13 +20,13 @@ namespace sakoraE {
 
     class SakoraError {
         OccurredTerm term;
-        std::string content;
+        fzlib::String content;
         PositionInfo info;
     public:
-        SakoraError(OccurredTerm t, std::string c, PositionInfo pinfo): 
+        SakoraError(OccurredTerm t, fzlib::String c, PositionInfo pinfo): 
             term(t), content(c), info(pinfo) {}
         
-        const std::string toString() {
+        const fzlib::String toString() {
             std::ostringstream oss;
             oss << "During term: " << magic_enum::enum_name(term) << ", An Error Occurred:\n"
                 << "    Details: " << content << "\n";
