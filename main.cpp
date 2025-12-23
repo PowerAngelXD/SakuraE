@@ -7,9 +7,8 @@
 #include "Compiler/Frontend/lexer.h"
 #include "Compiler/Frontend/parser_base.hpp"
 #include "Compiler/Frontend/parser.hpp"
-#include "Compiler/IR/value.hpp"
 
-const std::string SOURCE_CODE = R"(
+const fzlib::String SOURCE_CODE = R"(
 func foo(a: int, b: int, s: string) -> int {
     let VAR = "hello";
     let VAR1 = "hello11";
@@ -26,13 +25,12 @@ func foo(a: int, b: int, s: string) -> int {
 
 int main() {
     std::cout << "--- Source ---\n" << SOURCE_CODE << "\n";
-    
     try {
         sakoraE::Lexer lexer(SOURCE_CODE);
         auto r = lexer.tokenize();
 
         for(auto t: r) {
-            std::cout << t.toString() << std::endl;
+            std::cout << t.toString() << "; size:" << t.toString().len() << std::endl;
         }
         sakoraE::TokenIter current = r.begin();
         while ((*current).type != sakoraE::TokenType::_EOF_) {
