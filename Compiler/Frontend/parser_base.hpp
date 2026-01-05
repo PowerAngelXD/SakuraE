@@ -23,8 +23,17 @@ namespace sakoraE {
         ParseStatus status = ParseStatus::UNPARSED;
         TokenIter end;
 
-        Result(ParseStatus sts, std::shared_ptr<T> value, TokenIter e):
-            val(std::move(value)), status(sts), end(e) {}
+        std::shared_ptr<SakoraError> err = nullptr;
+        TokenIter err_pos;
+
+        Result(ParseStatus sts, std::shared_ptr<T> value, TokenIter e, 
+            std::shared_ptr<SakoraError> error = nullptr, 
+            TokenIter err_position = {}):
+            val(std::move(value)), status(sts), end(e), err(error), err_pos(err_position) {}
+        
+        static Result<T> failed(TokenIter current, std::shared_ptr<SakoraError> err, TokenIter err_pos) {
+            return Result<T>(ParseStatus::FAILED, nullptr, current, err, err_pos);
+        }
 
         static Result<T> failed(TokenIter end) {
             return Result<T>(ParseStatus::FAILED, nullptr, end);
@@ -51,8 +60,17 @@ namespace sakoraE {
         static Result<TokenParser> parse(TokenIter begin, TokenIter end) {
             if (check(begin, end))
                 return Result<TokenParser>(ParseStatus::SUCCESS, std::make_shared<TokenParser>(std::make_shared<Token>(*begin)), begin + 1);
-            else
-                return Result<TokenParser>::failed(end);
+            else {
+                fzlib::String msg = "Expected " + fzlib::String(magic_enum::enum_name(T)) + ", but got ";
+                if (begin == end) msg += "EOF";
+                else msg += begin->typeToString();
+                
+                PositionInfo info;
+                if (begin != end) info = begin->info;
+                
+                auto err = std::make_shared<SakoraError>(OccurredTerm::PARSER, msg, info);
+                return Result<TokenParser>::failed(begin, err, begin);
+            }
         }
     };
 
@@ -66,8 +84,17 @@ namespace sakoraE {
         static Result<DiscardParser> parse(TokenIter begin, TokenIter end) {
             if (check(begin, end))
                 return Result<DiscardParser>(ParseStatus::SUCCESS, nullptr, begin + 1);
-            else
-                return Result<DiscardParser>::failed(end);
+            else {
+                fzlib::String msg = "Expected " + fzlib::String(magic_enum::enum_name(T)) + ", but got ";
+                if (begin == end) msg += "EOF";
+                else msg += begin->typeToString();
+                
+                PositionInfo info;
+                if (begin != end) info = begin->info;
+
+                auto err = std::make_shared<SakoraError>(OccurredTerm::PARSER, msg, info);
+                return Result<DiscardParser>::failed(begin, err, begin);
+            }
         }
     };
 
@@ -100,6 +127,9 @@ namespace sakoraE {
                 auto result = T::parse(current, end);
 
                 if (result.status != ParseStatus::SUCCESS) {
+                    if (result.err_pos > current) {
+                        return Result<ClosureParser<T>>::failed(begin, result.err, result.err_pos);
+                    }
                     break;
                 }
 
@@ -146,7 +176,7 @@ namespace sakoraE {
                     );
                 } 
                 else {
-                    return Result<ConnectionParser>::failed(original_begin);
+                    return Result<ConnectionParser>::failed(original_begin, result.err, result.err_pos);
                 }
             }
         }
@@ -218,14 +248,20 @@ namespace sakoraE {
         }
 
         template<size_t Index>
-        static Result<OptionsParser> parseImpl(TokenIter begin, TokenIter end) {
+        static Result<OptionsParser> parseImpl(TokenIter begin, TokenIter end, std::shared_ptr<SakoraError> best_err, TokenIter best_pos) {
             if constexpr (Index == sizeof...(Nodes)) {
-                return Result<OptionsParser>::failed(end);
+                if (!best_err) {
+                    PositionInfo info;
+                    if (begin != end) info = begin->info;
+                    auto err = std::make_shared<SakoraError>(OccurredTerm::PARSER, "Unexpected token", info);
+                    return Result<OptionsParser>::failed(begin, err, begin);
+                }
+                return Result<OptionsParser>::failed(begin, best_err, best_pos);
             } else {
                 using CurrentType = std::tuple_element_t<Index, std::tuple<Nodes...>>;
 
                 if (!CurrentType::check(begin, end)) {
-                    return parseImpl<Index + 1>(begin, end);
+                    return parseImpl<Index + 1>(begin, end, best_err, best_pos);
                 }
 
                 auto result = CurrentType::parse(begin, end);
@@ -236,7 +272,11 @@ namespace sakoraE {
                     return Result<OptionsParser>(ParseStatus::SUCCESS, std::make_shared<OptionsParser>(OptionsParser(std::move(v), Index)), result.end);
                 }
 
-                return parseImpl<Index + 1>(begin, end);
+                if (result.err_pos > best_pos || (result.err_pos == best_pos && !best_err)) {
+                    return parseImpl<Index + 1>(begin, end, result.err, result.err_pos);
+                } else {
+                    return parseImpl<Index + 1>(begin, end, best_err, best_pos);
+                }
             }
         }
     public:
@@ -256,7 +296,7 @@ namespace sakoraE {
         }
 
         static Result<OptionsParser> parse(TokenIter begin, TokenIter end) {
-            return parseImpl<0>(begin, end);
+            return parseImpl<0>(begin, end, nullptr, begin);
         }
     };
 }
