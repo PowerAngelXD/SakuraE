@@ -35,8 +35,13 @@ int main() {
         sakoraE::TokenIter current = r.begin();
         while ((*current).type != sakoraE::TokenType::_EOF_) {
             auto result = sakoraE::StatementParser::parse(current, r.end());
-            if (result.status == sakoraE::ParseStatus::FAILED)
-                sutils::reportError(sakoraE::OccurredTerm::PARSER, "Parsering Failed...", {result.end->info.line, result.end->info.column, "system parser error"});
+            if (result.status == sakoraE::ParseStatus::FAILED) {
+                if (result.err == nullptr) {
+                    std::cerr << "Error: Parse failed with NULL error object at token: " << current->toString() << std::endl;
+                    return 1;
+                }    
+                throw *(result.err);
+            }
 
             auto res = result.val->genResource();
 
@@ -47,6 +52,10 @@ int main() {
     } 
     catch (const std::runtime_error& e) {
         std::cerr << e.what() << "\n";
+        return 1;
+    } 
+    catch (sakoraE::SakoraError& e) {
+        std::cerr << e.toString() << "\n";
         return 1;
     } 
     catch (const std::exception& e) {
