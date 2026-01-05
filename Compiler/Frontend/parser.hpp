@@ -34,7 +34,7 @@ namespace sakoraE {
         static Result<LiteralParser> parse(TokenIter begin, TokenIter end) {
             auto result = LiteralParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status, 
@@ -61,7 +61,7 @@ namespace sakoraE {
         static Result<IndexOpParser> parse(TokenIter begin, TokenIter end) {
             auto result = IndexOpParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status, 
@@ -94,7 +94,7 @@ namespace sakoraE {
         static Result<CallingOpParser> parse(TokenIter begin, TokenIter end) {
             auto result = CallingOpParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -125,7 +125,7 @@ namespace sakoraE {
         static Result<AtomIdentifierExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = AtomIdentifierExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -157,7 +157,7 @@ namespace sakoraE {
         static Result<IdentifierExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = IdentifierExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -188,7 +188,7 @@ namespace sakoraE {
         static Result<PrimExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = PrimExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -223,7 +223,7 @@ namespace sakoraE {
         static Result<MulExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = MulExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -257,7 +257,7 @@ namespace sakoraE {
         static Result<AddExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = AddExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -295,7 +295,7 @@ namespace sakoraE {
         static Result<LogicExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = LogicExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -329,7 +329,7 @@ namespace sakoraE {
         static Result<BinaryExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = BinaryExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -362,7 +362,7 @@ namespace sakoraE {
         static Result<ArrayExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = ArrayExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -389,7 +389,7 @@ namespace sakoraE {
         static Result<AssignExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = AssignExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -416,7 +416,7 @@ namespace sakoraE {
         static Result<WholeExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = WholeExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -446,7 +446,7 @@ namespace sakoraE {
         static Result<BasicTypeModifierParser> parse(TokenIter begin, TokenIter end) {
             auto result = BasicTypeModifierParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -475,7 +475,7 @@ namespace sakoraE {
         static Result<ArrayTypeModifierParser> parse(TokenIter begin, TokenIter end) {
             auto result = ArrayTypeModifierParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -505,7 +505,7 @@ namespace sakoraE {
         static Result<RangeExprParser> parse(TokenIter begin, TokenIter end) {
             auto result = RangeExprParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -529,7 +529,7 @@ namespace sakoraE {
         static Result<TypeModifierParser> parse(TokenIter begin, TokenIter end) {
             auto result = TypeModifierParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -570,7 +570,7 @@ namespace sakoraE {
         static Result<DeclareStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = DeclareStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -600,7 +600,7 @@ namespace sakoraE {
         static Result<ExprStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = ExprStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             
             return {result.status,
@@ -633,7 +633,7 @@ namespace sakoraE {
         static Result<IfStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = IfStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<IfStmtParser>(std::move(*result.val)), result.end};
         }
@@ -658,7 +658,7 @@ namespace sakoraE {
         static Result<ElseStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = ElseStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<ElseStmtParser>(std::move(*result.val)), result.end};
         }
@@ -686,7 +686,7 @@ namespace sakoraE {
         static Result<WhileStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = WhileStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<WhileStmtParser>(std::move(*result.val)), result.end};
         }
@@ -736,7 +736,7 @@ namespace sakoraE {
         static Result<ForStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = ForStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<ForStmtParser>(std::move(*result.val)), result.end};
         }
@@ -761,7 +761,7 @@ namespace sakoraE {
         static Result<ReturnStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = ReturnStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<ReturnStmtParser>(std::move(*result.val)), result.end};
         }
@@ -795,7 +795,7 @@ namespace sakoraE {
         static Result<BlockStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = BlockStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<BlockStmtParser>(std::move(*result.val)), result.end};
         }
@@ -837,7 +837,7 @@ namespace sakoraE {
         static Result<FuncDefineStmtParser> parse(TokenIter begin, TokenIter end) {
             auto result = FuncDefineStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<FuncDefineStmtParser>(std::move(*result.val)), result.end};
         }
@@ -867,7 +867,7 @@ namespace sakoraE {
         static Result<StatementParser> parse(TokenIter begin, TokenIter end) {
             auto result = StatementParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
-                return {result.status, nullptr, result.end};
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
             return {result.status, std::make_shared<StatementParser>(std::move(*result.val)), result.end};
         }
