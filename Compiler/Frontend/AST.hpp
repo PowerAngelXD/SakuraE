@@ -88,6 +88,10 @@ namespace sakoraE {
             children.push_back({childTag, node});
         }
 
+        const std::vector<std::pair<ASTTag, NodePtr>>& getChildren() const {
+            return children;
+        }
+
         fzlib::String toString() {
             std::ostringstream oss;
             oss << "" << magic_enum::enum_name(tag) << ":";

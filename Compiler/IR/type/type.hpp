@@ -127,6 +127,9 @@ namespace sakoraE::IR {
             return oss.str();
         }
 
+        // TODO: Fix this method - llvm::Type has protected destructor and cannot be managed by unique_ptr
+        // This method should return llvm::Type* instead of unique_ptr<llvm::Type>
+        /*
         std::unique_ptr<llvm::Type> toLLVMType(llvm::LLVMContext& ctx) {
             std::unique_ptr<llvm::Type> llvmType = nullptr;
             switch (token)
@@ -168,6 +171,7 @@ namespace sakoraE::IR {
 
             return llvmType;
         }
+        */
     };
 }
 
