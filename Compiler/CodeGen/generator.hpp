@@ -20,22 +20,22 @@ namespace sakoraE::CodeGen {
 
     class CodeGenerator {
     private:
-        std::unique_ptr<llvm::LLVMContext> context;
-        std::unique_ptr<llvm::Module> module;
-        std::unique_ptr<llvm::IRBuilder<>> builder;
+        llvm::LLVMContext* context;
+        llvm::Module* module;
+        llvm::IRBuilder<>* builder;
         SymbolManager symManager;
 
     public:
         CodeGenerator(std::string name) {
-            context = std::make_unique<llvm::LLVMContext>();
-            module = std::make_unique<llvm::Module>(name, *context);
-            builder = std::make_unique<llvm::IRBuilder<>>(*context);
+            context = new llvm::LLVMContext();
+            module = new llvm::Module(name, *context);
+            builder = new llvm::IRBuilder<>(*context);
             symManager.NewMap();
         }
 
-        llvm::Module* getModule() { return module.get(); }
-        llvm::LLVMContext* getContext() { return context.get(); }
-        llvm::IRBuilder<>* getBuilder() { return builder.get(); }
+        llvm::Module* getModule() { return module; }
+        llvm::LLVMContext* getContext() { return context; }
+        llvm::IRBuilder<>* getBuilder() { return builder; }
 
         llvm::Value* generate(NodePtr node);
 
