@@ -7,6 +7,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IR/Constants.h>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -39,6 +40,9 @@ namespace sakoraE::CodeGen {
         llvm::Value* generate(NodePtr node);
 
     private:
+        // Tools
+        
+
         // Expressions
         llvm::Value* genLiteralNode(NodePtr node);
         llvm::Value* genIndexOpNode(NodePtr node);
