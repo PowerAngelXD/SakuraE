@@ -40,6 +40,7 @@ namespace sakoraE {
         ASTTag tag;
         std::variant<std::monostate, TokenPtr> content;
         std::vector<std::pair<ASTTag, NodePtr>> children;
+        std::vector<NodePtr> pure_children;
 
         int hasSub(ASTTag t) {
             for (std::size_t i = 0; i < children.size(); i ++) {
@@ -75,6 +76,7 @@ namespace sakoraE {
         NodePtr& operator[] (ASTTag t) {
             if (hasSub(t) == -1) {
                 children.push_back({t, std::make_shared<Node>(t)});
+                pure_children.push_back(children.at(children.size() - 1).second);
                 return children.at(hasSub(t)).second;
             }
             else {
@@ -86,6 +88,11 @@ namespace sakoraE {
             if (!node) return;
             ASTTag childTag = node->getTag();
             children.push_back({childTag, node});
+            pure_children.push_back(node);
+        }
+
+        std::vector<NodePtr> getChildren() {
+            return pure_children;
         }
 
         fzlib::String toString() {
