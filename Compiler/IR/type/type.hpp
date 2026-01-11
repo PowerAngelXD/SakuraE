@@ -23,8 +23,8 @@ namespace sakoraE::IR {
     enum class TypeToken {
         Integer, Char,
         Float, String,
-        Bool, Custom, Function, 
-        Null
+        Bool, Custom, 
+        Null, LLVMValue
     };
 
     enum class ValueType {
@@ -112,7 +112,7 @@ namespace sakoraE::IR {
     
     class Type {
         TypeToken token = TypeToken::Null;
-        TypeModifier mod;
+        TypeModifier mod = TypeModifier(ValueType::Value);
     public:
         Type()=default;
         Type(TypeToken t): token(t) {}
@@ -167,6 +167,14 @@ namespace sakoraE::IR {
             }
 
             return llvmType;
+        }
+
+        bool operator== (const Type& t) {
+            return token == t.token && mod == t.mod;
+        }
+
+        bool operator!= (const Type& t) {
+            return !operator==(t);
         }
     };
 }
