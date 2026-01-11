@@ -6,19 +6,19 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
 
-namespace sakIR {
+namespace sakoraE::IR {
     using LLVMCtxPtr = std::unique_ptr<llvm::LLVMContext>;
     using LLVMModule = std::unique_ptr<llvm::Module>;
     using LLVMIRBuilder = std::unique_ptr<llvm::IRBuilder<>>;
     struct IRManager {
-        LLVMCtxPtr context;
-        LLVMModule mainModule;
-        LLVMIRBuilder builder;
+        llvm::LLVMContext* context;
+        llvm::Module* mainModule;
+        llvm::IRBuilder<>* builder;
 
         IRManager() {
-            context = std::make_unique<llvm::LLVMContext>();
-            mainModule = std::make_unique<llvm::Module>("main_module", *context);
-            builder = std::make_unique<llvm::IRBuilder<>>(*context);
+            context = new llvm::LLVMContext();
+            mainModule = new llvm::Module("main_module", *context);
+            builder = new llvm::IRBuilder<>(*context);
         }
     };
 }
