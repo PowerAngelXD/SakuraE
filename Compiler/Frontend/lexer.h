@@ -38,6 +38,8 @@ namespace sakoraE {
         COMMA,           // ,
         STMT_END,        // ;
         FN_OP,           // |>
+        AINC,            // ++
+        SDEC,            // --
 
         KEYWORD_LET, KEYWORD_IF, KEYWORD_ELSE,
         KEYWORD_WHILE, KEYWORD_FOR, KEYWORD_FUNC,

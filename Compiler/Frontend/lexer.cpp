@@ -197,6 +197,11 @@ sakoraE::Token sakoraE::Lexer::makeSymbol() {
                 content = "+=";
                 next(); next();
             }
+            else if (peek(1) == '+') {
+                type = TokenType::ADD_ASSIGN;
+                content = "++";
+                next(); next();
+            }
             else {
                 type = TokenType::ADD;
                 content = "+";
@@ -207,6 +212,11 @@ sakoraE::Token sakoraE::Lexer::makeSymbol() {
             if (peek(1) == '=') {
                 type = TokenType::SUB_ASSIGN;
                 content = "-=";
+                next(); next();
+            }
+            else if (peek(1) == '-') {
+                type = TokenType::SDEC;
+                content = "--";
                 next(); next();
             }
             else if (peek(1) == '>') {
