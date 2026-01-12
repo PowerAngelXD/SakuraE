@@ -29,7 +29,7 @@ namespace sakoraE {
         Value(llvm::Value* val, PositionInfo info): 
             content(val), type(IR::TypeToken::LLVMValue), create_info(info) {}
         
-        const IR::Type& getType() {
+        const IR::Type& getType() const {
             return type;
         }
 
@@ -37,12 +37,12 @@ namespace sakoraE {
             return type.toLLVMType(context);
         }
 
-        const PositionInfo& getInfo() {
+        const PositionInfo& getInfo() const {
             return create_info;
         }
 
         template<typename T>
-        T getValue() {
+        const T& getValue() const {
             if (std::holds_alternative<T>(content)) {
                 return std::get<T>(content);
             }
