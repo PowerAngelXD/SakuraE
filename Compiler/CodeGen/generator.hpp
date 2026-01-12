@@ -40,7 +40,7 @@ namespace sakoraE::CodeGen {
         // Expressions
         llvm::Value* genLiteralNode(NodePtr node);
         llvm::Value* genIndexOpNode(NodePtr node);
-        std::vector<llvm::Value*> genCallingOpNode(NodePtr node);
+        llvm::Value* genCallingOpNode(NodePtr node);
         llvm::Value* genAtomIdentifierNode(NodePtr node);
         llvm::Value* genIdentifierExprNode(NodePtr node);
         llvm::Value* genPrimExprNode(NodePtr node);

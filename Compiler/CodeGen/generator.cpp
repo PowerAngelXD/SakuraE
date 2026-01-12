@@ -10,7 +10,7 @@ namespace sakoraE::CodeGen {
         return nullptr;
     }
 
-    std::vector<llvm::Value*> CodeGenerator::genCallingOpNode(NodePtr node) {
+    llvm::Value* CodeGenerator::genCallingOpNode(NodePtr node) {
         return nullptr;
     }
 
