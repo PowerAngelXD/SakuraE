@@ -55,7 +55,8 @@ file(GLOB SRC_FILES "includes/magic_enum.hpp"
                     "Compiler/Utils/logger.hpp"
                     "Compiler/Frontend/AST.h"
                     "Compiler/IR/*.hpp"
-                    "Compiler/IR/type/*.hpp"
+                    "Compiler/IR/value/*.hpp"
+                    "Compiler/IR/layer/*.hpp"
                     "Compiler/CodeGen/*.hpp"
                     "Compiler/CodeGen/*.cpp")
         
