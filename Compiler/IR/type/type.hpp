@@ -12,6 +12,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IR/Intrinsics.h>
 #include "includes/magic_enum.hpp"
 #include "includes/String.hpp"
 
@@ -145,18 +146,17 @@ namespace sakoraE::IR {
                 llvmType = llvm::Type::getVoidTy(ctx);
                 break;
             case TypeToken::String:
-                llvmType = llvm::Type::getInt8Ty(ctx)->getPointerTo();
+                llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
                 break;
             
             default:
                 break;
             }
-
-            // TODO: 没有设计类型不符的检查
+            
             if (mod.getValueType() == ValueType::Pointer)
-                llvmType = llvmType->getPointerTo();
+                llvmType = llvm::PointerType::getUnqual(llvmType);
             else if (mod.getValueType() == ValueType::Ref)
-                llvmType = llvmType->getPointerTo();
+                llvmType = llvm::PointerType::getUnqual(llvmType);
             else if (mod.getValueType() == ValueType::Array) {
                 auto arr = mod.getModAsArray();
                 for (auto it = arr.each_len.rbegin(); it != arr.each_len.rend(); it ++) {
