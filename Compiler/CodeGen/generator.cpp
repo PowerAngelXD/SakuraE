@@ -3,43 +3,15 @@
 
 namespace sakoraE::CodeGen {
     llvm::Value* CodeGenerator::genLiteralNode(NodePtr node) {
-        if (!node->isLeaf()) 
-            throw SakoraError(OccurredTerm::IR_GENERATING, 
-                            "This Node is not a leaf-node",
-                            node->getToken().info);
-        
-        auto token = node->getToken();
-        switch (token.type) {
-            case TokenType::INT_N:
-                return llvm::ConstantInt::get(llvm::Type::getInt32Ty(*context), atoi(token.content.c_str()));
-            case TokenType::FLOAT_N:
-                return llvm::ConstantFP::get(llvm::Type::getFloatTy(*context), atof(token.content.c_str()));
-            case TokenType::BOOL_CONST:
-                return llvm::ConstantInt::get(llvm::Type::getInt1Ty(*context), (token.content == "true"?true:false));
-            case TokenType::STRING:
-                return llvm::ConstantDataArray::getString(*context, token.content.c_str());
-            case TokenType::CHAR:
-                return llvm::ConstantInt::get(llvm::Type::getInt8Ty(*context), token.content.at(0));
-            default:
-                throw SakoraError(OccurredTerm::IR_GENERATING, 
-                            "Unknown literal",
-                            node->getToken().info);
-        }
+        return nullptr;
     }
 
     llvm::Value* CodeGenerator::genIndexOpNode(NodePtr node) {
-        return genAddExprNode((*node)[ASTTag::HeadExpr]);
+        return nullptr;
     }
 
     std::vector<llvm::Value*> CodeGenerator::genCallingOpNode(NodePtr node) {
-        if (!node->hasNode(ASTTag::Exprs)) return {nullptr};
-
-        std::vector<llvm::Value*> args;
-        for (auto expr: node->getChildren()) {
-            args.push_back(genWholeExprNode(expr));
-        }
-
-        return args;
+        return nullptr;
     }
 
     llvm::Value* CodeGenerator::genAtomIdentifierNode(NodePtr node) {
