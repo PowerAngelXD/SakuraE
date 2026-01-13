@@ -20,7 +20,9 @@ namespace sakuraE::IR {
         assign, 
         decl_block, 
         decl_func, 
-        decl_module
+        decl_module,
+        indexing,
+        call
     };
 
     class Instruction {
