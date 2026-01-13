@@ -23,14 +23,12 @@ namespace sakuraE::CodeGen {
         llvm::LLVMContext* context;
         llvm::Module* module;
         llvm::IRBuilder<>* builder;
-        SymbolManager symManager;
 
     public:
         CodeGenerator(std::string name) {
             context = new llvm::LLVMContext();
             module = new llvm::Module(name, *context);
             builder = new llvm::IRBuilder<>(*context);
-            symManager.NewMap();
         }
 
         llvm::Module* getModule() { return module; }
