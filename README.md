@@ -65,7 +65,7 @@ SakuraE/
 ### Build Steps
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/SakuraE.git
+   git clone https://github.com/powerangelxd/SakuraE.git
    cd SakuraE
    ```
 
