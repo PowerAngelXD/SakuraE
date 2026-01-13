@@ -15,7 +15,7 @@ namespace sakuraE::IR {
 
         std::vector<Function> fnList;
         // Indicates the current maximum index of fnList
-        std::size_t cur = 0;
+        std::size_t cursor = 0;
 
         // Determine whether a module has an entry
         bool hasEntry;
@@ -28,14 +28,14 @@ namespace sakuraE::IR {
 
         Module& buildFunction(const Function& fn) {
             fnList.push_back(fn);
-            cur ++;
+            cursor ++;
 
             return *this;
         }
 
         Module& buildFunction(fzlib::String name, PositionInfo info) {
             fnList.emplace_back(name, info);
-            cur ++;
+            cursor ++;
 
             return *this;
         }
@@ -45,17 +45,17 @@ namespace sakuraE::IR {
         }
 
         Function& curFunc() {
-            return fnList[cur];
+            return fnList[cursor];
         }
 
-        const Function& func(fzlib::String name, FormalParamsDefine params) {
+        Function& func(fzlib::String name, FormalParamsDefine params) {
             std::vector<Function> basic_results;
             for (auto fn: fnList) {
                 if (fn.getName() == name) 
                     basic_results.push_back(fn);
             }
 
-            for (const auto& fn: basic_results) {
+            for (auto& fn: basic_results) {
                 bool equal = true;
 
                 if (fn.getFormalParams().size() != params.size()) continue;
@@ -72,6 +72,10 @@ namespace sakuraE::IR {
             throw SakuraError(OccurredTerm::IR_GENERATING,
                             "Expected to get an unknown function in module: '" + ID + "'",
                             createInfo);
+        }
+
+        const std::size_t& cur() {
+            return cursor;
         }
 
         const fzlib::String& id() {

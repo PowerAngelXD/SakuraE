@@ -51,13 +51,13 @@ namespace sakuraE::IR {
         
         std::vector<Block> blocks;
         // Indicates the current maximum index of blocks
-        std::size_t cur = 0;
+        std::size_t cursor = 0;
     public:
         Function(fzlib::String name, PositionInfo info): funcName(name), funcScope(info) {}
 
         Function& buildBlock(const Block& block) {
             blocks.push_back(block);
-            cur ++;
+            cursor ++;
 
             return *this;
         }
@@ -76,10 +76,10 @@ namespace sakuraE::IR {
 
         // Return current cursor
         Block& curBlock() {
-            return blocks[cur];
+            return blocks[cursor];
         }
 
-        const Block& block(std::size_t index) {
+        Block& block(std::size_t index) {
             return blocks[index];
         }
 
@@ -95,7 +95,11 @@ namespace sakuraE::IR {
             return formalParams;
         }
 
-        const Block& operator[] (std::size_t index) {
+        const std::size_t& cur() {
+            return cursor;
+        }
+
+        Block& operator[] (std::size_t index) {
             return block(index);
         }
     };
