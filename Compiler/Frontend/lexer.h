@@ -1,5 +1,5 @@
-#ifndef SAKORAE_LEXER_H
-#define SAKORAE_LEXER_H
+#ifndef SAKURAE_LEXER_H
+#define SAKURAE_LEXER_H
 
 #include <iostream>
 #include <string>
@@ -14,7 +14,7 @@
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Utils/Logger.hpp"
 
-namespace sakoraE {
+namespace sakuraE {
     enum class TokenType {
         IDENTIFIER, KEYWORD,  
 

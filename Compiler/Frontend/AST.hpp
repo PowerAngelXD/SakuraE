@@ -1,5 +1,5 @@
-#ifndef SAKORAE_AST_HPP
-#define SAKORAE_AST_HPP
+#ifndef SAKURAE_AST_HPP
+#define SAKURAE_AST_HPP
 
 #include <iostream>
 #include <map>
@@ -11,7 +11,7 @@
 #include "includes/magic_enum.hpp"
 #include "includes/String.hpp"
 
-namespace sakoraE {
+namespace sakuraE {
     class Node;
     using TokenPtr = std::shared_ptr<Token>;
     enum class ASTTag {

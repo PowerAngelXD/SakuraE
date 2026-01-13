@@ -18,7 +18,7 @@
 
 #include "Compiler/Utils/Logger.hpp"
 
-namespace sakoraE::IR {
+namespace sakuraE::IR {
     enum class TypeToken {
         Integer, Char,
         Float, String,

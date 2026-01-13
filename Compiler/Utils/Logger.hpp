@@ -1,5 +1,5 @@
-#ifndef SAKORAE_LOGGER_HPP
-#define SAKORAE_LOGGER_HPP
+#ifndef SAKURAE_LOGGER_HPP
+#define SAKURAE_LOGGER_HPP
 
 #include "Compiler/Error/error.hpp"
 
@@ -12,8 +12,8 @@ namespace sutils {
         std::cout << "[SakoraUtils|Debug]: " <<  content << std::endl;
     }
 
-    inline void reportError(sakoraE::OccurredTerm term, fzlib::String content, sakoraE::PositionInfo pinfo) {
-        sakoraE::SakoraError error(term, content, pinfo);
+    inline void reportError(sakuraE::OccurredTerm term, fzlib::String content, sakuraE::PositionInfo pinfo) {
+        sakuraE::SakuraError error(term, content, pinfo);
         throw std::runtime_error(error.toString().c_str());
     }
 }

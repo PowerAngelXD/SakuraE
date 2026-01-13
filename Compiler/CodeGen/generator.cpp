@@ -1,7 +1,7 @@
 #include "generator.hpp"
 #include <iostream>
 
-namespace sakoraE::CodeGen {
+namespace sakuraE::CodeGen {
     llvm::Value* CodeGenerator::genLiteralNode(NodePtr node) {
         return nullptr;
     }

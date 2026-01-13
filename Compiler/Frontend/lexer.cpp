@@ -1,35 +1,35 @@
 #include "lexer.h"
 
-sakoraE::Token::Token(TokenType t, const fzlib::String& c, int l, int col, const fzlib::String& det)
+sakuraE::Token::Token(TokenType t, const fzlib::String& c, int l, int col, const fzlib::String& det)
     : content(c), type(t) {
     info.line = l;
     info.column = col;
     info.details = det;
 }
 
-fzlib::String sakoraE::Token::typeToString() const {
+fzlib::String sakuraE::Token::typeToString() const {
     fzlib::String s = magic_enum::enum_name(type);
     return fzlib::String(s);
 }
 
-fzlib::String sakoraE::Token::toString() const {
+fzlib::String sakuraE::Token::toString() const {
     return "<" + content + ", " + typeToString() + ">";
 }
 
 // --- Lexer Implementations (构造函数从 .h 移动，其余为原有实现) ---
 
-sakoraE::Lexer::Lexer(const fzlib::String& source) 
+sakuraE::Lexer::Lexer(const fzlib::String& source) 
     : source_code(source), current_pos(0), current_line(1), current_column(1) {}
 
 
-char sakoraE::Lexer::peek(int offset) const {
+char sakuraE::Lexer::peek(int offset) const {
     if (current_pos + offset >= source_code.len()) {
         return '\0';
     }
     return source_code[current_pos + offset];
 }
 
-char sakoraE::Lexer::next() {
+char sakuraE::Lexer::next() {
     char c = peek();
     if (c != '\0') {
         current_pos++;
@@ -43,7 +43,7 @@ char sakoraE::Lexer::next() {
     return c;
 }
 
-void sakoraE::Lexer::skip() {
+void sakuraE::Lexer::skip() {
     while (true) {
         char c = peek();
         
@@ -64,25 +64,25 @@ void sakoraE::Lexer::skip() {
     }
 }
 
-bool sakoraE::Lexer::isKeyword(const fzlib::String& content) const {
+bool sakuraE::Lexer::isKeyword(const fzlib::String& content) const {
     return std::find(keywords.begin(), keywords.end(), content) != keywords.end();
 }
 
-bool sakoraE::Lexer::isTypeField(const fzlib::String &content) const {
+bool sakuraE::Lexer::isTypeField(const fzlib::String &content) const {
     return std::find(typeFields.begin(), typeFields.end(), content) != typeFields.end();
 }
 
-sakoraE::TokenType sakoraE::Lexer::str2KeywordType(fzlib::String content) const {
+sakuraE::TokenType sakuraE::Lexer::str2KeywordType(fzlib::String content) const {
     std::transform(content.begin(), content.end(), content.begin(), ::toupper);
     return magic_enum::enum_cast<TokenType>(("KEYWORD_" + content).c_str()).value();
 }
 
-sakoraE::TokenType sakoraE::Lexer::str2TypeField(fzlib::String content) const {
+sakuraE::TokenType sakuraE::Lexer::str2TypeField(fzlib::String content) const {
     std::transform(content.begin(), content.end(), content.begin(), ::toupper);
     return magic_enum::enum_cast<TokenType>(("TYPE_" + content).c_str()).value();
 }
 
-sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
+sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
     int start_line = current_line;
     int start_column = current_column;
     fzlib::String content;
@@ -121,7 +121,7 @@ sakoraE::Token sakoraE::Lexer::makeIdentifierOrKeyword() {
     return Token(type, content, start_line, start_column, details);
 }
 
-sakoraE::Token sakoraE::Lexer::makeNumberLiteral() {
+sakuraE::Token sakuraE::Lexer::makeNumberLiteral() {
     int start_line = current_line;
     int start_column = current_column;
     fzlib::String content;
@@ -141,7 +141,7 @@ sakoraE::Token sakoraE::Lexer::makeNumberLiteral() {
     return Token(type, content, start_line, start_column, details);
 }
 
-sakoraE::Token sakoraE::Lexer::makeCharLiteral() {
+sakuraE::Token sakuraE::Lexer::makeCharLiteral() {
     int start_line = current_line;
     int start_column = current_column;
     fzlib::String content;
@@ -159,7 +159,7 @@ sakoraE::Token sakoraE::Lexer::makeCharLiteral() {
     return Token(type, content, start_line, start_column);
 }
 
-sakoraE::Token sakoraE::Lexer::makeStringLiteral() {
+sakuraE::Token sakuraE::Lexer::makeStringLiteral() {
     int start_line = current_line;
     int start_column = current_column;
     TokenType type = TokenType::STRING;
@@ -183,7 +183,7 @@ sakoraE::Token sakoraE::Lexer::makeStringLiteral() {
     return Token(type, content, start_line, start_column, details);
 }
 
-sakoraE::Token sakoraE::Lexer::makeSymbol() {
+sakuraE::Token sakuraE::Lexer::makeSymbol() {
     int start_line = current_line;
     int start_column = current_column;
     fzlib::String content;
@@ -400,7 +400,7 @@ sakoraE::Token sakoraE::Lexer::makeSymbol() {
 }
 
 
-std::vector<sakoraE::Token> sakoraE::Lexer::tokenize() {
+std::vector<sakuraE::Token> sakuraE::Lexer::tokenize() {
     std::vector<Token> tokens;
     
     while (peek() != '\0') {

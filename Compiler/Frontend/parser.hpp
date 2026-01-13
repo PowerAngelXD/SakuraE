@@ -1,5 +1,5 @@
-#ifndef SAKORAE_PARSER_HPP
-#define SAKORAE_PARSER_HPP
+#ifndef SAKURAE_PARSER_HPP
+#define SAKURAE_PARSER_HPP
 #include <memory>
 
 #include "AST.hpp"
@@ -7,7 +7,7 @@
 
 #include "includes/String.hpp"
 
-namespace sakoraE {
+namespace sakuraE {
     // Forward declare
     class AddExprParser;
     class WholeExprParser;

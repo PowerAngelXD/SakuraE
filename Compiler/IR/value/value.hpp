@@ -1,4 +1,4 @@
-#ifndef SAKORAE_VALUE_HPP
+#ifndef SAKURAE_VALUE_HPP
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/LLVMContext.h>
@@ -10,7 +10,7 @@
 #include "type.hpp"
 #include "Compiler/Frontend/lexer.h"
 
-namespace sakoraE {
+namespace sakuraE {
     class Value {
         std::variant<std::monostate, int, double, fzlib::String, char, bool, llvm::Value*> content;
         IR::Type type;
@@ -47,7 +47,7 @@ namespace sakoraE {
             if (std::holds_alternative<T>(content)) {
                 return std::get<T>(content);
             }
-            throw SakoraError(OccurredTerm::IR_GENERATING, 
+            throw SakuraError(OccurredTerm::IR_GENERATING, 
                                 "Unknown value type, but expect to get it",
                                 create_info);
         }
@@ -94,7 +94,7 @@ namespace sakoraE {
                 return Value(tok.content.at(0), tok.info);
             
             default:
-                throw SakoraError(OccurredTerm::IR_GENERATING,
+                throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Unknown type of token to convert",
                                 tok.info);
             }
@@ -102,4 +102,4 @@ namespace sakoraE {
     };
 }
 
-#endif // !SAKORAE_VALUE_HPP
+#endif // !SAKURAE_VALUE_HPP

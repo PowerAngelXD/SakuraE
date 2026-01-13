@@ -26,16 +26,16 @@ func foo(a: int, b: int, s: string) -> int {
 int main() {
     std::cout << "--- Source ---\n" << SOURCE_CODE << "\n";
     try {
-        sakoraE::Lexer lexer(SOURCE_CODE);
+        sakuraE::Lexer lexer(SOURCE_CODE);
         auto r = lexer.tokenize();
 
         for(auto t: r) {
             std::cout << t.toString() << "; size:" << t.toString().len() << std::endl;
         }
-        sakoraE::TokenIter current = r.begin();
-        while ((*current).type != sakoraE::TokenType::_EOF_) {
-            auto result = sakoraE::StatementParser::parse(current, r.end());
-            if (result.status == sakoraE::ParseStatus::FAILED) {
+        sakuraE::TokenIter current = r.begin();
+        while ((*current).type != sakuraE::TokenType::_EOF_) {
+            auto result = sakuraE::StatementParser::parse(current, r.end());
+            if (result.status == sakuraE::ParseStatus::FAILED) {
                 if (result.err == nullptr) {
                     std::cerr << "Error: Parse failed with NULL error object at token: " << current->toString() << std::endl;
                     return 1;
@@ -54,7 +54,7 @@ int main() {
         std::cerr << e.what() << "\n";
         return 1;
     } 
-    catch (sakoraE::SakoraError& e) {
+    catch (sakuraE::SakuraError& e) {
         std::cerr << e.toString() << "\n";
         return 1;
     } 

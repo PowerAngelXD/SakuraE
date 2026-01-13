@@ -1,6 +1,6 @@
 #include "parser.hpp"
 
-sakoraE::NodePtr sakoraE::LiteralParser::genResource() {
+sakuraE::NodePtr sakuraE::LiteralParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::LiteralNode);
 
     (*root)[ASTTag::Literal] = std::visit([](auto& ptr) -> NodePtr {
@@ -11,7 +11,7 @@ sakoraE::NodePtr sakoraE::LiteralParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::IndexOpParser::genResource() {
+sakuraE::NodePtr sakuraE::IndexOpParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::IndexOpNode);
 
     (*root)[ASTTag::HeadExpr] = std::get<1>(getTuple())->genResource();
@@ -19,7 +19,7 @@ sakoraE::NodePtr sakoraE::IndexOpParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::CallingOpParser::genResource() {
+sakuraE::NodePtr sakuraE::CallingOpParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::CallingOpNode);
 
     if (std::get<1>(getTuple())->isEmpty()) return root;
@@ -40,7 +40,7 @@ sakoraE::NodePtr sakoraE::CallingOpParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::AtomIdentifierExprParser::genResource() {
+sakuraE::NodePtr sakuraE::AtomIdentifierExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::AtomIdentifierNode);
 
     (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<0>(getTuple())->token);
@@ -60,7 +60,7 @@ sakoraE::NodePtr sakoraE::AtomIdentifierExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::IdentifierExprParser::genResource() {
+sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::IdentifierExprNode);
     auto not_op = std::get<0>(getTuple());
     if (!not_op->isEmpty())
@@ -78,7 +78,7 @@ sakoraE::NodePtr sakoraE::IdentifierExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::PrimExprParser::genResource() {
+sakuraE::NodePtr sakuraE::PrimExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::PrimExprNode);
     
     std::visit([&](auto& var) {
@@ -99,7 +99,7 @@ sakoraE::NodePtr sakoraE::PrimExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::MulExprParser::genResource() {
+sakuraE::NodePtr sakuraE::MulExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::MulExprNode);
 
     (*root)[ASTTag::Exprs]->addChild(std::get<0>(getTuple())->genResource());
@@ -118,7 +118,7 @@ sakoraE::NodePtr sakoraE::MulExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::AddExprParser::genResource() {
+sakuraE::NodePtr sakuraE::AddExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::AddExprNode);
 
     (*root)[ASTTag::Exprs]->addChild(std::get<0>(getTuple())->genResource());
@@ -137,7 +137,7 @@ sakoraE::NodePtr sakoraE::AddExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::LogicExprParser::genResource() {
+sakuraE::NodePtr sakuraE::LogicExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::LogicExprNode);
 
     (*root)[ASTTag::Exprs]->addChild(std::get<0>(getTuple())->genResource());
@@ -156,7 +156,7 @@ sakoraE::NodePtr sakoraE::LogicExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::BinaryExprParser::genResource() {
+sakuraE::NodePtr sakuraE::BinaryExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::BinaryExprNode);
 
     (*root)[ASTTag::Exprs]->addChild(std::get<0>(getTuple())->genResource());
@@ -175,7 +175,7 @@ sakoraE::NodePtr sakoraE::BinaryExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::ArrayExprParser::genResource() {
+sakuraE::NodePtr sakuraE::ArrayExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ArrayExprNode);
 
     auto checker_expr = std::get<1>(getTuple());
@@ -193,7 +193,7 @@ sakoraE::NodePtr sakoraE::ArrayExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::AssignExprParser::genResource() {
+sakuraE::NodePtr sakuraE::AssignExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::AssignExprNode);
 
     (*root)[ASTTag::Identifier] = std::get<0>(getTuple())->genResource();
@@ -203,7 +203,7 @@ sakoraE::NodePtr sakoraE::AssignExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::WholeExprParser::genResource() {
+sakuraE::NodePtr sakuraE::WholeExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::WholeExprNode);
 
     std::visit([&](auto& var) {
@@ -227,7 +227,7 @@ sakoraE::NodePtr sakoraE::WholeExprParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::BasicTypeModifierParser::genResource() {
+sakuraE::NodePtr sakuraE::BasicTypeModifierParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::BasicTypeModifierNode);
 
     (*root)[ASTTag::Keyword] = std::visit([=](auto& ptr) -> NodePtr {
@@ -238,7 +238,7 @@ sakoraE::NodePtr sakoraE::BasicTypeModifierParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::ArrayTypeModifierParser::genResource() {
+sakuraE::NodePtr sakuraE::ArrayTypeModifierParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ArrayTypeModifierNode);
 
     if (!std::get<1>(getTuple())->isEmpty())
@@ -249,7 +249,7 @@ sakoraE::NodePtr sakoraE::ArrayTypeModifierParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::TypeModifierParser::genResource() {
+sakuraE::NodePtr sakuraE::TypeModifierParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::TypeModifierNode);
 
     std::visit([&](auto& var) {
@@ -267,7 +267,7 @@ sakoraE::NodePtr sakoraE::TypeModifierParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::RangeExprParser::genResource() {
+sakuraE::NodePtr sakuraE::RangeExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::RangeExprNode);
 
     std::visit([&](auto& var) {
@@ -287,7 +287,7 @@ sakoraE::NodePtr sakoraE::RangeExprParser::genResource() {
 
 // Stmt
 
-sakoraE::NodePtr sakoraE::DeclareStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::DeclareStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::DeclareStmtNode);
     bool hasTypeStriction = false;
 
@@ -311,7 +311,7 @@ sakoraE::NodePtr sakoraE::DeclareStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::ExprStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::ExprStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ExprStmtNode);
 
     std::visit([&](auto& var) {
@@ -321,7 +321,7 @@ sakoraE::NodePtr sakoraE::ExprStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::IfStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::IfStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::IfStmtNode);
 
     (*root)[ASTTag::Condition] = std::get<2>(getTuple())->genResource();
@@ -333,7 +333,7 @@ sakoraE::NodePtr sakoraE::IfStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::ElseStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::ElseStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ElseStmtNode);
 
     (*root)[ASTTag::Block] = std::get<1>(getTuple())->genResource();
@@ -341,7 +341,7 @@ sakoraE::NodePtr sakoraE::ElseStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::WhileStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::WhileStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::WhileStmtNode);
 
     (*root)[ASTTag::Condition] = std::get<2>(getTuple())->genResource();
@@ -350,7 +350,7 @@ sakoraE::NodePtr sakoraE::WhileStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::ForStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::ForStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ForStmtNode);
 
     std::visit([&](auto& var) {
@@ -374,7 +374,7 @@ sakoraE::NodePtr sakoraE::ForStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::BlockStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::BlockStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::BlockStmtNode);
 
     for (auto stmt: std::get<1>(getTuple())->getClosure()) {
@@ -387,7 +387,7 @@ sakoraE::NodePtr sakoraE::BlockStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::FuncDefineStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::FuncDefineStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::FuncDefineStmtNode);
 
     (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
@@ -417,7 +417,7 @@ sakoraE::NodePtr sakoraE::FuncDefineStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::ReturnStmtParser::genResource() {
+sakuraE::NodePtr sakuraE::ReturnStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ReturnStmtNode);
 
     (*root)[ASTTag::HeadExpr] = std::get<1>(getTuple())->genResource();
@@ -425,7 +425,7 @@ sakoraE::NodePtr sakoraE::ReturnStmtParser::genResource() {
     return root;
 }
 
-sakoraE::NodePtr sakoraE::StatementParser::genResource() {
+sakuraE::NodePtr sakuraE::StatementParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::Stmt);
 
     std::visit([&](auto& var) {

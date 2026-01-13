@@ -1,5 +1,5 @@
-#ifndef SAKORAE_PARSER_BASE_HPP
-#define SAKORAE_PARSER_BASE_HPP
+#ifndef SAKURAE_PARSER_BASE_HPP
+#define SAKURAE_PARSER_BASE_HPP
 
 #include <iostream>
 #include <type_traits>
@@ -9,7 +9,7 @@
 
 #include "lexer.h"
 
-namespace sakoraE {
+namespace sakuraE {
     using TokenIter = std::vector<Token>::const_iterator;
 
     enum class ParseStatus {
@@ -23,15 +23,15 @@ namespace sakoraE {
         ParseStatus status = ParseStatus::UNPARSED;
         TokenIter end;
 
-        std::shared_ptr<SakoraError> err = nullptr;
+        std::shared_ptr<SakuraError> err = nullptr;
         TokenIter err_pos;
 
         Result(ParseStatus sts, std::shared_ptr<T> value, TokenIter e, 
-            std::shared_ptr<SakoraError> error = nullptr, 
+            std::shared_ptr<SakuraError> error = nullptr, 
             TokenIter err_position = {}):
             val(std::move(value)), status(sts), end(e), err(error), err_pos(err_position) {}
         
-        static Result<T> failed(TokenIter current, std::shared_ptr<SakoraError> err, TokenIter err_pos) {
+        static Result<T> failed(TokenIter current, std::shared_ptr<SakuraError> err, TokenIter err_pos) {
             return Result<T>(ParseStatus::FAILED, nullptr, current, err, err_pos);
         }
 
@@ -47,7 +47,7 @@ namespace sakoraE {
     };
 
     // Only to parse a single token
-    template<sakoraE::TokenType T>
+    template<sakuraE::TokenType T>
     struct TokenParser {
         const std::shared_ptr<Token> token;
 
@@ -68,14 +68,14 @@ namespace sakoraE {
                 PositionInfo info;
                 if (begin != end) info = begin->info;
                 
-                auto err = std::make_shared<SakoraError>(OccurredTerm::PARSER, msg, info);
+                auto err = std::make_shared<SakuraError>(OccurredTerm::PARSER, msg, info);
                 return Result<TokenParser>::failed(begin, err, begin);
             }
         }
     };
 
     // Parse single token, but ignore it (not include it in the value)
-    template<sakoraE::TokenType T>
+    template<sakuraE::TokenType T>
     struct DiscardParser {
         static bool check(TokenIter begin, TokenIter end) {
             return begin != end && begin->type  == T;
@@ -92,7 +92,7 @@ namespace sakoraE {
                 PositionInfo info;
                 if (begin != end) info = begin->info;
 
-                auto err = std::make_shared<SakoraError>(OccurredTerm::PARSER, msg, info);
+                auto err = std::make_shared<SakuraError>(OccurredTerm::PARSER, msg, info);
                 return Result<DiscardParser>::failed(begin, err, begin);
             }
         }
@@ -248,12 +248,12 @@ namespace sakoraE {
         }
 
         template<size_t Index>
-        static Result<OptionsParser> parseImpl(TokenIter begin, TokenIter end, std::shared_ptr<SakoraError> best_err, TokenIter best_pos) {
+        static Result<OptionsParser> parseImpl(TokenIter begin, TokenIter end, std::shared_ptr<SakuraError> best_err, TokenIter best_pos) {
             if constexpr (Index == sizeof...(Nodes)) {
                 if (!best_err) {
                     PositionInfo info;
                     if (begin != end) info = begin->info;
-                    auto err = std::make_shared<SakoraError>(OccurredTerm::PARSER, "Unexpected token", info);
+                    auto err = std::make_shared<SakuraError>(OccurredTerm::PARSER, "Unexpected token", info);
                     return Result<OptionsParser>::failed(begin, err, begin);
                 }
                 return Result<OptionsParser>::failed(begin, best_err, best_pos);

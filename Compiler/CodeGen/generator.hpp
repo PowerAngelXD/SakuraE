@@ -1,5 +1,5 @@
-#ifndef SAKORAE_GENERATOR_HPP
-#define SAKORAE_GENERATOR_HPP
+#ifndef SAKURAE_GENERATOR_HPP
+#define SAKURAE_GENERATOR_HPP
 
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Type.h>
@@ -15,8 +15,8 @@
 #include "Compiler/Frontend/AST.hpp"
 #include "Compiler/IR/IR.hpp"
 
-namespace sakoraE::CodeGen {
-    using namespace sakoraE::IR;
+namespace sakuraE::CodeGen {
+    using namespace sakuraE::IR;
 
     class CodeGenerator {
     private:
@@ -66,4 +66,4 @@ namespace sakoraE::CodeGen {
     };
 }
 
-#endif // ! SAKORAE_GENERATOR_HPP
+#endif // ! SAKURAE_GENERATOR_HPP

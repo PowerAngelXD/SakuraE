@@ -7,13 +7,9 @@
 #include <llvm/IR/Verifier.h>
 
 #include "Compiler/Frontend/AST.hpp"
-#include "symbol.hpp"
-#include "value.hpp"
+#include "value/value.hpp"
 
-namespace sakoraE::IR {
-    using LLVMCtxPtr = std::unique_ptr<llvm::LLVMContext>;
-    using LLVMModule = std::unique_ptr<llvm::Module>;
-    using LLVMIRBuilder = std::unique_ptr<llvm::IRBuilder<>>;
+namespace sakuraE::IR {
     class IRManager {
         // Storage constants
         std::vector<Value> constantPool;

@@ -1,12 +1,12 @@
-#ifndef SAKORAE_ERROR_HPP
-#define SAKORAE_ERROR_HPP
+#ifndef SAKURAE_ERROR_HPP
+#define SAKURAE_ERROR_HPP
 
 #include <iostream>
 #include <sstream>
 
 #include "includes/magic_enum.hpp"
 
-namespace sakoraE {
+namespace sakuraE {
     struct PositionInfo {
         int line = 0;
         int column = 0;
@@ -18,12 +18,12 @@ namespace sakoraE {
         LEXER, PARSER, IR_GENERATING, COMPILING, SYSTEM
     };
 
-    class SakoraError {
+    class SakuraError {
         OccurredTerm term;
         fzlib::String content;
         PositionInfo info;
     public:
-        SakoraError(OccurredTerm t, fzlib::String c, PositionInfo pinfo): 
+        SakuraError(OccurredTerm t, fzlib::String c, PositionInfo pinfo): 
             term(t), content(c), info(pinfo) {}
         
         const fzlib::String toString() {

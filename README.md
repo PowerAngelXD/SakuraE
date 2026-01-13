@@ -1,4 +1,4 @@
-# SakoraE
+# SakuraE
 
 ### 基于LLVM的语言
 
