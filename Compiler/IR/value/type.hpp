@@ -146,7 +146,7 @@ namespace sakuraE::IR {
                 llvmType = llvm::Type::getVoidTy(ctx);
                 break;
             case TypeToken::String:
-                llvmType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx));
+                llvmType = llvm::PointerType::getUnqual(ctx);
                 break;
             
             default:
@@ -154,9 +154,9 @@ namespace sakuraE::IR {
             }
             
             if (mod.getValueType() == ValueType::Pointer)
-                llvmType = llvm::PointerType::getUnqual(llvmType);
+                llvmType = llvm::PointerType::getUnqual(ctx);
             else if (mod.getValueType() == ValueType::Ref)
-                llvmType = llvm::PointerType::getUnqual(llvmType);
+                llvmType = llvm::PointerType::getUnqual(ctx);
             else if (mod.getValueType() == ValueType::Array) {
                 auto arr = mod.getModAsArray();
                 for (auto it = arr.each_len.rbegin(); it != arr.each_len.rend(); it ++) {
