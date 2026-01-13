@@ -5,9 +5,9 @@
 
 namespace sakuraE::IR {
     // SakuraE Module
-    // Rule: Every block id starts as '$#'
+    // Rule: Every block id starts as '$'
     class Module {
-        fzlib::String ID = "$#DefaultModule";
+        fzlib::String ID = "$DefaultModule";
         PositionInfo createInfo;
 
         // Storage global identifiers
@@ -24,7 +24,7 @@ namespace sakuraE::IR {
 
     public:
         Module(fzlib::String id, PositionInfo info):
-            ID(id), createInfo(info), globalScope(info) {}
+            ID("$" + id), createInfo(info), globalScope(info) {}
 
         Module& buildFunction(const Function& fn) {
             fnList.push_back(fn);

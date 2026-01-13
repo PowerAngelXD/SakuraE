@@ -11,9 +11,9 @@ namespace sakuraE::IR {
         fzlib::String ID = "@default-block";
     public:
         Block(fzlib::String id, std::vector<Instruction> ops): 
-            instructions(ops), ID(id) {}
+            instructions(ops), ID("@" + id) {}
         Block(fzlib::String id):
-            instructions({}), ID(id) {}
+            instructions({}), ID("@" + id) {}
 
         const fzlib::String& getID() {
             return ID;
