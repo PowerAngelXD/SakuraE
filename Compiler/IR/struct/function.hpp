@@ -75,8 +75,12 @@ namespace sakuraE::IR {
         }
 
         // Return current cursor
-        std::size_t current() {
-            return cur;
+        Block& curBlock() {
+            return blocks[cur];
+        }
+
+        const Block& block(std::size_t index) {
+            return blocks[index];
         }
 
         const fzlib::String& getName() {
@@ -85,10 +89,6 @@ namespace sakuraE::IR {
 
         Scope& scope() {
             return funcScope;
-        }
-
-        const Block& block(std::size_t index) {
-            return blocks[index];
         }
 
         const FormalParamsDefine& getFormalParams() const {
