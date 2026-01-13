@@ -23,7 +23,9 @@ namespace sakuraE::IR {
         Integer, Char,
         Float, String,
         Bool, Custom, 
-        Null, LLVMValue
+        Null, BlockIndex, 
+        FunctionIndex,
+        ModuleIndex
     };
 
     enum class ValueType {

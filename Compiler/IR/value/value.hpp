@@ -12,7 +12,7 @@
 
 namespace sakuraE {
     class Value {
-        std::variant<std::monostate, int, double, fzlib::String, char, bool, llvm::Value*> content;
+        std::variant<std::monostate, int, double, fzlib::String, char, bool, std::size_t> content;
         IR::Type type;
         PositionInfo create_info;
     public:
@@ -27,8 +27,8 @@ namespace sakuraE {
             content(val), type(IR::TypeToken::Char), create_info(info) {}
         Value(bool val, PositionInfo info): 
             content(val), type(IR::TypeToken::Bool), create_info(info) {}
-        Value(llvm::Value* val, PositionInfo info): 
-            content(val), type(IR::TypeToken::LLVMValue), create_info(info) {}
+        Value(std::size_t val, IR::TypeToken tok, PositionInfo info): 
+            content(val), type(tok), create_info(info) {}
         
         const IR::Type& getType() const {
             return type;
@@ -67,8 +67,12 @@ namespace sakuraE {
                 return getValue<fzlib::String>() == value.getValue<fzlib::String>();
             case IR::TypeToken::Char:
                 return getValue<char>() == value.getValue<char>();
-            case IR::TypeToken::LLVMValue:
-                return getValue<llvm::Value*>() == value.getValue<llvm::Value*>();
+            case IR::TypeToken::BlockIndex:
+                return getValue<std::size_t>() == value.getValue<std::size_t>();
+            case IR::TypeToken::FunctionIndex:
+                return getValue<std::size_t>() == value.getValue<std::size_t>();
+            case IR::TypeToken::ModuleIndex:
+                return getValue<std::size_t>() == value.getValue<std::size_t>();
             
             default:
                 return false;
@@ -98,6 +102,16 @@ namespace sakuraE {
                                 "Unknown type of token to convert",
                                 tok.info);
             }
+        }
+
+        template<typename T>
+        static Value make(T value, PositionInfo info) {
+            return Value(value, info);
+        }
+
+        template<typename T>
+        static Value make(T value, IR::TypeToken tok, PositionInfo info) {
+            return Value(value, tok, info);
         }
     };
 }
