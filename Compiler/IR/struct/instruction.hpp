@@ -22,6 +22,7 @@ namespace sakuraE::IR {
         decl_func, 
         decl_module,
         indexing,
+        make_call_params,
         call
     };
 
