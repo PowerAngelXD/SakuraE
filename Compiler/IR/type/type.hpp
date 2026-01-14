@@ -1,9 +1,12 @@
 #ifndef SAKURAE_TYPE_HPP
 #define SAKURAE_TYPE_HPP
 
+#include <utility> 
 #include <map>
-#include <vector>
-#include <cstdint>
+
+#include <llvm/IR/Type.h>
+#include <llvm/IR/DerivedTypes.h>
+
 namespace sakuraE::IR {
     enum TypeID {
         VoidTyID,
@@ -12,6 +15,7 @@ namespace sakuraE::IR {
     
         PointerTyID,
         ArrayTyID,
+
         FunctionTyID,
         BlockTyID
     };
@@ -45,6 +49,9 @@ namespace sakuraE::IR {
         static Type* getFloatTy();
         static Type* getPointerTo(Type* elementType);
         static Type* getArrayTy(Type* elementType, uint64_t numElements);
+
+        static Type* getBlockTy();
+        static Type* getFunctionTy(Type* returnType, std::vector<Type*> params);
     };
 
     class VoidType : public Type {
@@ -95,6 +102,27 @@ namespace sakuraE::IR {
     public:
         Type* getElementType() const { return elementType; }
         uint64_t getNumElements() const { return numElements; }
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    // IR Inside
+    class BlockType : public Type {
+        friend class Type;
+
+        explicit BlockType() : Type(BlockTyID) {}
+    public:
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    class FunctionType : public Type {
+        friend class Type;
+
+        std::vector<Type*> paramsType;
+        Type* returnType;
+
+        explicit FunctionType(Type* ret, std::vector<Type*> params)
+            : Type(FunctionTyID), paramsType(params), returnType(ret) {}
+    public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 } 

@@ -1,14 +1,10 @@
 #include "type.hpp"
-#include "constant.hpp"
-#include <llvm/IR/Type.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/DerivedTypes.h> // Include for IntegerType, ArrayType etc.
-#include <utility> // for std::pair
 
 namespace sakuraE::IR {
     static std::map<unsigned, IntegerType> integerTypes;
     static std::map<Type*, PointerType> pointerTypes;
     static std::map<std::pair<Type*, uint64_t>, ArrayType> arrayTypes;
+    static std::map<std::pair<Type*, std::vector<Type*>>, FunctionType> funcTypes;
 
     Type* Type::getVoidTy() {
         static VoidType voidSingle;
@@ -69,6 +65,25 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
+    Type* Type::getBlockTy() {
+        static BlockType blockIndexSingle;
+
+        return &blockIndexSingle;
+    }
+
+    Type* Type::getFunctionTy(Type* returnType, std::vector<Type*> params) {
+        auto key = std::make_pair(returnType, params);
+        auto it = funcTypes.find(key);
+
+        if (it != funcTypes.end()) {
+            return &it->second;
+        }
+        auto newEntry = funcTypes.emplace(key, FunctionType(returnType, params));
+
+        return &newEntry.first->second;
+    }
+
+
     llvm::Type* VoidType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::Type::getVoidTy(ctx);
     }
@@ -82,17 +97,23 @@ namespace sakuraE::IR {
     }
 
     llvm::Type* PointerType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::PointerType::get(elementType->toLLVMType(ctx), 0);
+        return llvm::PointerType::get(ctx, 0);
     }
 
     llvm::Type* ArrayType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::ArrayType::get(elementType->toLLVMType(ctx), numElements);
     }
 
-    llvm::Type* Constant::toLLVMType(llvm::LLVMContext& ctx) {
-        if (type) {
-            return type->toLLVMType(ctx);
+    llvm::Type* BlockType::toLLVMType(llvm::LLVMContext& ctx) {
+        return llvm::Type::getLabelTy(ctx);
+    }
+
+    llvm::Type* FunctionType::toLLVMType(llvm::LLVMContext& ctx) {
+        std::vector<llvm::Type*> llvmParams;
+        for (auto arg: paramsType) {
+            llvmParams.push_back(arg->toLLVMType(ctx));
         }
-        return nullptr;
+
+        return llvm::FunctionType::get(returnType->toLLVMType(ctx), llvmParams, false);
     }
 }
