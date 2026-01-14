@@ -1,182 +1,108 @@
-#ifndef SAKORA_TYPE_HPP
-#define SAKORA_TYPE_HPP
+#ifndef SAKURAE_TYPE_HPP
+#define SAKURAE_TYPE_HPP
 
-#include <iostream>
+#include <map>
 #include <vector>
-#include <variant>
-#include <sstream>
+#include <cstdint> // For uint64_t
 
-#include <llvm/IR/Value.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/Verifier.h>
-#include <llvm/IR/Intrinsics.h>
-#include "includes/magic_enum.hpp"
-#include "includes/String.hpp"
-
-#include "Compiler/Utils/Logger.hpp"
-
-namespace sakuraE::IR {
-    enum class TypeToken {
-        Integer, Char,
-        Float, String,
-        Bool, Custom, 
-        Null, BlockIndex, 
-        FunctionIndex,
-        ModuleIndex
-    };
-
-    enum class ValueType {
-        // Value Type
-        Value, Pointer, Ref, 
-        // Struct Type
-        Array,
-        // Flag modifier
-        Undefined
-    };
-
-    struct ArrayModifier {
-        int dimension = 1;
-        std::vector<int> each_len;
-
-        ArrayModifier(int d, std::vector<int> el): dimension(d), each_len(el) {}
-    };
-
-    class TypeModifier {
-        ValueType tm_token = ValueType::Undefined;
-        std::variant<std::monostate, ArrayModifier> mod_content;
-    public:
-        TypeModifier()=default;
-        TypeModifier(ValueType t): tm_token(t) {}
-        TypeModifier(ValueType t, int d, std::vector<int> el):  
-            tm_token(t), mod_content(ArrayModifier(d, el)) {}
-
-        TypeModifier(const TypeModifier& type_mod): 
-            tm_token(type_mod.tm_token), mod_content(type_mod.mod_content) {} 
-
-        const ValueType& getValueType() {
-            return tm_token;
-        }
-
-        bool hasStructMod()  {
-            return !std::holds_alternative<std::monostate>(mod_content);
-        }
-
-        const ArrayModifier& getModAsArray() {
-            if (!std::holds_alternative<ArrayModifier>(mod_content))
-                sutils::reportError(OccurredTerm::SYSTEM, "This Modifier's containing is not Array!", {});
-            
-            return std::get<ArrayModifier>(mod_content);
-        }
-        
-        fzlib::String toString() {
-            std::ostringstream oss;
-            oss << "[ValueType: " << magic_enum::enum_name(tm_token) << ", Struct: ";
-
-            if (!hasStructMod())
-                oss << "<No Struct>";
-            else if (std::holds_alternative<ArrayModifier>(mod_content)) {
-                auto m = std::get<ArrayModifier>(mod_content);
-                oss << "[Array: D = " << m.dimension << ", Each len = [";
-                for (std::size_t i = 0; i < m.each_len.size(); i ++) {
-                    auto j = m.each_len[i];
-                    if (i == m.each_len.size() - 1) 
-                        oss << j;
-                    else
-                        oss << j << ", ";
-                }
-                oss << "]";
-            }
-
-            oss << "]";
-
-            return oss.str();
-        }
-
-        bool operator== (const TypeModifier& tm) {
-            if (tm_token != tm.tm_token) return false;
-            else if (std::holds_alternative<std::monostate>(mod_content) && 
-                    !std::holds_alternative<std::monostate>(tm.mod_content))
-                return false;
-            else if (std::holds_alternative<ArrayModifier>(mod_content) && 
-                    !std::holds_alternative<ArrayModifier>(tm.mod_content))
-                return false;
-            else return true;
-        }
-
-        bool operator!= (const TypeModifier& tm) {
-            return !operator==(tm);
-        }
-    };
-    
-    class Type {
-        TypeToken token = TypeToken::Null;
-        TypeModifier mod = TypeModifier(ValueType::Value);
-    public:
-        Type()=default;
-        Type(TypeToken t): token(t) {}
-        Type(TypeToken t, TypeModifier m): token(t), mod(m) {}
-
-        const TypeToken& getType() { return token; }
-        const TypeModifier& getModifier() { return mod; }
-
-        fzlib::String toString() {
-            std::ostringstream oss;
-            oss << "{Type: " << magic_enum::enum_name(token) << ", Modifier: " <<  mod.toString() << "}";
-            return oss.str();
-        }
-
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) {
-            llvm::Type* llvmType = nullptr;
-            switch (token)
-            {
-            case TypeToken::Integer:
-                llvmType = llvm::Type::getInt32Ty(ctx);
-                break;
-            case TypeToken::Float:
-                llvmType = llvm::Type::getFloatTy(ctx);
-                break;
-            case TypeToken::Char:
-                llvmType = llvm::Type::getInt8Ty(ctx);
-                break;
-            case TypeToken::Bool:
-                llvmType = llvm::Type::getInt1Ty(ctx);
-                break;
-            case TypeToken::Null:
-                llvmType = llvm::Type::getVoidTy(ctx);
-                break;
-            case TypeToken::String:
-                llvmType = llvm::PointerType::getUnqual(ctx);
-                break;
-            
-            default:
-                break;
-            }
-            
-            if (mod.getValueType() == ValueType::Pointer)
-                llvmType = llvm::PointerType::getUnqual(ctx);
-            else if (mod.getValueType() == ValueType::Ref)
-                llvmType = llvm::PointerType::getUnqual(ctx);
-            else if (mod.getValueType() == ValueType::Array) {
-                auto arr = mod.getModAsArray();
-                for (auto it = arr.each_len.rbegin(); it != arr.each_len.rend(); it ++) {
-                    llvmType = llvm::ArrayType::get(llvmType, *it);
-                }
-            }
-
-            return llvmType;
-        }
-
-        bool operator== (const Type& t) {
-            return token == t.token && mod == t.mod;
-        }
-
-        bool operator!= (const Type& t) {
-            return !operator==(t);
-        }
-    };
+// Forward-declare LLVM types to avoid including heavy headers in this file.
+namespace llvm {
+    class Type;
+    class LLVMContext;
 }
 
-#endif // !SAKORA_TYPE_HPP
+namespace sakuraE::IR {
+    enum TypeID {
+        VoidTyID,
+        IntegerTyID,
+        FloatTyID,
+    
+        PointerTyID,
+        ArrayTyID,
+        FunctionTyID,
+        BlockTyID
+    };
+
+    class Type {
+    private:
+        const TypeID typeID;
+
+    protected:
+        explicit Type(TypeID id) : typeID(id) {}
+
+    public:
+        virtual ~Type() = default;
+
+        TypeID getTypeID() const { return typeID; }
+
+        virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
+
+        static Type* getVoidTy();
+        static Type* getBoolTy();
+        static Type* getCharTy();
+        static Type* getInt32Ty();
+        static Type* getInt64Ty();
+        static Type* getIntNTy(unsigned bitWidth);
+        static Type* getFloatTy();
+        static Type* getPointerTo(Type* elementType);
+        static Type* getArrayTy(Type* elementType, uint64_t numElements);
+    };
+
+    class VoidType : public Type {
+    private:
+        friend class Type;
+        VoidType() : Type(VoidTyID) {}
+    public:
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    class FloatType : public Type {
+    private:
+        friend class Type;
+        FloatType() : Type(FloatTyID) {}
+    public:
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    class IntegerType : public Type {
+    private:
+        friend class Type;
+        unsigned bitWidth;
+
+        explicit IntegerType(unsigned bw) : Type(IntegerTyID), bitWidth(bw) {}
+
+    public:
+        unsigned getBitWidth() const { return bitWidth; }
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    class PointerType : public Type {
+    private:
+        friend class Type;
+        Type* elementType;
+
+        explicit PointerType(Type* elementTy) : Type(PointerTyID), elementType(elementTy) {}
+
+    public:
+        Type* getElementType() const { return elementType; }
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    class ArrayType : public Type {
+    private:
+        friend class Type;
+        Type* elementType;
+        uint64_t numElements;
+
+        // Private constructor
+        ArrayType(Type* elementTy, uint64_t num) 
+            : Type(ArrayTyID), elementType(elementTy), numElements(num) {}
+
+    public:
+        Type* getElementType() const { return elementType; }
+        uint64_t getNumElements() const { return numElements; }
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+} 
+
+#endif //! SAKURAE_TYPE_HPP
