@@ -4,44 +4,65 @@
 #include "instruction.hpp"
 
 namespace sakuraE::IR {
+    class Function;
     // SakuraE IR Block
     // Rule: Every block id starts as '@'
     class Block {
-        std::vector<Instruction> instructions;
+        std::vector<Instruction*> instructions;
         fzlib::String ID = "@default-block";
+
+        Function* parent = nullptr;
     public:
-        Block(fzlib::String id, std::vector<Instruction> ops): 
+        Block(fzlib::String id, std::vector<Instruction*> ops): 
             instructions(ops), ID("@" + id) {}
         Block(fzlib::String id):
             instructions({}), ID("@" + id) {}
+
+        ~Block() {
+            for (auto ins: instructions) {
+                delete ins;
+            }
+        }
+
+        void setParent(Function* fn) {
+            parent = fn;
+        }
+
+        Function* getParent() {
+            return parent;
+        }
 
         const fzlib::String& getID() {
             return ID;
         }
 
-        Block& insert(const Instruction& ins) {
+        const std::vector<Instruction*>& getInstructions() {
+            return instructions;
+        }
+
+        Value* createInstruction(OpKind k, Type* t, const fzlib::String& n) {
+            Instruction* ins = new Instruction(k, t, {});
+            ins->setParent(this);
+            ins->setName(n);
             instructions.push_back(ins);
 
-            return *this;
+            return ins;
         }
 
-        Block& insert(OpKind k) {
-            instructions.emplace_back(k);
+        Value* createInstruction(OpKind k, Type* t, std::vector<Value*> params, const fzlib::String& n) {
+            Instruction* ins = new Instruction(k, t, params);
+            ins->setParent(this);
+            ins->setName(n);
+            instructions.push_back(ins);
 
-            return *this;
+            return ins;
         }
 
-        Block& insert(OpKind k, std::vector<Value> params) {
-            instructions.emplace_back(k, params);
-
-            return *this;
-        }
-
-        const Instruction& op(std::size_t pos) {
+        Instruction* op(std::size_t pos) {
             return instructions[pos];
         }
 
-        const Instruction& operator[] (std::size_t pos) {
+        Instruction* operator[] (std::size_t pos) {
             return instructions[pos];
         }
     };
