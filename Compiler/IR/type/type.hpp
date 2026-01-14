@@ -35,6 +35,14 @@ namespace sakuraE::IR {
 
         TypeID getTypeID() const { return typeID; }
 
+        bool operator== (Type* t) {
+            return typeID == t->typeID;
+        }
+
+        bool operator!= (Type* t) {
+            return !operator==(t);
+        }
+
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
 
         static Type* getVoidTy();
