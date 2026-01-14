@@ -1,7 +1,7 @@
 #ifndef SAKURAE_INSTRUCTION_HPP
 #define SAKURAE_INSTRUCTION_HPP
 
-#include "Compiler/IR/value/value.hpp"
+#include "Compiler/IR/value/constant.hpp"
 
 namespace sakuraE::IR {
     enum class OpKind {
@@ -25,15 +25,37 @@ namespace sakuraE::IR {
         call
     };
 
+    class Block;
+
     class Instruction: public Value {
         OpKind kind = OpKind::empty;
-        std::vector<Value> args;
+        std::vector<Value*> args;
+
+        Block* parent = nullptr;
     public:
         Instruction(OpKind k, Type* t): kind(kind), Value(t) {}
-        Instruction(OpKind k, Type* t, std::vector<Value> params): 
+        Instruction(OpKind k, Type* t, std::vector<Value*> params): 
             kind(k), args(params), Value(t) {}
 
-        const Value& arg(std::size_t pos) {
+        ~Instruction() {
+            for (auto arg: args) {
+                delete arg;
+            }
+        }
+
+        void setParent(Block* blk) {
+            parent = blk;
+        }
+
+        Block* getParent() {
+            return parent;
+        }
+
+        const std::vector<Value*>& getOperands() {
+            return args;
+        }
+
+        Value* arg(std::size_t pos) {
             return args.at(pos);
         }
 
@@ -41,7 +63,7 @@ namespace sakuraE::IR {
             return kind;
         }
 
-        const Value& operator[] (std::size_t pos) {
+        Value* operator[] (std::size_t pos) {
             return args.at(pos);
         }
     };
