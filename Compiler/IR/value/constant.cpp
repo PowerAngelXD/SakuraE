@@ -6,9 +6,18 @@
 namespace sakuraE::IR {
     static std::map<int, Constant> intConstants;
     static std::map<double, Constant> doubleConstants;
-    static std::map<std::string, Constant> stringConstants;
+    static std::map<fzlib::String, Constant> stringConstants;
     static std::map<char, Constant> charConstants;
     static std::map<bool, Constant> boolConstants;
+
+    static std::map<Type*, Constant> typeLabelConstants;
+
+    Constant* Constant::get(Type* t, PositionInfo info) {
+        auto it = typeLabelConstants.find(t);
+
+        auto newEntry = typeLabelConstants.emplace(t, Constant(t, info));
+        return &newEntry.first->second;
+    }
 
     Constant* Constant::get(int val, PositionInfo info) {
         auto it = intConstants.find(val);
@@ -17,7 +26,7 @@ namespace sakuraE::IR {
         }
 
         Type* int32Ty = Type::getInt32Ty();
-        auto newEntry = intConstants.emplace(val, Constant(int32Ty, val));
+        auto newEntry = intConstants.emplace(val, Constant(int32Ty, val, info));
         return &newEntry.first->second;
     }
 
@@ -28,20 +37,20 @@ namespace sakuraE::IR {
         }
 
         Type* floatTy = Type::getFloatTy();
-        auto newEntry = doubleConstants.emplace(val, Constant(floatTy, val));
+        auto newEntry = doubleConstants.emplace(val, Constant(floatTy, val, info));
         return &newEntry.first->second;
     }
 
-    Constant* Constant::get(const std::string& val, PositionInfo info) {
+    Constant* Constant::get(const fzlib::String& val, PositionInfo info) {
         auto it = stringConstants.find(val);
         if (it != stringConstants.end()) {
             return &it->second;
         }
 
         Type* charTy = Type::getIntNTy(8);
-        Type* arrayTy = Type::getArrayTy(charTy, val.length() + 1);
+        Type* arrayTy = Type::getArrayTy(charTy, val.len() + 1);
         Type* stringTy = Type::getPointerTo(arrayTy);
-        auto newEntry = stringConstants.emplace(val, Constant(stringTy, val));
+        auto newEntry = stringConstants.emplace(val, Constant(stringTy, val, info));
         return &newEntry.first->second;
     }
 
@@ -52,7 +61,7 @@ namespace sakuraE::IR {
         }
 
         Type* charTy = Type::getIntNTy(8);
-        auto newEntry = charConstants.emplace(val, Constant(charTy, val));
+        auto newEntry = charConstants.emplace(val, Constant(charTy, val, info));
         return &newEntry.first->second;
     }
 
@@ -63,7 +72,7 @@ namespace sakuraE::IR {
         }
 
         Type* boolTy = Type::getIntNTy(1);
-        auto newEntry = boolConstants.emplace(val, Constant(boolTy, val));
+        auto newEntry = boolConstants.emplace(val, Constant(boolTy, val, info));
         return &newEntry.first->second;
     }
 
@@ -76,7 +85,7 @@ namespace sakuraE::IR {
             case TokenType::FLOAT_N:
                 return Constant::get(std::stod(tok.content.c_str()), tok.info);
             case TokenType::STRING:
-                return Constant::get(std::string(tok.content.c_str()), tok.info);
+                return Constant::get(fzlib::String(tok.content.c_str()), tok.info);
             case TokenType::CHAR:
                 return Constant::get(tok.content[0], tok.info);
             default:
@@ -84,5 +93,12 @@ namespace sakuraE::IR {
                                     "Cannot create constant from non-constant token",
                                     tok.info);
         }
+    }
+
+    llvm::Type* Constant::toLLVMType(llvm::LLVMContext& ctx) {
+        if (type) {
+            return type->toLLVMType(ctx);
+        }
+        return nullptr;
     }
 }
