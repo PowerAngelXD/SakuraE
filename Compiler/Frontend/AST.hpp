@@ -41,6 +41,7 @@ namespace sakuraE {
         std::variant<std::monostate, TokenPtr> content;
         std::vector<std::pair<ASTTag, NodePtr>> children;
         std::vector<NodePtr> pure_children;
+        PositionInfo createInfo;
 
         int hasSub(ASTTag t) {
             for (std::size_t i = 0; i < children.size(); i ++) {
@@ -71,6 +72,10 @@ namespace sakuraE {
 
         Token getToken() {
             return *std::get<TokenPtr>(content);
+        }
+
+        const PositionInfo& getPosInfo() {
+            return createInfo;
         }
 
         NodePtr& operator[] (ASTTag t) {
