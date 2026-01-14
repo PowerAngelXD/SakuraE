@@ -25,12 +25,13 @@ namespace sakuraE::IR {
         call
     };
 
-    class Instruction {
+    class Instruction: public Value {
         OpKind kind = OpKind::empty;
         std::vector<Value> args;
     public:
-        Instruction(OpKind k): kind(kind) {}
-        Instruction(OpKind k, std::vector<Value> params): kind(k), args(params) {}
+        Instruction(OpKind k, Type* t): kind(kind), Value(t) {}
+        Instruction(OpKind k, Type* t, std::vector<Value> params): 
+            kind(k), args(params), Value(t) {}
 
         const Value& arg(std::size_t pos) {
             return args.at(pos);
