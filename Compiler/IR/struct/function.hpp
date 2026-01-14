@@ -6,10 +6,9 @@
 namespace sakuraE::IR {
     struct Symbol {
         fzlib::String name;
-        Type type;
+        Type* type;
 
-        Symbol(fzlib::String n, const TypeToken& ttk): name(n), type(ttk) {}
-        Symbol(fzlib::String n, const Type& t): name(n), type(t) {}
+        Symbol(fzlib::String n, Type* t): name(n), type(t) {}
     };
 
     class Scope {
@@ -18,11 +17,7 @@ namespace sakuraE::IR {
     public:
         Scope(PositionInfo info): createInfo(info) {}
 
-        void declare(fzlib::String n, const TypeToken& ttk) {
-            symbolTable.emplace_back(n, ttk);
-        }
-
-        void declare(fzlib::String n, const Type& t) {
+        void declare(fzlib::String n, Type* t) {
             symbolTable.emplace_back(n, t);
         }
 
@@ -41,7 +36,7 @@ namespace sakuraE::IR {
         }
     };
 
-    using FormalParamsDefine = std::vector<std::pair<fzlib::String, Type>>;
+    using FormalParamsDefine = std::vector<std::pair<fzlib::String, Type*>>;
 
     // SakuraE Function
     class Function {
