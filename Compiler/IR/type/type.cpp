@@ -6,64 +6,66 @@
 #include <utility> // for std::pair
 
 namespace sakuraE::IR {
+    static std::map<unsigned, IntegerType> integerTypes;
+    static std::map<Type*, PointerType> pointerTypes;
+    static std::map<std::pair<Type*, uint64_t>, ArrayType> arrayTypes;
+
     Type* Type::getVoidTy() {
-        static VoidType Singleton;
-        return &Singleton;
+        static VoidType voidSingle;
+        return &voidSingle;
     }
 
     Type* Type::getBoolTy() {
-        static IntegerType Singleton(1);
-        return &Singleton;
+        static IntegerType boolSingle(1);
+        return &boolSingle;
     }
 
     Type* Type::getCharTy() {
-        static IntegerType Singleton(8);
-        return &Singleton;
+        static IntegerType charSingle(8);
+        return &charSingle;
     }
 
     Type* Type::getInt32Ty() {
-        static IntegerType Singleton(32);
-        return &Singleton;
+        static IntegerType i32Single(32);
+        return &i32Single;
     }
 
     Type* Type::getInt64Ty() {
-        static IntegerType Singleton(64);
-        return &Singleton;
+        static IntegerType i64Single(64);
+        return &i64Single;
     }
     
     Type* Type::getIntNTy(unsigned bitWidth) {
-        static std::map<unsigned, IntegerType> IntegerTypes;
-        auto it = IntegerTypes.find(bitWidth);
-        if (it != IntegerTypes.end()) {
+        auto it = integerTypes.find(bitWidth);
+        if (it != integerTypes.end()) {
             return &it->second;
         }
-        auto newEntry = IntegerTypes.emplace(bitWidth, IntegerType(bitWidth));
+        auto newEntry = integerTypes.emplace(bitWidth, IntegerType(bitWidth));
         return &newEntry.first->second;
     }
     
     Type* Type::getFloatTy() {
-        static FloatType Singleton;
-        return &Singleton;
+        static FloatType floatSingle;
+        return &floatSingle;
     }
 
     Type* Type::getPointerTo(Type* elementType) {
-        static std::map<Type*, PointerType> PointerTypes;
-        auto it = PointerTypes.find(elementType);
-        if (it != PointerTypes.end()) {
+        auto it = pointerTypes.find(elementType);
+        if (it != pointerTypes.end()) {
             return &it->second;
         }
-        auto newEntry = PointerTypes.emplace(elementType, PointerType(elementType));
+        auto newEntry = pointerTypes.emplace(elementType, PointerType(elementType));
         return &newEntry.first->second;
     }
 
     Type* Type::getArrayTy(Type* elementType, uint64_t numElements) {
-        static std::map<std::pair<Type*, uint64_t>, ArrayType> ArrayTypes;
         auto key = std::make_pair(elementType, numElements);
-        auto it = ArrayTypes.find(key);
-        if (it != ArrayTypes.end()) {
+        auto it = arrayTypes.find(key);
+        if (it != arrayTypes.end()) {
             return &it->second;
         }
-        auto newEntry = ArrayTypes.emplace(key, ArrayType(elementType, numElements));
+        auto newEntry = arrayTypes.emplace(key, ArrayType(elementType, numElements));
+
         return &newEntry.first->second;
     }
 
