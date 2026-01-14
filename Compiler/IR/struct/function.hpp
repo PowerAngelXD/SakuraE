@@ -1,38 +1,50 @@
 #ifndef SAKURAE_FUNCTION_HPP
 #define SAKURAE_FUNCTION_HPP
 
+#include <stack>
+#include <utility>
+
 #include "block.hpp"
 
 namespace sakuraE::IR {
-    struct Symbol {
+    struct Symbol: public Value {
         fzlib::String name;
-        Type* type;
+        Value* address;
 
-        Symbol(fzlib::String n, Type* t): name(n), type(t) {}
+        Symbol(fzlib::String n, Value* addr, Type* t): name(n), address(addr), Value(t) {}
     };
 
     class Scope {
-        std::vector<Symbol> symbolTable;
-        PositionInfo createInfo;
-    public:
-        Scope(PositionInfo info): createInfo(info) {}
+        std::vector<std::map<fzlib::String, Symbol>> symbolTable;
+        std::size_t cursor = 0;
 
-        void declare(fzlib::String n, Type* t) {
-            symbolTable.emplace_back(n, t);
+        PositionInfo createInfo;
+
+        Scope* parent = nullptr;
+
+        std::map<fzlib::String, Symbol>& top() {
+            return symbolTable[cursor];
+        }
+    public:
+        Scope(PositionInfo info): createInfo(info) {
+            symbolTable.emplace_back();
         }
 
-        const Symbol& get(fzlib::String n) {
-            for (const auto& sym: symbolTable) {
-                if (sym.name == n) return sym;
+        void declare(fzlib::String n, Value* addr, Type* t) {
+            top().emplace(n, Symbol(n, addr, t));
+        }
+
+        Symbol* lookup(const fzlib::String& name) {
+            for (auto it = symbolTable.rbegin(); it != symbolTable.rend(); it --) {
+                if (it->find(name) != it->end()) {
+                    return &(*it)[name];
+                }
             }
 
-            throw SakuraError(OccurredTerm::IR_GENERATING, 
-                            "Expected to get an unknown symbol in current scope!",
-                            createInfo);
-        }
-
-        const Symbol& operator[] (fzlib::String n) {
-            return get(n);
+            if (parent)
+                return parent->lookup(name);
+            
+            return nullptr;
         }
     };
 
