@@ -37,44 +37,60 @@ namespace sakuraE::IR {
     };
 
     using FormalParamsDefine = std::vector<std::pair<fzlib::String, Type*>>;
+    class Module;
 
     // SakuraE Function
     class Function {
         fzlib::String funcName;
         FormalParamsDefine formalParams;
         Scope funcScope;
-        
-        std::vector<Block> blocks;
-        // Indicates the current maximum index of blocks
-        std::size_t cursor = 0;
-    public:
-        Function(fzlib::String name, PositionInfo info): funcName(name), funcScope(info) {}
 
-        Function& buildBlock(const Block& block) {
+        PositionInfo createInfo;
+        
+        std::vector<Block*> blocks;
+        // Indicates the current maximum index of blocks
+        int cursor = -1;
+
+        Module* parent;
+    public:
+        Function(fzlib::String name, PositionInfo info): 
+            funcName(name), funcScope(info), createInfo(info) {}
+        
+        Function(fzlib::String name, FormalParamsDefine params, PositionInfo info): 
+            funcName(name), formalParams(params), funcScope(info), createInfo(info) {}
+
+        void setParent(Module* mod) {
+            parent = mod;
+        }
+
+        Module* getParent() {
+            return parent;
+        }
+
+        Value* buildBlock(fzlib::String id, std::vector<Instruction*> ops) {
+            Block* block = new Block(id, ops);
+            block->setParent(this);
             blocks.push_back(block);
             cursor ++;
 
-            return *this;
+            return Constant::get(cursor, Type::getBlockIndexTy(), createInfo);
         }
 
-        Function& buildBlock(fzlib::String id, std::vector<Instruction> ops) {
-            blocks.emplace_back(id, ops);
+        Value* buildBlock(fzlib::String id) {
+            Block* block = new Block(id);
+            block->setParent(this);
+            blocks.push_back(block);
+            cursor ++;
 
-            return *this;
-        }
-
-        Function& buildBlock(fzlib::String id) {
-            blocks.emplace_back(id);
-
-            return *this;
+            return Constant::get(cursor, Type::getBlockIndexTy(), createInfo);
         }
 
         // Return current cursor
-        Block& curBlock() {
+        Block* curBlock() {
             return blocks[cursor];
         }
 
-        Block& block(std::size_t index) {
+        Block* block(std::size_t index) {
             return blocks[index];
         }
 
@@ -90,11 +106,11 @@ namespace sakuraE::IR {
             return formalParams;
         }
 
-        const std::size_t& cur() {
+        const int& cur() {
             return cursor;
         }
 
-        Block& operator[] (std::size_t index) {
+        Block* operator[] (std::size_t index) {
             return block(index);
         }
     };
