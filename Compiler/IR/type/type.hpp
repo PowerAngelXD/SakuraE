@@ -3,14 +3,7 @@
 
 #include <map>
 #include <vector>
-#include <cstdint> // For uint64_t
-
-// Forward-declare LLVM types to avoid including heavy headers in this file.
-namespace llvm {
-    class Type;
-    class LLVMContext;
-}
-
+#include <cstdint>
 namespace sakuraE::IR {
     enum TypeID {
         VoidTyID,
@@ -24,9 +17,7 @@ namespace sakuraE::IR {
     };
 
     class Type {
-    private:
         const TypeID typeID;
-
     protected:
         explicit Type(TypeID id) : typeID(id) {}
 
@@ -57,7 +48,6 @@ namespace sakuraE::IR {
     };
 
     class VoidType : public Type {
-    private:
         friend class Type;
         VoidType() : Type(VoidTyID) {}
     public:
@@ -65,7 +55,6 @@ namespace sakuraE::IR {
     };
 
     class FloatType : public Type {
-    private:
         friend class Type;
         FloatType() : Type(FloatTyID) {}
     public:
@@ -73,7 +62,6 @@ namespace sakuraE::IR {
     };
 
     class IntegerType : public Type {
-    private:
         friend class Type;
         unsigned bitWidth;
 
@@ -85,7 +73,6 @@ namespace sakuraE::IR {
     };
 
     class PointerType : public Type {
-    private:
         friend class Type;
         Type* elementType;
 
@@ -97,7 +84,6 @@ namespace sakuraE::IR {
     };
 
     class ArrayType : public Type {
-    private:
         friend class Type;
         Type* elementType;
         uint64_t numElements;
