@@ -30,6 +30,10 @@ namespace sakuraE::IR {
             symbolTables.emplace_back();
         }
 
+        void setParent(Scope* scope) {
+            parent = scope;
+        }
+
         void declare(fzlib::String n, Value* addr, Type* t) {
             top().emplace(n, Symbol(n, addr, t));
         }
