@@ -4,14 +4,16 @@
 #include "function.hpp"
 
 namespace sakuraE::IR {
+    class Program;
+
     // SakuraE Module
-    // Rule: Every block id starts as '$'
+    // Rule: Every block id around '<' and '>'
     class Module {
         fzlib::String ID = "$DefaultModule";
         PositionInfo createInfo;
 
-        // Storage global identifiers
-        Scope globalScope;
+        // Storage module global identifiers
+        Scope moduleScope;
 
         std::vector<Function*> fnList;
         // Indicates the current maximum index of fnList
@@ -22,9 +24,20 @@ namespace sakuraE::IR {
         // Indicate the entry function's position in FnList
         std::size_t entry;
 
+        Program* program;
     public:
         Module(fzlib::String id, PositionInfo info):
-            ID("$" + id), createInfo(info), globalScope(info) {}
+            ID("<" + id + ">"), createInfo(info), moduleScope(info) {
+            moduleScope.setParent(nullptr);
+        }
+
+        void setSourceProgram(Program* pgm) {
+            program = pgm;
+        }
+
+        Program* getSourceProgram() {
+            return program;
+        }
 
         Value* buildFunction(fzlib::String name, Type* retType, FormalParamsDefine params, PositionInfo info) {
             Function* func = new Function(name, retType, params, info);
@@ -34,8 +47,8 @@ namespace sakuraE::IR {
             return Constant::get(Type::getFunctionTy(func->getReturnType(), func->getParamsOnlyType()), createInfo);
         }
 
-        Scope& scope() {
-            return globalScope;
+        Scope& modScope() {
+            return moduleScope;
         }
 
         Function* curFunc() {
