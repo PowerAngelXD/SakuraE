@@ -8,9 +8,10 @@
 
 namespace sakuraE::IR {
     struct Symbol: public Value {
-        fzlib::String name;
-        Value* address;
+        fzlib::String name = "DefaultSymbol";
+        Value* address = nullptr;
 
+        Symbol(): Value(Type::getVoidTy()) {};
         Symbol(fzlib::String n, Value* addr, Type* t): Value(t), name(n), address(addr) {}
     };
 
