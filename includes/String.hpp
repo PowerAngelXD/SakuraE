@@ -294,6 +294,10 @@ namespace fzlib {
             return _content[index];
         }
 
+        bool operator<(const String& other) const {
+            return this->_content < other._content; 
+        }
+
         String& operator+= (const String &str) {
             append(str);
             return *this;
