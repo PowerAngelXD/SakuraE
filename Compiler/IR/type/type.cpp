@@ -116,4 +116,18 @@ namespace sakuraE::IR {
 
         return llvm::FunctionType::get(returnType->toLLVMType(ctx), llvmParams, false);
     }
+
+    llvm::Type* IRTypeInfoType::toLLVMType(llvm::LLVMContext& ctx) {
+        llvm::StructType* structTy = llvm::StructType::getTypeByName(ctx, "sakuraE.TypeInfo");
+    
+        if (!structTy) {
+            structTy = llvm::StructType::create(ctx, "sakuraE.TypeInfo");
+            structTy->setBody({
+                llvm::Type::getInt32Ty(ctx),
+                llvm::PointerType::getUnqual(ctx)
+            });
+        }
+    
+        return llvm::PointerType::getUnqual(ctx);
+    }
 }

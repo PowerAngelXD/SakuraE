@@ -12,6 +12,7 @@ namespace sakuraE::IR {
         VoidTyID,
         IntegerTyID,
         FloatTyID,
+        TypeInfoTyID,
     
         PointerTyID,
         ArrayTyID,
@@ -47,6 +48,7 @@ namespace sakuraE::IR {
         static IRType* getInt64Ty();
         static IRType* getIntNTy(unsigned bitWidth);
         static IRType* getFloatTy();
+        static IRType* getTypeInfoTy();
         static IRType* getPointerTo(IRType* elementType);
         static IRType* getArrayTy(IRType* elementType, uint64_t numElements);
 
@@ -76,6 +78,13 @@ namespace sakuraE::IR {
 
     public:
         unsigned getBitWidth() const { return bitWidth; }
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+    };
+
+    class IRTypeInfoType : public IRType {
+        friend class IRType;
+        IRTypeInfoType() : IRType(TypeInfoTyID) {}
+    public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
