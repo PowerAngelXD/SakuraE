@@ -25,7 +25,7 @@ namespace sakuraE::IR {
         void declareSymbol(fzlib::String name, Type* t, Value* initVal = nullptr) {
             Value* addr = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::decl, Type::getVoidTy(), {}, "declare-" + name);
+                                ->createInstruction(OpKind::declare, Type::getVoidTy(), {}, "declare-" + name);
             
             curFunc()->fnScope().declare(name, addr, t);
 
@@ -51,28 +51,45 @@ namespace sakuraE::IR {
 
         // Used to obtain the type of the result from a non-logical binary operation
         Type* handleUnlogicalBinaryCalc(Value* lhs, Value* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
-            switch (lhs->getType()->getTypeID())
-            {
-            case TypeID::IntegerTyID:
-                auto lhsType = dynamic_cast<IntegerType*>(lhs->getType());
-                switch (rhs->getType()->getTypeID())
-                {
-                case TypeID::IntegerTyID:
-                    auto rhsType = dynamic_cast<IntegerType*>(rhs->getType());
-                    return Type::getIntNTy(std::max(lhsType->getBitWidth(), rhsType->getBitWidth()));
-                case TypeID::FloatTyID:
-                    auto rhsType = dynamic_cast<FloatType*>(rhs->getType());
-                    return Type::getFloatTy();
+            switch (lhs->getType()->getTypeID()) {
+                case TypeID::IntegerTyID: {
+                    auto lhsType = dynamic_cast<IntegerType*>(lhs->getType());
+                    switch (rhs->getType()->getTypeID())
+                    {
+                        case TypeID::IntegerTyID: {
+                            auto rhsType = dynamic_cast<IntegerType*>(rhs->getType());
+                            return Type::getIntNTy(std::max(lhsType->getBitWidth(), rhsType->getBitWidth()));
+                        }
+                        case TypeID::FloatTyID: {
+                            return Type::getFloatTy();
+                        }
+                        default:
+                            throw SakuraError(OccurredTerm::IR_GENERATING,
+                                    "Used a type that does not support '+' '-' '*' '%' and '/' operations",
+                                    info);
+                    }
+                    break;
                 }
-                break;
-
-            case TypeID::FloatTyID:
-                return Type::getFloatTy();
-            
-            default:
-                throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Used a type that does not support '+' '-' '*' '%' and '/' operations",
-                                info);
+                case TypeID::FloatTyID: {
+                    switch (rhs->getType()->getTypeID())
+                    {
+                        case TypeID::IntegerTyID: {
+                            return Type::getFloatTy();
+                        }
+                        case TypeID::FloatTyID: {
+                            return Type::getFloatTy();
+                        }
+                        default:
+                            throw SakuraError(OccurredTerm::IR_GENERATING,
+                                    "Used a type that does not support '+' '-' '*' '%' and '/' operations",
+                                    info);
+                    }
+                    break;
+                }
+                default:
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
+                                    "Used a type that does not support '+' '-' '*' '%' and '/' operations",
+                                    info);
             }
         }
 
@@ -86,18 +103,11 @@ namespace sakuraE::IR {
         }
 
         // Main entry point for generating IR from AST
-        void generate(NodePtr node) {
-            visit(node);
-        }
+        void generate(NodePtr node);
 
     private:
         Function* curFunc() {
             return program.curMod()->curFunc();
-        }
-
-        // Visit a node and dispatch based on tag
-        Value* visit(NodePtr node) {
-           
         }
 
         // --- Visit Expressions ---
