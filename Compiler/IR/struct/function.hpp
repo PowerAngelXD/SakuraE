@@ -26,10 +26,10 @@ namespace sakuraE::IR {
 
         Module* parent;
     public:
-        Function(fzlib::String name, IRType* retType, PositionInfo info): 
-            Value(IRType::getFunctionTy(retType, {})), funcName(name), returnType(retType), funcScope(info), createInfo(info) {}
+        Function(fzlib::String n, IRType* retType, PositionInfo info): 
+            Value(IRType::getFunctionTy(retType, {})), funcName(n), returnType(retType), funcScope(info), createInfo(info) {}
         
-        Function(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info): 
+        Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info): 
             Value(IRType::getFunctionTy(retType, 
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
@@ -37,7 +37,7 @@ namespace sakuraE::IR {
                         result.push_back(param.second);
                     }
                     return result;
-                }())), funcName(name), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
+                }())), funcName(n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
 
         void setParent(Module* mod) {
             parent = mod;
