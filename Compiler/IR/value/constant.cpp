@@ -1,7 +1,4 @@
 #include "constant.hpp"
-#include "type.hpp"
-#include <map>
-#include <string>
 
 namespace sakuraE::IR {
     static std::map<int, Constant> intConstants;
@@ -14,7 +11,10 @@ namespace sakuraE::IR {
 
     Constant* Constant::get(Type* t, PositionInfo info) {
         auto it = typeLabelConstants.find(t);
-
+        if (it != typeLabelConstants.end()) {
+            return &it->second;
+        }
+        
         auto newEntry = typeLabelConstants.emplace(t, Constant(t, info));
         return &newEntry.first->second;
     }
