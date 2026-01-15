@@ -16,31 +16,31 @@ namespace sakuraE::IR {
         std::variant<std::monostate, int, double, fzlib::String, char, bool> content;
         PositionInfo createInfo;
 
-        Constant(Type* type, int val, PositionInfo info)
-            : Value(type), content(val), createInfo(info) {}
-        Constant(Type* type, double val, PositionInfo info)
-            : Value(type), content(val), createInfo(info) {}
-        Constant(Type* type, const fzlib::String& val, PositionInfo info)
-            : Value(type), content(val), createInfo(info) {}
-        Constant(Type* type, char val, PositionInfo info)
-            : Value(type), content(val), createInfo(info) {}
-        Constant(Type* type, bool val, PositionInfo info)
-            : Value(type), content(val), createInfo(info) {}
-        Constant(Type* type, PositionInfo info)
-            : Value(type), content(), createInfo(info) {}
+        Constant(Type* ty, int val, PositionInfo info)
+            : Value(ty), content(val), createInfo(info) {}
+        Constant(Type* ty, double val, PositionInfo info)
+            : Value(ty), content(val), createInfo(info) {}
+        Constant(Type* ty, const fzlib::String& val, PositionInfo info)
+            : Value(ty), content(val), createInfo(info) {}
+        Constant(Type* ty, char val, PositionInfo info)
+            : Value(ty), content(val), createInfo(info) {}
+        Constant(Type* ty, bool val, PositionInfo info)
+            : Value(ty), content(val), createInfo(info) {}
+        Constant(Type* ty, PositionInfo info)
+            : Value(ty), content(), createInfo(info) {}
 
-        Constant(Type* type, int val)
-            : Value(type), content(val) {}
-        Constant(Type* type, double val)
-            : Value(type), content(val) {}
-        Constant(Type* type, const fzlib::String& val)
-            : Value(type), content(val) {}
-        Constant(Type* type, char val)
-            : Value(type), content(val) {}
-        Constant(Type* type, bool val)
-            : Value(type), content(val) {}
-        Constant(Type* type)
-            : Value(type), content() {}
+        Constant(Type* ty, int val)
+            : Value(ty), content(val) {}
+        Constant(Type* ty, double val)
+            : Value(ty), content(val) {}
+        Constant(Type* ty, const fzlib::String& val)
+            : Value(ty), content(val) {}
+        Constant(Type* ty, char val)
+            : Value(ty), content(val) {}
+        Constant(Type* ty, bool val)
+            : Value(ty), content(val) {}
+        Constant(Type* ty)
+            : Value(ty), content() {}
 
     public:
         static Constant* get(Type* t,  PositionInfo info = {0, 0, "NormalConstant, Not from token"});

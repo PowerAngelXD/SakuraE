@@ -11,7 +11,7 @@ namespace sakuraE::IR {
         Type* type;
         fzlib::String name;
     public:
-        explicit Value(Type* type) : type(type) {}
+        explicit Value(Type* ty) : type(ty) {}
         virtual ~Value() = default;
 
         Type* getType() const { return type; }
