@@ -459,10 +459,10 @@ namespace sakuraE {
     
     using ArrayTypeModifierParserRule =
     ConnectionParser<
+        BasicTypeModifierParser,
         DiscardParser<TokenType::LEFT_SQUARE_BRACKET>,
         ClosureParser<AddExprParser>,
-        DiscardParser<TokenType::RIGHT_SQUARE_BRACKET>,
-        BasicTypeModifierParser
+        DiscardParser<TokenType::RIGHT_SQUARE_BRACKET>
     >;
     class ArrayTypeModifierParser: public ResourceFetcher, public ArrayTypeModifierParserRule {
     public:
