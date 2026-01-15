@@ -16,6 +16,9 @@ func foo(a: int, b: int, s: string) -> int {
     if (VAR != VAR1 && a == 2) {
         return 0;
     }
+    else {
+        return 8;
+    }
     
     VAR1 = s;
 
