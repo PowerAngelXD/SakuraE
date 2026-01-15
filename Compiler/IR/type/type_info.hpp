@@ -11,6 +11,7 @@ namespace sakuraE::IR {
         Float,
         Bool,
         Char,
+        String,
         Custom,
         // Structure
         Array
