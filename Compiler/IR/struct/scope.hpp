@@ -11,8 +11,8 @@ namespace sakuraE::IR {
         fzlib::String name = "DefaultSymbol";
         Value* address = nullptr;
 
-        Symbol(): Value(Type::getVoidTy()) {};
-        Symbol(fzlib::String n, Value* addr, Type* t): Value(t), name(n), address(addr) {}
+        Symbol(): Value(IRType::getVoidTy()) {};
+        Symbol(fzlib::String n, Value* addr, IRType* t): Value(t), name(n), address(addr) {}
     };
 
     class Scope {
@@ -35,7 +35,7 @@ namespace sakuraE::IR {
             parent = scope;
         }
 
-        void declare(fzlib::String n, Value* addr, Type* t) {
+        void declare(fzlib::String n, Value* addr, IRType* t) {
             top().emplace(n, Symbol(n, addr, t));
         }
 

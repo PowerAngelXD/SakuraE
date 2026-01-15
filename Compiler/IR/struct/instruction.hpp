@@ -40,8 +40,8 @@ namespace sakuraE::IR {
 
         Block* parent = nullptr;
     public:
-        Instruction(OpKind k, Type* t): Value(t), kind(k) {}
-        Instruction(OpKind k, Type* t, std::vector<Value*> params): 
+        Instruction(OpKind k, IRType* t): Value(t), kind(k) {}
+        Instruction(OpKind k, IRType* t, std::vector<Value*> params): 
             Value(t), kind(k), args(params) {}
 
         ~Instruction() {

@@ -8,13 +8,13 @@
 namespace sakuraE::IR {
     class Value {
     protected:
-        Type* type;
+        IRType* type;
         fzlib::String name;
     public:
-        explicit Value(Type* ty) : type(ty) {}
+        explicit Value(IRType* ty) : type(ty) {}
         virtual ~Value() = default;
 
-        Type* getType() const { return type; }
+        IRType* getType() const { return type; }
 
         void setName(const fzlib::String& n) {
             name = n;

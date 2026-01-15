@@ -40,7 +40,7 @@ namespace sakuraE::IR {
             return instructions;
         }
 
-        Value* createInstruction(OpKind k, Type* t, const fzlib::String& n) {
+        Value* createInstruction(OpKind k, IRType* t, const fzlib::String& n) {
             Instruction* ins = new Instruction(k, t, {});
             ins->setParent(this);
             ins->setName(n);
@@ -49,7 +49,7 @@ namespace sakuraE::IR {
             return ins;
         }
 
-        Value* createInstruction(OpKind k, Type* t, std::vector<Value*> params, const fzlib::String& n) {
+        Value* createInstruction(OpKind k, IRType* t, std::vector<Value*> params, const fzlib::String& n) {
             Instruction* ins = new Instruction(k, t, params);
             ins->setParent(this);
             ins->setName(n);

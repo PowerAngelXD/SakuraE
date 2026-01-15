@@ -39,12 +39,12 @@ namespace sakuraE::IR {
             return program;
         }
 
-        Value* buildFunction(fzlib::String name, Type* retType, FormalParamsDefine params, PositionInfo info) {
+        Value* buildFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
             Function* func = new Function(name, retType, params, info);
             fnList.push_back(func);
             cursor ++;
 
-            return Constant::get(Type::getFunctionTy(func->getReturnType(), func->getParamsOnlyType()), createInfo);
+            return Constant::get(IRType::getFunctionTy(func->getReturnType(), func->getParamsOnlyType()), createInfo);
         }
 
         Scope& modScope() {

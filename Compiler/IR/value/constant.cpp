@@ -7,9 +7,9 @@ namespace sakuraE::IR {
     static std::map<char, Constant> charConstants;
     static std::map<bool, Constant> boolConstants;
 
-    static std::map<Type*, Constant> typeLabelConstants;
+    static std::map<IRType*, Constant> typeLabelConstants;
 
-    Constant* Constant::get(Type* t, PositionInfo info) {
+    Constant* Constant::get(IRType* t, PositionInfo info) {
         auto it = typeLabelConstants.find(t);
         if (it != typeLabelConstants.end()) {
             return &it->second;
@@ -25,7 +25,7 @@ namespace sakuraE::IR {
             return &it->second;
         }
 
-        Type* int32Ty = Type::getInt32Ty();
+        IRType* int32Ty = IRType::getInt32Ty();
         auto newEntry = intConstants.emplace(val, Constant(int32Ty, val, info));
         return &newEntry.first->second;
     }
@@ -36,7 +36,7 @@ namespace sakuraE::IR {
             return &it->second;
         }
 
-        Type* floatTy = Type::getFloatTy();
+        IRType* floatTy = IRType::getFloatTy();
         auto newEntry = doubleConstants.emplace(val, Constant(floatTy, val, info));
         return &newEntry.first->second;
     }
@@ -47,9 +47,9 @@ namespace sakuraE::IR {
             return &it->second;
         }
 
-        Type* charTy = Type::getIntNTy(8);
-        Type* arrayTy = Type::getArrayTy(charTy, val.len() + 1);
-        Type* stringTy = Type::getPointerTo(arrayTy);
+        IRType* charTy = IRType::getIntNTy(8);
+        IRType* arrayTy = IRType::getArrayTy(charTy, val.len() + 1);
+        IRType* stringTy = IRType::getPointerTo(arrayTy);
         auto newEntry = stringConstants.emplace(val, Constant(stringTy, val, info));
         return &newEntry.first->second;
     }
@@ -60,7 +60,7 @@ namespace sakuraE::IR {
             return &it->second;
         }
 
-        Type* charTy = Type::getIntNTy(8);
+        IRType* charTy = IRType::getIntNTy(8);
         auto newEntry = charConstants.emplace(val, Constant(charTy, val, info));
         return &newEntry.first->second;
     }
@@ -71,7 +71,7 @@ namespace sakuraE::IR {
             return &it->second;
         }
 
-        Type* boolTy = Type::getIntNTy(1);
+        IRType* boolTy = IRType::getIntNTy(1);
         auto newEntry = boolConstants.emplace(val, Constant(boolTy, val, info));
         return &newEntry.first->second;
     }
