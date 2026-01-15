@@ -8,7 +8,7 @@
 #include <llvm/IR/DerivedTypes.h>
 
 namespace sakuraE::IR {
-    enum TypeID {
+    enum IRTypeID {
         VoidTyID,
         IntegerTyID,
         FloatTyID,
@@ -20,108 +20,108 @@ namespace sakuraE::IR {
         BlockTyID
     };
 
-    class Type {
-        const TypeID typeID;
+    class IRType {
+        const IRTypeID irTypeID;
     protected:
-        explicit Type(TypeID id) : typeID(id) {}
+        explicit IRType(IRTypeID id) : irTypeID(id) {}
 
     public:
-        virtual ~Type() = default;
+        virtual ~IRType() = default;
 
-        TypeID getTypeID() const { return typeID; }
+        IRTypeID getIRTypeID() const { return irTypeID; }
 
-        bool operator== (Type* t) {
-            return typeID == t->typeID;
+        bool operator== (IRType* t) {
+            return irTypeID == t->irTypeID;
         }
 
-        bool operator!= (Type* t) {
+        bool operator!= (IRType* t) {
             return !operator==(t);
         }
 
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
 
-        static Type* getVoidTy();
-        static Type* getBoolTy();
-        static Type* getCharTy();
-        static Type* getInt32Ty();
-        static Type* getInt64Ty();
-        static Type* getIntNTy(unsigned bitWidth);
-        static Type* getFloatTy();
-        static Type* getPointerTo(Type* elementType);
-        static Type* getArrayTy(Type* elementType, uint64_t numElements);
+        static IRType* getVoidTy();
+        static IRType* getBoolTy();
+        static IRType* getCharTy();
+        static IRType* getInt32Ty();
+        static IRType* getInt64Ty();
+        static IRType* getIntNTy(unsigned bitWidth);
+        static IRType* getFloatTy();
+        static IRType* getPointerTo(IRType* elementType);
+        static IRType* getArrayTy(IRType* elementType, uint64_t numElements);
 
-        static Type* getBlockTy();
-        static Type* getFunctionTy(Type* returnType, std::vector<Type*> params);
+        static IRType* getBlockTy();
+        static IRType* getFunctionTy(IRType* returnType, std::vector<IRType*> params);
     };
 
-    class VoidType : public Type {
-        friend class Type;
-        VoidType() : Type(VoidTyID) {}
+    class VoidType : public IRType {
+        friend class IRType;
+        VoidType() : IRType(VoidTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
-    class FloatType : public Type {
-        friend class Type;
-        FloatType() : Type(FloatTyID) {}
+    class FloatType : public IRType {
+        friend class IRType;
+        FloatType() : IRType(FloatTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
-    class IntegerType : public Type {
-        friend class Type;
+    class IntegerType : public IRType {
+        friend class IRType;
         unsigned bitWidth;
 
-        explicit IntegerType(unsigned bw) : Type(IntegerTyID), bitWidth(bw) {}
+        explicit IntegerType(unsigned bw) : IRType(IntegerTyID), bitWidth(bw) {}
 
     public:
         unsigned getBitWidth() const { return bitWidth; }
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
-    class PointerType : public Type {
-        friend class Type;
-        Type* elementType;
+    class PointerType : public IRType {
+        friend class IRType;
+        IRType* elementType;
 
-        explicit PointerType(Type* elementTy) : Type(PointerTyID), elementType(elementTy) {}
+        explicit PointerType(IRType* elementTy) : IRType(PointerTyID), elementType(elementTy) {}
 
     public:
-        Type* getElementType() const { return elementType; }
+        IRType* getElementType() const { return elementType; }
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
-    class ArrayType : public Type {
-        friend class Type;
-        Type* elementType;
+    class ArrayType : public IRType {
+        friend class IRType;
+        IRType* elementType;
         uint64_t numElements;
 
         // Private constructor
-        ArrayType(Type* elementTy, uint64_t num) 
-            : Type(ArrayTyID), elementType(elementTy), numElements(num) {}
+        ArrayType(IRType* elementTy, uint64_t num) 
+            : IRType(ArrayTyID), elementType(elementTy), numElements(num) {}
 
     public:
-        Type* getElementType() const { return elementType; }
+        IRType* getElementType() const { return elementType; }
         uint64_t getNumElements() const { return numElements; }
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
     // IR Inside
-    class BlockType : public Type {
-        friend class Type;
+    class BlockType : public IRType {
+        friend class IRType;
 
-        explicit BlockType() : Type(BlockTyID) {}
+        explicit BlockType() : IRType(BlockTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };
 
-    class FunctionType : public Type {
-        friend class Type;
+    class FunctionType : public IRType {
+        friend class IRType;
 
-        std::vector<Type*> paramsType;
-        Type* returnType;
+        std::vector<IRType*> paramsType;
+        IRType* returnType;
 
-        explicit FunctionType(Type* ret, std::vector<Type*> params)
-            : Type(FunctionTyID), paramsType(params), returnType(ret) {}
+        explicit FunctionType(IRType* ret, std::vector<IRType*> params)
+            : IRType(FunctionTyID), paramsType(params), returnType(ret) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
     };

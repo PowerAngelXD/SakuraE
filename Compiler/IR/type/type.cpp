@@ -2,36 +2,36 @@
 
 namespace sakuraE::IR {
     static std::map<unsigned, IntegerType> integerTypes;
-    static std::map<Type*, PointerType> pointerTypes;
-    static std::map<std::pair<Type*, uint64_t>, ArrayType> arrayTypes;
-    static std::map<std::pair<Type*, std::vector<Type*>>, FunctionType> funcTypes;
+    static std::map<IRType*, PointerType> pointerTypes;
+    static std::map<std::pair<IRType*, uint64_t>, ArrayType> arrayTypes;
+    static std::map<std::pair<IRType*, std::vector<IRType*>>, FunctionType> funcTypes;
 
-    Type* Type::getVoidTy() {
-        static VoidType voidSingle;
+    IRType* IRType::getVoidTy() {
+        static IRVoidType voidSingle;
         return &voidSingle;
     }
 
-    Type* Type::getBoolTy() {
+    IRType* IRType::getBoolTy() {
         static IntegerType boolSingle(1);
         return &boolSingle;
     }
 
-    Type* Type::getCharTy() {
+    IRType* IRType::getCharTy() {
         static IntegerType charSingle(8);
         return &charSingle;
     }
 
-    Type* Type::getInt32Ty() {
+    IRType* IRType::getInt32Ty() {
         static IntegerType i32Single(32);
         return &i32Single;
     }
 
-    Type* Type::getInt64Ty() {
+    IRType* IRType::getInt64Ty() {
         static IntegerType i64Single(64);
         return &i64Single;
     }
     
-    Type* Type::getIntNTy(unsigned bitWidth) {
+    IRType* IRType::getIntNTy(unsigned bitWidth) {
         auto it = integerTypes.find(bitWidth);
         if (it != integerTypes.end()) {
             return &it->second;
@@ -40,12 +40,12 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
     
-    Type* Type::getFloatTy() {
+    IRType* IRType::getFloatTy() {
         static FloatType floatSingle;
         return &floatSingle;
     }
 
-    Type* Type::getPointerTo(Type* elementType) {
+    IRType* IRType::getPointerTo(IRType* elementType) {
         auto it = pointerTypes.find(elementType);
         if (it != pointerTypes.end()) {
             return &it->second;
@@ -54,7 +54,7 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
-    Type* Type::getArrayTy(Type* elementType, uint64_t numElements) {
+    IRType* IRType::getArrayTy(IRType* elementType, uint64_t numElements) {
         auto key = std::make_pair(elementType, numElements);
         auto it = arrayTypes.find(key);
         if (it != arrayTypes.end()) {
@@ -65,13 +65,13 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
-    Type* Type::getBlockTy() {
+    IRType* IRType::getBlockTy() {
         static BlockType blockIndexSingle;
 
         return &blockIndexSingle;
     }
 
-    Type* Type::getFunctionTy(Type* returnType, std::vector<Type*> params) {
+    IRType* IRType::getFunctionTy(IRType* returnType, std::vector<IRType*> params) {
         auto key = std::make_pair(returnType, params);
         auto it = funcTypes.find(key);
 
@@ -84,7 +84,7 @@ namespace sakuraE::IR {
     }
 
 
-    llvm::Type* VoidType::toLLVMType(llvm::LLVMContext& ctx) {
+    llvm::Type* IRVoidType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::Type::getVoidTy(ctx);
     }
 
