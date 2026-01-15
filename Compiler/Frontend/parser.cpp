@@ -241,10 +241,11 @@ sakuraE::NodePtr sakuraE::BasicTypeModifierParser::genResource() {
 sakuraE::NodePtr sakuraE::ArrayTypeModifierParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ArrayTypeModifierNode);
 
-    if (!std::get<2>(getTuple())->isEmpty())
-        (*root)[ASTTag::HeadExpr] = std::get<2>(getTuple())->getClosure()[0]->genResource();
+    for (auto dimension: std::get<1>(getTuple())->getClosure()) {
+        (*root)[ASTTag::Exprs]->addChild(std::get<1>(dimension->getTuple())->genResource());
+    }
     
-    (*root)[ASTTag::Identifier] = std::get<0>(getTuple())->genResource();
+    (*root)[ASTTag::HeadExpr] = std::get<0>(getTuple())->genResource();
 
     return root;
 }
