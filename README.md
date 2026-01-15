@@ -7,6 +7,8 @@
 
 ```
 SakuraE/
+├── .gitignore                  # Git ignore rules
+├── banner.png                  # Project banner image
 ├── CMakeLists.txt              # CMake build configuration file
 ├── main.cpp                    # Main entry point of the compiler
 ├── demo.sak                    # Sample source file for testing
@@ -25,6 +27,7 @@ SakuraE/
 │   │   ├── parser.cpp          # Parser implementation
 │   │   └── parser.hpp          # Parser header
 │   ├── IR/                     # Intermediate Representation (IR) module
+│   │   ├── generator.cpp       # IR generator implementation
 │   │   ├── generator.hpp       # IR generation utilities
 │   │   ├── IR.hpp              # Core IR definitions
 │   │   ├── struct/             # IR structural components
@@ -32,9 +35,14 @@ SakuraE/
 │   │   │   ├── function.hpp    # Function representation
 │   │   │   ├── instruction.hpp # Instruction definitions
 │   │   │   ├── module.hpp      # Module representation
-│   │   │   └── program.hpp     # Program-level IR
-│   │   └── value/              # Value and type systems
-│   │       ├── type.hpp        # Type definitions
+│   │   │   ├── program.hpp     # Program-level IR
+│   │   │   └── scope.hpp       # Scope management for symbols
+│   │   ├── type/               # Type system
+│   │   │   ├── type.cpp        # Type system implementation
+│   │   │   └── type.hpp        # Type definitions
+│   │   └── value/              # Value and constant systems
+│   │       ├── constant.cpp    # Constant value implementation
+│   │       ├── constant.hpp    # Constant value definitions
 │   │       └── value.hpp       # Value representations
 │   └── Utils/                  # Utility functions
 │       └── Logger.hpp          # Logging utilities
@@ -51,7 +59,12 @@ SakuraE/
 - **Compiler/CodeGen/**: Handles the generation of target machine code from IR, interfacing with LLVM backends.
 - **Compiler/Error/**: Provides error reporting and handling mechanisms throughout the compilation process.
 - **Compiler/Frontend/**: Manages lexical analysis, parsing, and AST construction from source code.
-- **Compiler/IR/**: Defines and manipulates the intermediate representation, including modules, functions, blocks, and instructions.
+- **Compiler/IR/**: Defines and manipulates the intermediate representation:
+  - **generator.cpp/hpp**: Visitor-based IR generation from AST nodes.
+  - **IR.hpp**: Core IR type definitions and enumerations.
+  - **struct/**: Contains IR structural components including blocks, functions, instructions, modules, programs, and scopes.
+  - **type/**: Type system implementation for IR values.
+  - **value/**: Value representations including constants and runtime values.
 - **Compiler/Utils/**: Contains shared utilities like logging for debugging and diagnostics.
 - **includes/**: Third-party libraries and custom headers used across the project.
 
