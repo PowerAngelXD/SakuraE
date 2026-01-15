@@ -3,12 +3,10 @@
 
 ### Based on LLVM, A Compilable Programming Language
 
-## Project Structure
+## Project Structure (Main)
 
 ```
 SakuraE/
-├── .gitignore                  # Git ignore rules
-├── banner.png                  # Project banner image
 ├── CMakeLists.txt              # CMake build configuration file
 ├── main.cpp                    # Main entry point of the compiler
 ├── demo.sak                    # Sample source file for testing
