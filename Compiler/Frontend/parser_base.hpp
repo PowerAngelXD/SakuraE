@@ -74,6 +74,22 @@ namespace sakuraE {
         }
     };
 
+    // NullParser
+    struct NullParser {
+        static constexpr bool epsilonable() { 
+            return true; 
+        }
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return true;
+        }
+
+        static Result<NullParser> parse(TokenIter begin, TokenIter end) {
+            return Result<NullParser>(ParseStatus::SUCCESS, nullptr, begin);
+        }
+    };
+
+
     // Parse single token, but ignore it (not include it in the value)
     template<sakuraE::TokenType T>
     struct DiscardParser {
