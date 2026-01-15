@@ -621,9 +621,10 @@ namespace sakuraE {
         TokenParser<TokenType::LEFT_PAREN>,
         BinaryExprParser,
         TokenParser<TokenType::RIGHT_PAREN>,
+        BlockStmtParser,
         OptionsParser<
-            BlockStmtParser,
-            ElseStmtParser
+            ElseStmtParser,
+            NullParser
         >
     >;
     class IfStmtParser: public ResourceFetcher, public IfStmtParserRule {
