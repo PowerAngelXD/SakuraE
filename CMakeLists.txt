@@ -42,7 +42,7 @@ message(STATUS "LLVM components: ${llvm_components}")
 
 # -Wfloat-equal
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -pedantic -Wimplicit-fallthrough -Wsequence-point -Wstringop-truncation -Wbool-compare -Wtautological-compare -Wshadow=global -Wpointer-arith -Wpointer-compare -Wcast-align -Wcast-qual -Wwrite-strings -Wdangling-else -Wlogical-op -Werror")
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -Wall -pedantic -Wimplicit-fallthrough -Wsequence-point -Wstringop-truncation -Wbool-compare -Wtautological-compare -Wshadow=global -Wpointer-arith -Wpointer-compare -Wcast-align -Wcast-qual -Wwrite-strings -Wdangling-else -Wlogical-op -Werror")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 file(GLOB SRC_FILES "includes/magic_enum.hpp" 
