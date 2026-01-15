@@ -6,6 +6,7 @@ namespace sakuraE::IR {
     static std::map<std::pair<IRType*, uint64_t>, IRArrayType> arrayTypes;
     static std::map<std::pair<IRType*, std::vector<IRType*>>, IRFunctionType> funcTypes;
 
+
     IRType* IRType::getVoidTy() {
         static IRVoidType voidSingle;
         return &voidSingle;
@@ -38,6 +39,11 @@ namespace sakuraE::IR {
         }
         auto newEntry = IRIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth));
         return &newEntry.first->second;
+    }
+
+    IRType* IRType::getTypeInfoTy() {
+        static IRTypeInfoType tinfoSingle;
+        return &tinfoSingle;
     }
     
     IRType* IRType::getFloatTy() {
