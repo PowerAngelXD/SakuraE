@@ -22,18 +22,14 @@ namespace sakuraE::IR {
             return callingCur;
         }
 
-        void declareSymbol(fzlib::String name, IRType* t, Value* initVal = nullptr) {
+        Value* declareSymbol(fzlib::String name, IRType* t, Value* initVal = nullptr) {
             Value* addr = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::declare, IRType::getVoidTy(), {}, "declare-" + name);
+                                ->createInstruction(OpKind::declare, IRType::getVoidTy(), {Constant::get(t), initVal}, "declare-" + name);
             
             curFunc()->fnScope().declare(name, addr, t);
 
-            if (initVal) {
-                curFunc()
-                    ->curBlock()
-                    ->createInstruction(OpKind::assign, IRType::getVoidTy(), {addr, initVal}, "assign-" + name);
-            }
+            return addr;
         }
 
         Value* loadSymbol(fzlib::String name, PositionInfo info = {0, 0, "Normal Load"}) {
@@ -127,16 +123,16 @@ namespace sakuraE::IR {
         Value* visitArrayTypeModifierNode(NodePtr node);
         Value* visitTypeModifierNode(NodePtr node);
         Value* visitAssignExprNode(NodePtr node);
-        Value* visitRangeExprNode(NodePtr node);
+        // TODO: Range implement
+        // Value* visitRangeExprNode(NodePtr node);
 
         // --- Visit Statements ---
         Value* visitDeclareStmtNode(NodePtr node);
         Value* visitExprStmtNode(NodePtr node);
         Value* visitIfStmtNode(NodePtr node);
-        Value* visitElseStmtNode(NodePtr node);
         Value* visitWhileStmtNode(NodePtr node);
         Value* visitForStmtNode(NodePtr node);
-        Value* visitBlockStmtNode(NodePtr node);
+        Value* visitBlockStmtNode(NodePtr node, fzlib::String blockName);
         Value* visitFuncDefineStmtNode(NodePtr node);
         Value* visitReturnStmtNode(NodePtr node);
         Value* visitStmt(NodePtr node);
