@@ -39,15 +39,15 @@ namespace sakuraE::IR {
 
     class Block;
 
-    class Instruction: public Value {
+    class Instruction: public IRValue {
         OpKind kind = OpKind::empty;
-        std::vector<Value*> args;
+        std::vector<IRValue*> args;
 
         Block* parent = nullptr;
     public:
-        Instruction(OpKind k, IRType* t): Value(t), kind(k) {}
-        Instruction(OpKind k, IRType* t, std::vector<Value*> params): 
-            Value(t), kind(k), args(params) {}
+        Instruction(OpKind k, IRType* t): IRValue(t), kind(k) {}
+        Instruction(OpKind k, IRType* t, std::vector<IRValue*> params): 
+            IRValue(t), kind(k), args(params) {}
 
         ~Instruction() {
             for (auto arg: args) {
@@ -70,11 +70,11 @@ namespace sakuraE::IR {
             return parent;
         }
 
-        const std::vector<Value*>& getOperands() {
+        const std::vector<IRValue*>& getOperands() {
             return args;
         }
 
-        Value* arg(std::size_t pos) {
+        IRValue* arg(std::size_t pos) {
             return args.at(pos);
         }
 
@@ -82,7 +82,7 @@ namespace sakuraE::IR {
             return kind;
         }
 
-        Value* operator[] (std::size_t pos) {
+        IRValue* operator[] (std::size_t pos) {
             return args.at(pos);
         }
     };

@@ -13,23 +13,23 @@
 namespace sakuraE::IR {
     class Type;
 
-    class Constant : public Value {
+    class Constant : public IRValue {
     private:
         std::variant<std::monostate, int, double, fzlib::String, char, bool, TypeInfo*> content;
         PositionInfo createInfo;
 
         Constant(IRType* ty, int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : Value(ty), content(val), createInfo(info) {}
+            : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : Value(ty), content(val), createInfo(info) {}
+            : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, const fzlib::String& val, PositionInfo info)
-            : Value(ty), content(val), createInfo(info) {}
+            : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : Value(ty), content(val), createInfo(info) {}
+            : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : Value(ty), content(val), createInfo(info) {}
+            : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : Value(ty), content(val), createInfo(info) {}
+            : IRValue(ty), content(val), createInfo(info) {}
 
     public:
         static Constant* get(int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
@@ -41,7 +41,7 @@ namespace sakuraE::IR {
         static Constant* getFromToken(const Token& tok);
 
         template<typename T>
-        const T& getValue() const {
+        const T& getIRValue() const {
             if (std::holds_alternative<T>(content)) {
                 return std::get<T>(content);
             }

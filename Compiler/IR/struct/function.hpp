@@ -12,7 +12,7 @@ namespace sakuraE::IR {
     class Module;
 
     // SakuraE Function
-    class Function: public Value {
+    class Function: public IRValue {
         fzlib::String funcName;
         IRType* returnType;
         FormalParamsDefine formalParams;
@@ -27,10 +27,10 @@ namespace sakuraE::IR {
         Module* parent;
     public:
         Function(fzlib::String n, IRType* retType, PositionInfo info): 
-            Value(IRType::getFunctionTy(retType, {})), funcName(n), returnType(retType), funcScope(info), createInfo(info) {}
+            IRValue(IRType::getFunctionTy(retType, {})), funcName(n), returnType(retType), funcScope(info), createInfo(info) {}
         
         Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info): 
-            Value(IRType::getFunctionTy(retType, 
+            IRValue(IRType::getFunctionTy(retType, 
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {
@@ -60,7 +60,7 @@ namespace sakuraE::IR {
             return result;
         }
 
-        Value* buildBlock(fzlib::String id, std::vector<Instruction*> ops) {
+        IRValue* buildBlock(fzlib::String id, std::vector<Instruction*> ops) {
             Block* block = new Block(id, ops);
             block->setParent(this);
             blocks.push_back(block);
@@ -69,7 +69,7 @@ namespace sakuraE::IR {
             return block;
         }
 
-        Value* buildBlock(fzlib::String id) {
+        IRValue* buildBlock(fzlib::String id) {
             Block* block = new Block(id);
             block->setParent(this);
             blocks.push_back(block);

@@ -7,12 +7,12 @@
 #include "Compiler/IR/value/constant.hpp"
 
 namespace sakuraE::IR {
-    struct Symbol: public Value {
+    struct Symbol: public IRValue {
         fzlib::String name = "DefaultSymbol";
-        Value* address = nullptr;
+        IRValue* address = nullptr;
 
-        Symbol(): Value(IRType::getVoidTy()) {};
-        Symbol(fzlib::String n, Value* addr, IRType* t): Value(t), name(n), address(addr) {}
+        Symbol(): IRValue(IRType::getVoidTy()) {};
+        Symbol(fzlib::String n, IRValue* addr, IRType* t): IRValue(t), name(n), address(addr) {}
     };
 
     class Scope {
@@ -35,7 +35,7 @@ namespace sakuraE::IR {
             parent = scope;
         }
 
-        void declare(fzlib::String n, Value* addr, IRType* t) {
+        void declare(fzlib::String n, IRValue* addr, IRType* t) {
             top().emplace(n, Symbol(n, addr, t));
         }
 

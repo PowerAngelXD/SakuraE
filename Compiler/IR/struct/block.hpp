@@ -7,16 +7,16 @@ namespace sakuraE::IR {
     class Function;
     // SakuraE IR Block
     // Rule: Every block id starts as '@'
-    class Block: public Value {
+    class Block: public IRValue {
         std::vector<Instruction*> instructions;
         fzlib::String ID = "@default-block";
 
         Function* parent = nullptr;
     public:
         Block(fzlib::String id, std::vector<Instruction*> ops): 
-            Value(IRType::getBlockTy()), instructions(ops), ID("@" + id) {}
+            IRValue(IRType::getBlockTy()), instructions(ops), ID("@" + id) {}
         Block(fzlib::String id):
-            Value(IRType::getBlockTy()), instructions({}), ID("@" + id) {}
+            IRValue(IRType::getBlockTy()), instructions({}), ID("@" + id) {}
 
         ~Block() {
             for (auto ins: instructions) {
@@ -40,7 +40,7 @@ namespace sakuraE::IR {
             return instructions;
         }
 
-        Value* createInstruction(OpKind k, IRType* t, const fzlib::String& n) {
+        IRValue* createInstruction(OpKind k, IRType* t, const fzlib::String& n) {
             if (instructions[instructions.size() - 1]->isTerminal())
                 throw SakuraError(OccurredTerm::IR_GENERATING,  
                                     "Cannot create any instruction after terminal code!",
@@ -54,7 +54,7 @@ namespace sakuraE::IR {
             return ins;
         }
 
-        Value* createInstruction(OpKind k, IRType* t, std::vector<Value*> params, const fzlib::String& n) {
+        IRValue* createInstruction(OpKind k, IRType* t, std::vector<IRValue*> params, const fzlib::String& n) {
             if (instructions[instructions.size() - 1]->isTerminal())
                 throw SakuraError(OccurredTerm::IR_GENERATING,  
                                     "Cannot create any instruction after terminal code!",

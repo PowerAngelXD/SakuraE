@@ -6,13 +6,13 @@
 #include <string>
 
 namespace sakuraE::IR {
-    class Value {
+    class IRValue {
     protected:
         IRType* type;
         fzlib::String name;
     public:
-        explicit Value(IRType* ty) : type(ty) {}
-        virtual ~Value() = default;
+        explicit IRValue(IRType* ty) : type(ty) {}
+        virtual ~IRValue() = default;
 
         IRType* getType() const { return type; }
 

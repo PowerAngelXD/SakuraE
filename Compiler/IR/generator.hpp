@@ -12,18 +12,18 @@ namespace sakuraE::IR {
         Scope* currentScope = nullptr;
 
         // Calling List
-        std::vector<std::vector<Value*>> callingList;
+        std::vector<std::vector<IRValue*>> callingList;
         int callingCur = -1;
 
-        int makeCallingList(std::vector<Value*> list) {
+        int makeCallingList(std::vector<IRValue*> list) {
             callingList.push_back(list);
             callingCur ++;
 
             return callingCur;
         }
 
-        Value* declareSymbol(fzlib::String name, IRType* t, Value* initVal = nullptr) {
-            Value* addr = curFunc()
+        IRValue* declareSymbol(fzlib::String name, IRType* t, IRValue* initVal = nullptr) {
+            IRValue* addr = curFunc()
                                 ->curBlock()
                                 ->createInstruction(OpKind::declare, IRType::getVoidTy(), {Constant::get(t), initVal}, "declare-" + name);
             
@@ -32,7 +32,7 @@ namespace sakuraE::IR {
             return addr;
         }
 
-        Value* loadSymbol(fzlib::String name, PositionInfo info = {0, 0, "Normal Load"}) {
+        IRValue* loadSymbol(fzlib::String name, PositionInfo info = {0, 0, "Normal Load"}) {
             Symbol* symbol = curFunc()->fnScope().lookup(name);
 
             if (symbol == nullptr)
@@ -46,7 +46,7 @@ namespace sakuraE::IR {
         }
 
         // Used to obtain the type of the result from a non-logical binary operation
-        IRType* handleUnlogicalBinaryCalc(Value* lhs, Value* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
+        IRType* handleUnlogicalBinaryCalc(IRValue* lhs, IRValue* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
             switch (lhs->getType()->getIRTypeID()) {
                 case IRTypeID::IntegerTyID: {
                     auto lhsType = dynamic_cast<IRIntegerType*>(lhs->getType());
@@ -107,35 +107,35 @@ namespace sakuraE::IR {
         }
 
         // --- Visit Expressions ---
-        Value* visitLiteralNode(NodePtr node);
-        Value* visitIndexOpNode(Value* addr, NodePtr node);
-        Value* visitCallingOpNode(Value* addr, NodePtr node);
-        Value* visitAtomIdentifierNode(NodePtr node);
-        Value* visitIdentifierExprNode(NodePtr node);
-        Value* visitPrimExprNode(NodePtr node);
-        Value* visitMulExprNode(NodePtr node);
-        Value* visitAddExprNode(NodePtr node);
-        Value* visitLogicExprNode(NodePtr node);
-        Value* visitBinaryExprNode(NodePtr node);
-        Value* visitArrayExprNode(NodePtr node);
-        Value* visitWholeExprNode(NodePtr node);
-        Value* visitBasicTypeModifierNode(NodePtr node);
-        Value* visitArrayTypeModifierNode(NodePtr node);
-        Value* visitTypeModifierNode(NodePtr node);
-        Value* visitAssignExprNode(NodePtr node);
+        IRValue* visitLiteralNode(NodePtr node);
+        IRValue* visitIndexOpNode(IRValue* addr, NodePtr node);
+        IRValue* visitCallingOpNode(IRValue* addr, NodePtr node);
+        IRValue* visitAtomIdentifierNode(NodePtr node);
+        IRValue* visitIdentifierExprNode(NodePtr node);
+        IRValue* visitPrimExprNode(NodePtr node);
+        IRValue* visitMulExprNode(NodePtr node);
+        IRValue* visitAddExprNode(NodePtr node);
+        IRValue* visitLogicExprNode(NodePtr node);
+        IRValue* visitBinaryExprNode(NodePtr node);
+        IRValue* visitArrayExprNode(NodePtr node);
+        IRValue* visitWholeExprNode(NodePtr node);
+        IRValue* visitBasicTypeModifierNode(NodePtr node);
+        IRValue* visitArrayTypeModifierNode(NodePtr node);
+        IRValue* visitTypeModifierNode(NodePtr node);
+        IRValue* visitAssignExprNode(NodePtr node);
         // TODO: Range implement
-        // Value* visitRangeExprNode(NodePtr node);
+        // IRValue* visitRangeExprNode(NodePtr node);
 
         // --- Visit Statements ---
-        Value* visitDeclareStmtNode(NodePtr node);
-        Value* visitExprStmtNode(NodePtr node);
-        Value* visitIfStmtNode(NodePtr node);
-        Value* visitWhileStmtNode(NodePtr node);
-        Value* visitForStmtNode(NodePtr node);
-        Value* visitBlockStmtNode(NodePtr node, fzlib::String blockName);
-        Value* visitFuncDefineStmtNode(NodePtr node);
-        Value* visitReturnStmtNode(NodePtr node);
-        Value* visitStmt(NodePtr node);
+        IRValue* visitDeclareStmtNode(NodePtr node);
+        IRValue* visitExprStmtNode(NodePtr node);
+        IRValue* visitIfStmtNode(NodePtr node);
+        IRValue* visitWhileStmtNode(NodePtr node);
+        IRValue* visitForStmtNode(NodePtr node);
+        IRValue* visitBlockStmtNode(NodePtr node, fzlib::String blockName);
+        IRValue* visitFuncDefineStmtNode(NodePtr node);
+        IRValue* visitReturnStmtNode(NodePtr node);
+        IRValue* visitStmt(NodePtr node);
     };
 }
 
