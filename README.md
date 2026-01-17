@@ -138,3 +138,7 @@ If you encounter issues, ensure LLVM development libraries are installed (e.g., 
 ## Contributor
 
 - [The Flysong](https://github.com/theflysong) : Contributor inspired by the Parser
+
+## Sponsor
+
+- [SendsTeam](https://github.com/SendsTeam) : Provide LLM Service during developing
