@@ -135,6 +135,11 @@ SakuraE/
 
 If you encounter issues, ensure LLVM development libraries are installed (e.g., `llvm-dev` package) and `llvm-config` is available in PATH.
 
+## IR Developing
+For more detailed development specifications regarding the IR, please click the link below.
+
+[IR README](Compiler/IR/README.md)
+
 ## Contributor
 
 - [The Flysong](https://github.com/theflysong) : Contributor inspired by the Parser
