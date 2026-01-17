@@ -40,7 +40,6 @@ namespace sakuraE {
         ASTTag tag;
         std::variant<std::monostate, TokenPtr> content;
         std::vector<std::pair<ASTTag, NodePtr>> children;
-        std::vector<NodePtr> pure_children;
         PositionInfo createInfo;
 
         int hasSub(ASTTag t) {
@@ -89,7 +88,6 @@ namespace sakuraE {
         NodePtr& operator[] (ASTTag t) {
             if (hasSub(t) == -1) {
                 children.push_back({t, std::make_shared<Node>(t)});
-                pure_children.push_back(children.at(children.size() - 1).second);
                 return children.at(hasSub(t)).second;
             }
             else {
@@ -101,11 +99,14 @@ namespace sakuraE {
             if (!node) return;
             ASTTag childTag = node->getTag();
             children.push_back({childTag, node});
-            pure_children.push_back(node);
         }
 
         std::vector<NodePtr> getChildren() {
-            return pure_children;
+            std::vector<NodePtr> result;
+            for (auto child: children) {
+                result.push_back(child.second);
+            }
+            return result;
         }
 
         fzlib::String toString() {
