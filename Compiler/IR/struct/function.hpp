@@ -22,7 +22,7 @@ namespace sakuraE::IR {
         
         std::vector<Block*> blocks;
         // Indicates the current maximum index of blocks
-        int cursor = -1;
+        long cursor = -1;
 
         Module* parent;
     public:
@@ -87,8 +87,8 @@ namespace sakuraE::IR {
             return blocks[index];
         }
 
-        Function& moveCursor(int target) {
-            if (target >= 0 && target < blocks.size()) {
+        Function& moveCursor(long target) {
+            if (target >= 0 && target < static_cast<long>(blocks.size())) {
                 cursor = target;
             }
             else
@@ -110,7 +110,7 @@ namespace sakuraE::IR {
             return formalParams;
         }
 
-        const int& cur() {
+        const long& cur() {
             return cursor;
         }
 

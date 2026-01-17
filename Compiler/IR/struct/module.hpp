@@ -17,7 +17,7 @@ namespace sakuraE::IR {
 
         std::vector<Function*> fnList;
         // Indicates the current maximum index of fnList
-        int cursor = -1;
+        long cursor = -1;
 
         // Determine whether a module has an entry
         bool hasEntry;
@@ -51,8 +51,8 @@ namespace sakuraE::IR {
             return moduleScope;
         }
 
-        Module& moveCursor(int target) {
-            if (target >= 0 && target < fnList.size()) {
+        Module& moveCursor(long target) {
+            if (target >= 0 && target < static_cast<long>(fnList.size())) {
                 cursor = target;
             }
             else
@@ -92,7 +92,7 @@ namespace sakuraE::IR {
                             createInfo);
         }
 
-        const int& cur() {
+        const long& cur() {
             return cursor;
         }
 
