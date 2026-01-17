@@ -601,11 +601,16 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
+        IRType* retType = IRType::getVoidTy();
         FormalParamsDefine params;
 
+        IRValue* fn = curModule()->buildFunction(fnName, retType, params, node->getPosInfo());
+
         if (node->hasNode(ASTTag::Args)) {
-            for (auto arg: (*node)[ASTTag::Args]->getChildren()) {
-                IRValue* typeInfoIRValue = visitTypeModifierNode((*arg)[ASTTag::Type]);
+            auto typeList = (*node)[ASTTag::Args]->getChildren()[0];
+            auto nameList = (*node)[ASTTag::Args]->getChildren()[1];
+            for (std::size_t i = 0; i < typeList->getChildren().size(); i ++) {
+                IRValue* typeInfoIRValue = visitTypeModifierNode(typeList->getChildren()[i]);
 
                 // Unboxing
                 auto constInst = dynamic_cast<Instruction*>(typeInfoIRValue);
@@ -614,7 +619,7 @@ namespace sakuraE::IR {
 
                 IRType* argType = typeInfo->toIRType();
 
-                fzlib::String argName = (*arg)[ASTTag::Identifier]->getToken().content;
+                fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
                 params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
             }
@@ -627,9 +632,7 @@ namespace sakuraE::IR {
         auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
         TypeInfo* typeInfo = typeInfoConstant->getIRValue<TypeInfo*>();
 
-        IRType* retType = typeInfo->toIRType();
-
-        IRValue* fn = curModule()->buildFunction(fnName, retType, params, node->getPosInfo());
+        retType = typeInfo->toIRType();
 
         visitBlockStmtNode((*node)[ASTTag::Block], "fn." + fnName);
 
@@ -648,31 +651,35 @@ namespace sakuraE::IR {
     }
 
     IRValue* IRGenerator::visitStmt(NodePtr node) {
-        NodePtr stmt = (*node)[ASTTag::Stmt];
+        NodePtr stmt;
+        if (node->getTag() == ASTTag::Stmt)
+            stmt = (*node)[ASTTag::Stmt];
+        else
+            stmt = node;
         
-        if (stmt->hasNode(ASTTag::DeclareStmtNode)) {
-            return visitDeclareStmtNode((*stmt)[ASTTag::DeclareStmtNode]);
+        if (stmt->getTag() == ASTTag::DeclareStmtNode) {
+            return visitDeclareStmtNode(stmt);
         }
-        else if (stmt->hasNode(ASTTag::ExprStmtNode)) {
-            return visitExprStmtNode((*stmt)[ASTTag::ExprStmtNode]);
+        else if (stmt->getTag() == ASTTag::ExprStmtNode) {
+            return visitExprStmtNode(stmt);
         }
-        else if (stmt->hasNode(ASTTag::IfStmtNode)) {
-            return visitIfStmtNode((*stmt)[ASTTag::IfStmtNode]);
+        else if (stmt->getTag() == ASTTag::IfStmtNode) {
+            return visitIfStmtNode(stmt);
         }
-        else if (stmt->hasNode(ASTTag::WhileStmtNode)) {
-            return visitWhileStmtNode((*stmt)[ASTTag::WhileStmtNode]);
+        else if (stmt->getTag() == ASTTag::WhileStmtNode) {
+            return visitWhileStmtNode(stmt);
         }
-        else if (stmt->hasNode(ASTTag::ForStmtNode)) {
-            return visitForStmtNode((*stmt)[ASTTag::ForStmtNode]);
+        else if (stmt->getTag() == ASTTag::ForStmtNode) {
+            return visitForStmtNode(stmt);
         }
-        else if (stmt->hasNode(ASTTag::BlockStmtNode)) {
-            return visitBlockStmtNode((*stmt)[ASTTag::BlockStmtNode], "block");
+        else if (stmt->getTag() == ASTTag::BlockStmtNode) {
+            return visitBlockStmtNode(stmt, "blockStmt");
         }
-        else if (stmt->hasNode(ASTTag::FuncDefineStmtNode)) {
-            return visitFuncDefineStmtNode((*stmt)[ASTTag::FuncDefineStmtNode]);
+        else if (stmt->getTag() == ASTTag::FuncDefineStmtNode) {
+            return visitFuncDefineStmtNode(stmt);
         }
-        else if (stmt->hasNode(ASTTag::ReturnStmtNode)) {
-            return visitReturnStmtNode((*stmt)[ASTTag::ReturnStmtNode]);
+        else if (stmt->getTag() == ASTTag::ReturnStmtNode) {
+            return visitReturnStmtNode(stmt);
         }
         
         throw SakuraError(OccurredTerm::IR_GENERATING,
