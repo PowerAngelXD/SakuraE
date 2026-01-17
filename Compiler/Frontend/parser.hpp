@@ -702,7 +702,7 @@ namespace sakuraE {
     using TraditionalConditionChain = 
     ConnectionParser<
         DeclareStmtParser,
-        WholeExprParser,
+        BinaryExprParser,
         TokenParser<TokenType::STMT_END>,
         WholeExprParser
     >;
