@@ -31,10 +31,8 @@ namespace sakuraE::IR {
         call,
         load,
         gmem,
-        terminal_br,
-        terminal_cond_br,
-        terminal_switch,
-        terminal_return
+        br,
+        cond_br,
     };
 
     class Block;
@@ -56,10 +54,8 @@ namespace sakuraE::IR {
         }
 
         bool isTerminal() {
-            return kind == OpKind::terminal_br ||
-                    kind == OpKind::terminal_cond_br ||
-                    kind == OpKind::terminal_return ||
-                    kind == OpKind::terminal_switch;
+            return kind == OpKind::br ||
+                    kind == OpKind::cond_br;
         }
 
         void setParent(Block* blk) {
