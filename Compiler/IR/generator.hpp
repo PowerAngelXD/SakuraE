@@ -11,17 +11,6 @@ namespace sakuraE::IR {
 
         Scope* currentScope = nullptr;
 
-        // Calling List
-        std::vector<std::vector<IRValue*>> callingList;
-        int callingCur = -1;
-
-        int makeCallingList(std::vector<IRValue*> list) {
-            callingList.push_back(list);
-            callingCur ++;
-
-            return callingCur;
-        }
-
         IRValue* declareSymbol(fzlib::String name, IRType* t, IRValue* initVal = nullptr) {
             IRValue* addr = curFunc()
                                 ->curBlock()
@@ -89,6 +78,13 @@ namespace sakuraE::IR {
             }
         }
 
+        Function* curFunc() {
+            return program.curMod()->curFunc();
+        }
+
+        Module* curModule() {
+            return program.curMod();
+        }
     public:
         IRGenerator(fzlib::String name): program(name) {
             program.buildModule(name, {1, 1, "Start of the whole program"});
@@ -102,10 +98,6 @@ namespace sakuraE::IR {
         void generate(NodePtr node);
 
     private:
-        Function* curFunc() {
-            return program.curMod()->curFunc();
-        }
-
         // --- Visit Expressions ---
         IRValue* visitLiteralNode(NodePtr node);
         IRValue* visitIndexOpNode(IRValue* addr, NodePtr node);
