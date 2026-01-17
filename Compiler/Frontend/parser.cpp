@@ -63,8 +63,16 @@ sakuraE::NodePtr sakuraE::AtomIdentifierExprParser::genResource() {
 sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::IdentifierExprNode);
     auto not_op = std::get<0>(getTuple());
-    if (!not_op->isEmpty())
-        (*root)[ASTTag::Op] = std::make_shared<Node>(not_op->getClosure().at(0)->token);
+    
+    std::visit([&](auto& var) {
+        using VarType = std::decay_t<decltype(var)>;
+        
+        if constexpr (std::is_same_v<VarType, std::shared_ptr<TokenParser<TokenType::LGC_NOT>>>) {
+            std::shared_ptr<Token> tok = var->token;
+
+            (*root)[ASTTag::Op] = std::make_shared<Node>(tok);
+        }
+    }, std::get<0>(getTuple())->option());
 
     (*root)[ASTTag::Exprs]->addChild(std::get<1>(getTuple())->genResource());
     

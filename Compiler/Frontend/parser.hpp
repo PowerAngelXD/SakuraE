@@ -137,7 +137,7 @@ namespace sakuraE {
     };
 
     using IdentifierExprParserRule = ConnectionParser<
-        ClosureParser<TokenParser<TokenType::LGC_NOT>>,
+        OptionsParser<TokenParser<TokenType::LGC_NOT>, NullParser>,
         AtomIdentifierExprParser,
         ClosureParser<
             ConnectionParser<
