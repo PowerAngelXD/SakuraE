@@ -15,7 +15,7 @@
 <br>
 <br>
 
-1. For instructions with directional or referential meaning, the target objects should be separated by a dot (.).
+2. For instructions with directional or referential meaning, the target objects should be separated by a dot (.).
 > e.g.
 > `generator.cpp: line 457`: 
 > ```c++
