@@ -316,17 +316,66 @@ namespace sakuraE {
         }
     };
 
-    // Sequence Parser
-    template <typename E, sakuraE::TokenType Separator>
-    using SequenceParser = OptionsParser<
-        ConnectionParser<
-            E, 
-            ClosureParser<
-                ConnectionParser<DiscardParser<Separator>, E>
-            >
-        >,
-        NullParser
-    >;
+    template<typename T, sakuraE::TokenType Separator>
+    class NullableSequenceParser {
+        using SequenceRule = OptionsParser<
+            ConnectionParser<
+                T,
+                ClosureParser<ConnectionParser<DiscardParser<Separator>, T>>
+            >,
+            NullParser
+        >;
+
+        std::shared_ptr<SequenceRule> _rule_result;
+
+    public:
+        NullableSequenceParser(std::shared_ptr<SequenceRule> res) : _rule_result(std::move(res)) {}
+
+        static constexpr bool epsilonable() { return true; }
+        static bool check(TokenIter begin, TokenIter end) { return true; }
+
+        bool isEmpty() const {                                
+            return _rule_result->index() == 1;
+        }
+
+        bool isMatch() {
+            return std::visit([&](auto& var) -> bool {
+                using VarType = std::decay_t<decltype(var)>;
+                bool flag = true;
+                if constexpr (std::is_same_v<VarType, std::shared_ptr<NullParser>>) {
+                    flag = false;
+                }  
+                return flag;
+            }, _rule_result->option());
+        }
+
+        std::vector<std::shared_ptr<T>> getClosure() const {
+            std::vector<std::shared_ptr<T>> results;
+            if (isEmpty()) return results;
+
+            auto conn = std::get<0>(_rule_result->option());
+            auto [head, closure] = conn->getTuple();
+
+            results.push_back(head);
+            for (auto& item_conn : closure->getClosure()) {
+                results.push_back(std::get<1>(item_conn->getTuple()));
+            }
+            return results;
+        }
+
+        static Result<NullableSequenceParser<T, Separator>> parse(TokenIter begin, TokenIter end) {
+            auto res = SequenceRule::parse(begin, end);
+            if (res.status == ParseStatus::SUCCESS) {
+                return Result<NullableSequenceParser<T, Separator>>(
+                    ParseStatus::SUCCESS,
+                    std::make_shared<NullableSequenceParser<T, Separator>>(res.val),
+                    res.end
+                );
+            }
+            return Result<NullableSequenceParser<T, Separator>>::failed(begin, res.err, res.err_pos);
+        }
+    };
+
 }
 
 #endif
