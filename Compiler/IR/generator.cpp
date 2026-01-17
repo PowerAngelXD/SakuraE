@@ -6,7 +6,7 @@ namespace sakuraE::IR {
 
         return curFunc()
                 ->curBlock()
-                ->createInstruction(OpKind::constant, literal->getType(), {literal}, "constant-pushing");
+                ->createInstruction(OpKind::constant, literal->getType(), {literal}, "constant");
     }
 
     IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
@@ -14,7 +14,7 @@ namespace sakuraE::IR {
 
         return curFunc()
                 ->curBlock()
-                ->createInstruction(OpKind::indexing, indexResult->getType(), {addr, indexResult}, "indexing-operator");
+                ->createInstruction(OpKind::indexing, indexResult->getType(), {addr, indexResult}, "indexing");
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node) {
@@ -28,7 +28,7 @@ namespace sakuraE::IR {
 
         return curFunc()
                 ->curBlock()
-                ->createInstruction(OpKind::call, IRType::getInt32Ty(), {addr, Constant::get(index)}, "make-calling-list");
+                ->createInstruction(OpKind::call, IRType::getInt32Ty(), {addr, Constant::get(index)}, "call");
     }
 
     IRValue* IRGenerator::visitAtomIdentifierNode(NodePtr node) {
@@ -447,7 +447,7 @@ namespace sakuraE::IR {
         // before -> then or else?merge
         curFunc()
             ->block(beforeBlockIndex)
-            ->createInstruction(OpKind::terminal_cond_br,
+            ->createInstruction(OpKind::cond_br,
                                 IRType::getVoidTy(),
                                 {cond, thenBlock, (elseBlock?elseBlock:mergeBlock)},
                                 "cond-br.if.then.else?merge");
@@ -456,7 +456,7 @@ namespace sakuraE::IR {
         // then -> merge
         curFunc()
             ->block(thenExitBlockIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {mergeBlock},
                                 "br.if.merge");
@@ -466,7 +466,7 @@ namespace sakuraE::IR {
         if (elseBlock) {
             curFunc()
             ->block(elseExitBlockIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {mergeBlock},
                                 "br.if.merge");
@@ -487,7 +487,7 @@ namespace sakuraE::IR {
 
         curFunc()
             ->block(beforeBlockIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {prepareBlock},
                                 "br.while.before.prep");
@@ -510,7 +510,7 @@ namespace sakuraE::IR {
         // then -> prep
         curFunc()
             ->block(thenExitBlockIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {prepareBlock},
                                 "br.while.prep");
@@ -519,7 +519,7 @@ namespace sakuraE::IR {
         // prep -> merge or then
         curFunc()
             ->block(prepareExitBlockIndex)
-            ->createInstruction(OpKind::terminal_cond_br,
+            ->createInstruction(OpKind::cond_br,
                                 IRType::getVoidTy(),
                                 {cond, thenBlock, mergeBlock},
                                 "cond-br.while.then.merge");
@@ -564,7 +564,7 @@ namespace sakuraE::IR {
         // init -> cond
         curFunc()
             ->block(initExitIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {condBlock},
                                 "br.for.cond");
@@ -573,7 +573,7 @@ namespace sakuraE::IR {
         // cond -> body or merge
         curFunc()
             ->block(condBlockExitIndex)
-            ->createInstruction(OpKind::terminal_cond_br,
+            ->createInstruction(OpKind::cond_br,
                                 IRType::getVoidTy(),
                                 {cond, thenBlock, mergeBlock},
                                 "cond-br.for.then.merge");
@@ -582,7 +582,7 @@ namespace sakuraE::IR {
         // body -> step
         curFunc()
             ->block(thenBlockExitIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {stepBlock},
                                 "br.for.step");
@@ -591,7 +591,7 @@ namespace sakuraE::IR {
         // step -> cond
         curFunc()
             ->block(stepBlockExitIndex)
-            ->createInstruction(OpKind::terminal_br,
+            ->createInstruction(OpKind::br,
                                 IRType::getVoidTy(),
                                 {condBlock},
                                 "br.for.cond");
