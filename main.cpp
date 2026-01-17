@@ -7,6 +7,7 @@
 #include "Compiler/Frontend/lexer.h"
 #include "Compiler/Frontend/parser_base.hpp"
 #include "Compiler/Frontend/parser.hpp"
+#include "Compiler/IR/generator.hpp"
 
 const fzlib::String SOURCE_CODE = R"(
 func foo(a: int, b: int, s: string) -> int {
@@ -49,6 +50,12 @@ int main() {
             auto res = result.val->genResource();
 
             std::cout << res->toFormatString(true) << std::endl;
+
+            sakuraE::IR::IRGenerator generator("TestProject");
+
+            generator.visitStmt(res);
+
+            std::cout << generator.getProgram().toString() << std::endl;
 
             current = result.end;
         }
