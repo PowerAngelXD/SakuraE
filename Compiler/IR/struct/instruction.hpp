@@ -31,8 +31,10 @@ namespace sakuraE::IR {
         call,
         load,
         gmem,
+        // terminal op
         br,
         cond_br,
+        ret
     };
 
     class Block;
