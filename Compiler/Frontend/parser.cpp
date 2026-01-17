@@ -187,13 +187,13 @@ sakuraE::NodePtr sakuraE::ArrayExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ArrayExprNode);
 
     auto checker_expr = std::get<1>(getTuple());
-    if (!checker_expr->isEmpty()) {
+    if (checker_expr->isMatch()) {
         (*root)[ASTTag::Exprs]->addChild(checker_expr->getClosure().at(0)->genResource());
     }
 
     auto subs = std::get<1>(getTuple());
     std::cout << subs->isMatch() << std::endl;
-    if (!subs->isEmpty()) {
+    if (subs->isMatch()) {
         for (auto unit: subs->getClosure()) {
             (*root)[ASTTag::Exprs]->addChild(unit->genResource());
         }

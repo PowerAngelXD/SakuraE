@@ -334,19 +334,8 @@ namespace sakuraE {
         static constexpr bool epsilonable() { return true; }
         static bool check(TokenIter begin, TokenIter end) { return true; }
 
-        bool isEmpty() const {                                
-            return _rule_result->index() == 1;
-        }
-
-        bool isMatch() {
-            return std::visit([&](auto& var) -> bool {
-                using VarType = std::decay_t<decltype(var)>;
-                bool flag = true;
-                if constexpr (std::is_same_v<VarType, std::shared_ptr<NullParser>>) {
-                    flag = false;
-                }  
-                return flag;
-            }, _rule_result->option());
+        bool isMatch() const {                                
+            return _rule_result->index() == 0;
         }
 
         std::vector<std::shared_ptr<T>> getClosure() const {
