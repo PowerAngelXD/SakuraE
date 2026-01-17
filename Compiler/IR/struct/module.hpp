@@ -59,6 +59,7 @@ namespace sakuraE::IR {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                     "Move cursor to a unkonwn place",
                                     createInfo);
+            return *this;
         }
 
         Function* curFunc() {
