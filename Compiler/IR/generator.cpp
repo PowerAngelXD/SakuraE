@@ -646,4 +646,37 @@ namespace sakuraE::IR {
                                         {retValue},
                                         "ret");
     }
+
+    IRValue* IRGenerator::visitStmt(NodePtr node) {
+        NodePtr stmt = (*node)[ASTTag::Stmt];
+        
+        if (stmt->hasNode(ASTTag::DeclareStmtNode)) {
+            return visitDeclareStmtNode((*stmt)[ASTTag::DeclareStmtNode]);
+        }
+        else if (stmt->hasNode(ASTTag::ExprStmtNode)) {
+            return visitExprStmtNode((*stmt)[ASTTag::ExprStmtNode]);
+        }
+        else if (stmt->hasNode(ASTTag::IfStmtNode)) {
+            return visitIfStmtNode((*stmt)[ASTTag::IfStmtNode]);
+        }
+        else if (stmt->hasNode(ASTTag::WhileStmtNode)) {
+            return visitWhileStmtNode((*stmt)[ASTTag::WhileStmtNode]);
+        }
+        else if (stmt->hasNode(ASTTag::ForStmtNode)) {
+            return visitForStmtNode((*stmt)[ASTTag::ForStmtNode]);
+        }
+        else if (stmt->hasNode(ASTTag::BlockStmtNode)) {
+            return visitBlockStmtNode((*stmt)[ASTTag::BlockStmtNode], "block");
+        }
+        else if (stmt->hasNode(ASTTag::FuncDefineStmtNode)) {
+            return visitFuncDefineStmtNode((*stmt)[ASTTag::FuncDefineStmtNode]);
+        }
+        else if (stmt->hasNode(ASTTag::ReturnStmtNode)) {
+            return visitReturnStmtNode((*stmt)[ASTTag::ReturnStmtNode]);
+        }
+        
+        throw SakuraError(OccurredTerm::IR_GENERATING,
+                            "Unknown Statement to generate",
+                            node->getPosInfo());
+    }
 }
