@@ -66,6 +66,10 @@ namespace sakuraE::IR {
             return fnList[cursor];
         }
 
+        Function* func(long index) {
+            return fnList[index];
+        }
+
         Function* func(fzlib::String name, FormalParamsDefine params) {
             std::vector<Function*> basic_results;
             for (auto fn: fnList) {
