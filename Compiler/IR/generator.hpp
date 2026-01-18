@@ -14,7 +14,7 @@ namespace sakuraE::IR {
         IRValue* declareSymbol(fzlib::String name, IRType* t, IRValue* initVal = nullptr) {
             IRValue* addr = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::declare, IRType::getVoidTy(), {Constant::get(t), initVal}, "declare-" + name);
+                                ->createInstruction(OpKind::declare, IRType::getVoidTy(), {Constant::get(t), initVal}, "declare." + name);
             
             curFunc()->fnScope().declare(name, addr, t);
 
@@ -31,7 +31,7 @@ namespace sakuraE::IR {
             
             return curFunc()
                         ->curBlock()
-                        ->createInstruction(OpKind::load, symbol->getType(), {symbol->address}, "load-" + name);
+                        ->createInstruction(OpKind::load, symbol->getType(), {symbol->address}, "load." + name);
         }
 
         // Used to obtain the type of the result from a non-logical binary operation
