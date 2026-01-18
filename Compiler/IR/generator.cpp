@@ -81,7 +81,72 @@ namespace sakuraE::IR {
             }
         }
 
-        return result;
+        if (node->hasNode(ASTTag::PreOp)) {
+            auto preOp = (*node)[ASTTag::PreOp]->getToken();
+            switch (preOp.type)
+            {
+                case TokenType::LGC_NOT:
+                    return curFunc()
+                                ->curBlock()
+                                ->createInstruction(OpKind::lgc_not,
+                                                    IRType::getBoolTy(),
+                                                    {result},
+                                                    "lgc-not");
+                case TokenType::AINC: {
+                    curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::add,
+                                            handleUnlogicalBinaryCalc(result, Constant::get(1)),
+                                            {result, Constant::get(1)},
+                                            "add");
+                    return result;
+                }
+
+                case TokenType::SDEC: {
+                    curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::sub,
+                                            handleUnlogicalBinaryCalc(result, Constant::get(1)),
+                                            {result, Constant::get(1)},
+                                            "sub");
+                    return result;
+                }
+                                
+                default:
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
+                                "Unknown operator.",
+                                node->getPosInfo());
+            }
+        }
+        else if (node->hasNode(ASTTag::Op)) {
+            auto Op = (*node)[ASTTag::Op]->getToken();
+            switch (Op.type)
+            {
+                case TokenType::AINC: {
+                    return curFunc()
+                                ->curBlock()
+                                ->createInstruction(OpKind::add,
+                                                handleUnlogicalBinaryCalc(result, Constant::get(1)),
+                                                {result, Constant::get(1)},
+                                                "add");
+                }
+
+                case TokenType::SDEC: {
+                    return curFunc()
+                                ->curBlock()
+                                ->createInstruction(OpKind::sub,
+                                                    handleUnlogicalBinaryCalc(result, Constant::get(1)),
+                                                    {result, Constant::get(1)},
+                                                    "sub");
+                }
+                                
+                default:
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
+                                "Unknown operator.",
+                                node->getPosInfo());
+            }
+        }
+        else return result;
     }
 
     IRValue* IRGenerator::visitPrimExprNode(NodePtr node) {
