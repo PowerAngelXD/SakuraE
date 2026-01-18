@@ -25,8 +25,8 @@ func foo(a: int, b: int, s: string) -> int {
 
     let arr = [1, 2, 3, 4];
     let arr_size = 4;
-    for (let index = 0; index < arr_size; index = index + 1) {
-        arr[index] = arr[index] + 1;
+    for (let index = 0; index < arr_size; index ++) {
+        arr[index] += 5;
     }
 
     return a + b;
