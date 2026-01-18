@@ -136,13 +136,23 @@ namespace sakuraE {
     };
 
     using IdentifierExprParserRule = ConnectionParser<
-        OptionsParser<TokenParser<TokenType::LGC_NOT>, NullParser>,
+        OptionsParser<
+            TokenParser<TokenType::LGC_NOT>, 
+            TokenParser<TokenType::AINC>,
+            TokenParser<TokenType::SDEC>,
+            NullParser
+        >,
         AtomIdentifierExprParser,
         ClosureParser<
             ConnectionParser<
                 TokenParser<TokenType::DOT>,
                 AtomIdentifierExprParser
             >
+        >,
+        OptionsParser<
+            TokenParser<TokenType::AINC>,
+            TokenParser<TokenType::SDEC>,
+            NullParser
         >
     >;
     class IdentifierExprParser: public ResourceFetcher, public IdentifierExprParserRule {
@@ -368,7 +378,13 @@ namespace sakuraE {
 
     using AssignExprParserRule = ConnectionParser<
         IdentifierExprParser,
-        TokenParser<TokenType::ASSIGN_OP>,
+        OptionsParser<
+            TokenParser<TokenType::ASSIGN_OP>,
+            TokenParser<TokenType::ADD_ASSIGN>,
+            TokenParser<TokenType::SUB_ASSIGN>,
+            TokenParser<TokenType::MUL_ASSIGN>,
+            TokenParser<TokenType::DIV_ASSIGN>
+        >,
         WholeExprParser
     >;
     class AssignExprParser: public ResourceFetcher, public AssignExprParserRule {
