@@ -94,6 +94,38 @@ namespace sakuraE::IR {
             return program;
         }
 
+        fzlib::String toFormatString() {
+            fzlib::String raw = program.toString();
+            fzlib::String result;
+            int indent = 0;
+            
+            for (std::size_t i = 0; i < raw.len(); i++) {
+                char c = raw[i];
+                if (c == '{') {
+                    result += " {\n";
+                    indent++;
+                    for (int j = 0; j < indent * 2; j++) result += ' ';
+                } else if (c == '}') {
+                    result += "\n";
+                    indent--;
+                    for (int j = 0; j < indent * 2; j++) result += ' ';
+                    result += "}";
+                } else if (c == ';') {
+                    result += ";\n";
+                    for (int j = 0; j < indent * 2; j++) result += ' ';
+                } else if (c == ':') {
+                    if (result.len() > 0 && result[result.len() - 1] != ' ') {
+                        result += "\n";
+                        for (int j = 0; j < indent * 2; j++) result += ' ';
+                    }
+                    result += c;
+                } else {
+                    result += c;
+                }
+            }
+            return result;
+        }
+
         // --- Visit Expressions ---
         IRValue* visitLiteralNode(NodePtr node);
         IRValue* visitIndexOpNode(IRValue* addr, NodePtr node);
