@@ -168,11 +168,11 @@ namespace sakuraE::IR {
     }
 
     fzlib::String IRFunctionType::toString() {
-        fzlib::String result = "<IRFunctionType -> " + returnType->toString() + ", {";
+        fzlib::String result = "<IRFunctionType -> " + returnType->toString() + ", [";
         for (auto type: paramsType) {
             result += type->toString() + " ";
         }
-        result += "}>";
+        result += "]>";
 
         return result;
     }
