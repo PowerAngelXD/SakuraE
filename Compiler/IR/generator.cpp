@@ -280,14 +280,79 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitAssignExprNode(NodePtr node) {
         IRValue* symbol = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
+        auto assignOp = (*node)[ASTTag::Op]->getToken().type;
         IRValue* expr = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
 
-        return curFunc()
-                    ->curBlock()
-                    ->createInstruction(OpKind::assign,
-                                        expr->getType(),
-                                        {symbol, expr},
-                                        "assign." + symbol->getName());
+        switch (assignOp)
+        {
+            case TokenType::ASSIGN_OP:
+                return curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::assign,
+                                            expr->getType(),
+                                            {symbol, expr},
+                                            "assign." + symbol->getName());
+            case TokenType::ADD_ASSIGN: {
+                IRValue* result = curFunc()
+                                        ->curBlock()
+                                        ->createInstruction(OpKind::add,
+                                                            handleUnlogicalBinaryCalc(symbol, expr),
+                                                            {symbol, expr},
+                                                            "add");
+                return curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::assign,
+                                            expr->getType(),
+                                            {symbol, result},
+                                            "assign." + symbol->getName());
+            }
+            case TokenType::SUB_ASSIGN: {
+                IRValue* result = curFunc()
+                                        ->curBlock()
+                                        ->createInstruction(OpKind::sub,
+                                                            handleUnlogicalBinaryCalc(symbol, expr),
+                                                            {symbol, expr},
+                                                            "sub");
+                return curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::assign,
+                                            expr->getType(),
+                                            {symbol, result},
+                                            "assign." + symbol->getName());
+            }
+            case TokenType::MUL_ASSIGN: {
+                IRValue* result = curFunc()
+                                        ->curBlock()
+                                        ->createInstruction(OpKind::mul,
+                                                            handleUnlogicalBinaryCalc(symbol, expr),
+                                                            {symbol, expr},
+                                                            "mul");
+                return curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::assign,
+                                            expr->getType(),
+                                            {symbol, result},
+                                            "assign." + symbol->getName());
+            }
+            case TokenType::DIV_ASSIGN: {
+                IRValue* result = curFunc()
+                                        ->curBlock()
+                                        ->createInstruction(OpKind::div,
+                                                            handleUnlogicalBinaryCalc(symbol, expr),
+                                                            {symbol, expr},
+                                                            "div");
+                return curFunc()
+                        ->curBlock()
+                        ->createInstruction(OpKind::assign,
+                                            expr->getType(),
+                                            {symbol, result},
+                                            "assign." + symbol->getName());
+            }
+            default:
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                "Unknown assign operator.",
+                                node->getPosInfo());
+        }
     }
 
     IRValue* IRGenerator::visitWholeExprNode(NodePtr node) {
