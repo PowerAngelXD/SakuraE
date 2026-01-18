@@ -198,7 +198,7 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
                 next(); next();
             }
             else if (peek(1) == '+') {
-                type = TokenType::ADD_ASSIGN;
+                type = TokenType::AINC;
                 content = "++";
                 next(); next();
             }
