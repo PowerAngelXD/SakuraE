@@ -29,6 +29,10 @@ namespace sakuraE::IR {
         Function(fzlib::String n, IRType* retType, PositionInfo info): 
             IRValue(IRType::getFunctionTy(retType, {})), funcName("#" + n), returnType(retType), funcScope(info), createInfo(info) {}
         
+        // just for pre-defing
+        Function(fzlib::String n, PositionInfo info):
+            IRValue(nullptr), funcName(n), returnType(nullptr), formalParams({}), funcScope(info), createInfo(info) {}
+        
         Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info): 
             IRValue(IRType::getFunctionTy(retType, 
                 [&]() -> std::vector<IRType*> {
@@ -41,6 +45,23 @@ namespace sakuraE::IR {
 
         void setParent(Module* mod) {
             parent = mod;
+        }
+
+        void setFuncDefineInfo(FormalParamsDefine params, IRType* retType) {
+            formalParams = params;
+            returnType = type;
+
+            type = IRType::getFunctionTy(retType, 
+                [&]() -> std::vector<IRType*> {
+                    std::vector<IRType*> result;
+                    for (auto param: params) {
+                        result.push_back(param.second);
+                    }
+                    return result;
+                }()
+            );
+
+            setName("#" + funcName);
         }
 
         Module* getParent() {
@@ -132,25 +153,8 @@ namespace sakuraE::IR {
             for (auto block: blocks) {
                 result += block->toString();
             }
-
-            return result;
-        }
-
-        fzlib::String toFullString() {
-            fzlib::String result = funcName + "(";
-            for (std::size_t i = 0; i < formalParams.size(); i ++) {
-                auto arg = formalParams[i];
-                if (i == formalParams.size() - 1)
-                    result += arg.first + ":" + arg.second->toString();
-                else
-                    result += arg.first + ":" + arg.second->toString() + ", ";
-            }
-            result += ") -> " + returnType->toString() + " {";
-
-            for (auto block: blocks) {
-                result += block->toFullString();
-            }
-
+            
+            result += "}";
             return result;
         }
     };
