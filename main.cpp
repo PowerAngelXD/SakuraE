@@ -23,6 +23,12 @@ func foo(a: int, b: int, s: string) -> int {
     
     VAR1 = s;
 
+    let arr = [1, 2, 3, 4];
+    let arr_size = 4;
+    for (let index = 0; index < arr_size; index = index + 1) {
+        arr[index] = arr[index] + 1;
+    }
+
     return a + b;
 }
 )";
@@ -55,7 +61,7 @@ int main() {
 
             generator.visitStmt(res);
 
-            std::cout << generator.getProgram().toString() << std::endl;
+            std::cout << generator.toFormatString() << std::endl;
 
             current = result.end;
         }
