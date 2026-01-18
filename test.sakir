@@ -1,6 +1,6 @@
 TestProject  {
   <TestProject>  {
-    foo(a<Int32Type>, b<Int32Type>, s<<Int8Type>PointerType>) -> <IRFunctionType -> <VoidType>, []>  {
+    foo(a<Int32Type>, b<Int32Type>, s<<Int8Type>PointerType>) -> <Int32Type>  {
       :begin  {
         constant $;
         declare $ $<null>;
