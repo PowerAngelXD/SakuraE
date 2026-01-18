@@ -221,7 +221,7 @@ sakuraE::NodePtr sakuraE::AssignExprParser::genResource() {
 
     (*root)[ASTTag::Identifier] = id;
     (*root)[ASTTag::Op] = std::make_shared<Node>(std::get<1>(getTuple())->token);
-    (*root)[ASTTag::HeadExpr]->addChild(std::get<2>(getTuple())->genResource());
+    (*root)[ASTTag::HeadExpr] = std::get<2>(getTuple())->genResource();
 
     return root;
 }
