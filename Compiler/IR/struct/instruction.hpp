@@ -19,6 +19,7 @@ namespace sakuraE::IR {
         lgc_eq_mr_than, 
         lgc_eq_ls_than,
         lgc_and,
+        lgc_not,
         lgc_or,
         declare, 
         assign, 
