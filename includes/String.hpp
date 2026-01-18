@@ -189,6 +189,8 @@ namespace fzlib {
         }
 
         String &append(const String &str) {
+            if (str._content == nullptr) return *this;
+
             std::size_t app_len = str._len;
             std::size_t new_len = app_len + _len;
             std::size_t old_len = _len;
