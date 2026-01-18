@@ -30,7 +30,7 @@ namespace sakuraE {
         // Token
         Literal, Identifier, Symbol, Keyword,
         // Branches
-        HeadExpr, Exprs, Op, Ops, 
+        HeadExpr, Exprs, Op, Ops, PreOp,
         Types, Args, Type, AssignTerm, 
         Condition, Block, Stmts
     };
