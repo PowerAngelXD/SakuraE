@@ -17,7 +17,7 @@ AddExpr -> MulExpr (('+'|'-') MulExpr)*
 LogicExpr -> AddExpr (('=='|'!='|'>'|'<'|'<='|'>=') AddExpr)*
 BinaryExpr -> LogicExpr (('||'|'&&') LogicExpr)*
 ArrayExpr -> '[' WholeExpr (',' WholeExpr)* ']'
-AssignExpr -> IdentifierExpr '=' | '+=' | '-=' WholeExpr
+AssignExpr -> IdentifierExpr '=' | '+=' | '-=' | '/=' | '*=' WholeExpr
 
 WholeExpr -> AddExpr | BinaryExpr | ArrayExpr | AssignExpr
 
