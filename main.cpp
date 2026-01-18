@@ -23,7 +23,7 @@ func foo(a: int, b: int, s: string) -> int {
     
     VAR1 = s;
 
-    return a + b + foo(1, 2);
+    return a + b;
 }
 )";
 
