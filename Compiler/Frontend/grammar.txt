@@ -9,15 +9,15 @@ Literal -> <number> | <string> | 'true' | 'false' | <char>
 IndexOp -> '[' AddExpr ']'
 CallingOp -> '(' WholeExpr (',' WholeExpr)* ')'
 AtomIdentifierExpr -> Identifier (IndexOp|CallingOp)*
-IdentifierExpr -> AtomIdentifierExpr ('.' AtomIdentifierExpr)*
+IdentifierExpr -> ('!' | ('++' | '--')) AtomIdentifierExpr ('.' AtomIdentifierExpr) ('++' | '--')*
 PrimExpr -> Literal | IdentifierExpr
 
 MulExpr -> PrimExpr (('*'|'/') PrimExpr)*
 AddExpr -> MulExpr (('+'|'-') MulExpr)*
 LogicExpr -> AddExpr (('=='|'!='|'>'|'<'|'<='|'>=') AddExpr)*
 BinaryExpr -> LogicExpr (('||'|'&&') LogicExpr)*
-ArrayExpr -> '[' WholeExpr （',' WholeExpr）* ']'
-AssignExpr -> IdentifierExpr '=' WholeExpr
+ArrayExpr -> '[' WholeExpr (',' WholeExpr)* ']'
+AssignExpr -> IdentifierExpr '=' | '+=' | '-=' WholeExpr
 
 WholeExpr -> AddExpr | BinaryExpr | ArrayExpr | AssignExpr
 
