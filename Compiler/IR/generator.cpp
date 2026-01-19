@@ -295,27 +295,76 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitBinaryExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
-
         IRValue* lhs = visitLogicExprNode(chain[0]);
+        static int binaryID = 0;
+        fzlib::String resultAddrName = "$tmp_binary_value" + std::to_string(binaryID);
+        binaryID ++;
+        IRValue* resultAddr = declareSymbol(resultAddrName, IRType::getBoolTy(), lhs);
 
         if (node->hasNode(ASTTag::Ops)) {
             auto opChain = (*node)[ASTTag::Ops]->getChildren();
-
+            long beforeBlockIndex = curFunc()->cur();
+            IRValue* mergeBlock = curFunc()->buildBlock("merge");
+            long mergeBlockIndex = curFunc()->cur();
             for (std::size_t i = 1; i < chain.size(); i ++) {
-                IRValue* rhs = visitLogicExprNode(chain[i]);
-
                 switch (opChain[i - 1]->getToken().type)
                 {
                     case TokenType::LGC_AND: {
-                        lhs = curFunc()
-                                ->curBlock()
-                                ->createInstruction(OpKind::lgc_and, IRType::getBoolTy(), {lhs, rhs}, "lgc-and");
+                        IRValue* rhsBlock = curFunc()->buildBlock("and.rhs");
+                        long rhsBlockIndex = curFunc()->cur();
+
+                        curFunc()->moveCursor(rhsBlockIndex);
+                        IRValue* rhs = visitLogicExprNode(chain[i]);
+
+                        curFunc()
+                            ->block(beforeBlockIndex)
+                            ->createInstruction(OpKind::cond_br,
+                                                IRType::getVoidTy(),
+                                                {rhs, rhsBlock, mergeBlock},
+                                                "cond-br.rhs.merge");
+
+                        curFunc()
+                            ->curBlock()
+                            ->createInstruction(OpKind::assign,
+                                                IRType::getBoolTy(),
+                                                {resultAddr, rhs},
+                                                "assign." + resultAddrName);
+                        curFunc()
+                            ->block(rhsBlockIndex)
+                            ->createInstruction(OpKind::br,
+                                                IRType::getVoidTy(),
+                                                {mergeBlock},
+                                                "br.merge");
+                        beforeBlockIndex = rhsBlockIndex;
                         break;
                     }
                     case TokenType::LGC_OR: {
-                        lhs = curFunc()
-                                ->curBlock()
-                                ->createInstruction(OpKind::lgc_or, IRType::getBoolTy(), {lhs, rhs}, "lgc-or");
+                        IRValue* rhsBlock = curFunc()->buildBlock("or.rhs");
+                        long rhsBlockIndex = curFunc()->cur();
+
+                        curFunc()->moveCursor(rhsBlockIndex);
+                        IRValue* rhs = visitLogicExprNode(chain[i]);
+
+                        curFunc()
+                            ->block(beforeBlockIndex)
+                            ->createInstruction(OpKind::cond_br,
+                                                IRType::getVoidTy(),
+                                                {rhs, mergeBlock, rhsBlock},
+                                                "cond-br.rhs.merge");
+
+                        curFunc()
+                            ->curBlock()
+                            ->createInstruction(OpKind::assign,
+                                                IRType::getBoolTy(),
+                                                {resultAddr, rhs},
+                                                "assign." + resultAddrName);
+                        curFunc()
+                            ->block(rhsBlockIndex)
+                            ->createInstruction(OpKind::br,
+                                                IRType::getVoidTy(),
+                                                {mergeBlock},
+                                                "br.merge");
+                        beforeBlockIndex = rhsBlockIndex;
                         break;
                     }
                     default: 
@@ -323,7 +372,7 @@ namespace sakuraE::IR {
                 }
             }
         }
-        return lhs;
+        return loadSymbol(resultAddrName);
     }
 
     IRValue* IRGenerator::visitArrayExprNode(NodePtr node) {
