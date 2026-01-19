@@ -511,7 +511,7 @@ namespace sakuraE::IR {
             // Unboxing
             auto constInst = dynamic_cast<Instruction*>(typeInfoIRValue);
             auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
-            TypeInfo* typeInfo = typeInfoConstant->getIRValue<TypeInfo*>();
+            TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
 
             type = typeInfo->toIRType();
         }
@@ -745,7 +745,7 @@ namespace sakuraE::IR {
                 // Unboxing
                 auto constInst = dynamic_cast<Instruction*>(typeInfoIRValue);
                 auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
-                TypeInfo* typeInfo = typeInfoConstant->getIRValue<TypeInfo*>();
+                TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
 
                 IRType* argType = typeInfo->toIRType();
 
@@ -761,7 +761,7 @@ namespace sakuraE::IR {
         // Unboxing
         auto constInst = dynamic_cast<Instruction*>(typeInfoIRValue);
         auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
-        TypeInfo* typeInfo = typeInfoConstant->getIRValue<TypeInfo*>();
+        TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
 
         retType = typeInfo->toIRType();
 

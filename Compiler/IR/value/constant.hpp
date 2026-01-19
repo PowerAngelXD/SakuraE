@@ -41,7 +41,7 @@ namespace sakuraE::IR {
         static Constant* getFromToken(const Token& tok);
 
         template<typename T>
-        const T& getIRValue() const {
+        const T& getContentValue() const {
             if (std::holds_alternative<T>(content)) {
                 return std::get<T>(content);
             }
