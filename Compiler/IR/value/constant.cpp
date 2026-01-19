@@ -7,6 +7,7 @@ namespace sakuraE::IR {
     static std::map<char, Constant> charConstants;
     static std::map<bool, Constant> boolConstants;
     static std::map<TypeInfo*, Constant> typeInfoConstants;
+    static std::map<IRValue*, Constant> ptrConstants;
 
 
     Constant* Constant::get(int val, PositionInfo info) {
@@ -74,6 +75,17 @@ namespace sakuraE::IR {
 
         IRType* tinfoTy = IRType::getTypeInfoTy();
         auto newEntry = typeInfoConstants.emplace(val, Constant(tinfoTy, val, info));
+        return &newEntry.first->second;
+    }
+
+    Constant* Constant::get(IRValue* val, PositionInfo info) {
+        auto it = ptrConstants.find(val);
+        if (it != ptrConstants.end()) {
+            return &it->second;
+        }
+
+        IRType* ptrTy = IRType::getPointerTo(val->getType());
+        auto newEntry = ptrConstants.emplace(val, Constant(ptrTy, val, info));
         return &newEntry.first->second;
     }
 

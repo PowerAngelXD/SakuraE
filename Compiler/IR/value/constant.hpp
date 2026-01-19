@@ -15,7 +15,16 @@ namespace sakuraE::IR {
 
     class Constant : public IRValue {
     private:
-        std::variant<std::monostate, int, double, fzlib::String, char, bool, TypeInfo*> content;
+        std::variant<
+            std::monostate, 
+            int, 
+            double, 
+            fzlib::String, 
+            char, 
+            bool, 
+            TypeInfo*,
+            IRValue*
+        > content;
         PositionInfo createInfo;
 
         Constant(IRType* ty, int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
@@ -30,6 +39,8 @@ namespace sakuraE::IR {
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
+        Constant(IRType* ty, IRValue* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+            : IRValue(ty), content(val), createInfo(info) {}
 
     public:
         static Constant* get(int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
@@ -38,6 +49,7 @@ namespace sakuraE::IR {
         static Constant* get(char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(IRValue* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* getFromToken(const Token& tok);
 
         template<typename T>
