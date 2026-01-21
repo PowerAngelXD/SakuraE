@@ -305,7 +305,6 @@ namespace sakuraE::IR {
             auto opChain = (*node)[ASTTag::Ops]->getChildren();
             long beforeBlockIndex = curFunc()->cur();
             IRValue* mergeBlock = curFunc()->buildBlock("merge");
-            long mergeBlockIndex = curFunc()->cur();
             for (std::size_t i = 1; i < chain.size(); i ++) {
                 switch (opChain[i - 1]->getToken().type)
                 {

@@ -13,7 +13,7 @@ namespace sakuraE::IR {
         PositionInfo createInfo;
 
         // Storage module global identifiers
-        Scope moduleScope;
+        Scope<IRValue*> moduleScope;
 
         std::vector<Function*> fnList;
         // Indicates the current maximum index of fnList
@@ -49,7 +49,7 @@ namespace sakuraE::IR {
             return func;
         }
 
-        Scope& modScope() {
+        Scope<IRValue*>& modScope() {
             return moduleScope;
         }
 

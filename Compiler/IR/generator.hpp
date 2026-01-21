@@ -10,8 +10,6 @@ namespace sakuraE::IR {
     class IRGenerator {
         Program program;
 
-        Scope* currentScope = nullptr;
-
         IRValue* declareSymbol(fzlib::String name, IRValue* t, IRValue* initVal = nullptr) {
             IRValue* addr = curFunc()
                                 ->curBlock()
@@ -37,7 +35,7 @@ namespace sakuraE::IR {
         }
 
         IRValue* loadSymbol(fzlib::String name, PositionInfo info = {0, 0, "Normal Load"}) {
-            Symbol* symbol = curFunc()->fnScope().lookup(name);
+            Symbol<IRValue*>* symbol = curFunc()->fnScope().lookup(name);
 
             if (symbol == nullptr)
                 throw SakuraError(OccurredTerm::IR_GENERATING,

@@ -16,7 +16,7 @@ namespace sakuraE::IR {
         fzlib::String funcName;
         IRType* returnType;
         FormalParamsDefine formalParams;
-        Scope funcScope;
+        Scope<IRValue*> funcScope;
 
         PositionInfo createInfo;
         
@@ -125,7 +125,7 @@ namespace sakuraE::IR {
             return funcName;
         }
 
-        Scope& fnScope() {
+        Scope<IRValue*>& fnScope() {
             return funcScope;
         }
 
