@@ -7,23 +7,25 @@
 #include "Compiler/IR/value/constant.hpp"
 
 namespace sakuraE::IR {
+    template<typename T>
+    requires std::is_pointer_v<T>
     struct Symbol: public IRValue {
         fzlib::String name = "DefaultSymbol";
-        IRValue* address = nullptr;
+        T address = nullptr;
 
-        Symbol(): IRValue(IRType::getVoidTy()) {};
-        Symbol(fzlib::String n, IRValue* addr, IRType* t): IRValue(t), name(n), address(addr) {}
+        Symbol(fzlib::String n, T addr, IRType* t): IRValue(t), name(n), address(addr) {}
     };
 
+    template<typename T>
     class Scope {
-        std::vector<std::map<fzlib::String, Symbol>> symbolTables;
+        std::vector<std::map<fzlib::String, Symbol<T>>> symbolTables;
         std::size_t cursor = 0;
 
         PositionInfo createInfo;
 
         Scope* parent = nullptr;
 
-        std::map<fzlib::String, Symbol>& top() {
+        std::map<fzlib::String, Symbol<T>>& top() {
             return symbolTables[cursor];
         }
     public:
@@ -35,7 +37,7 @@ namespace sakuraE::IR {
             parent = scope;
         }
 
-        void declare(fzlib::String n, IRValue* addr, IRType* t) {
+        void declare(fzlib::String n, T addr, IRType* t) {
             top().emplace(n, Symbol(n, addr, t));
         }
 
@@ -49,7 +51,7 @@ namespace sakuraE::IR {
             cursor --;
         }
 
-        Symbol* lookup(const fzlib::String& name) {
+        Symbol<T>* lookup(const fzlib::String& name) {
             for (auto it = symbolTables.rbegin(); it != symbolTables.rend(); it ++) {
                 auto found = it->find(name);
                 if (found != it->end()) {
