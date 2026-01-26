@@ -165,7 +165,7 @@ namespace sakuraE::IR {
         IRValue* visitIfStmtNode(NodePtr node);
         IRValue* visitWhileStmtNode(NodePtr node);
         IRValue* visitForStmtNode(NodePtr node);
-        IRValue* visitBlockStmtNode(NodePtr node, fzlib::String blockName);
+        IRValue* visitBlockStmtNode(NodePtr node, fzlib::String blockName, long beforeBlock = -1);
         IRValue* visitFuncDefineStmtNode(NodePtr node);
         IRValue* visitReturnStmtNode(NodePtr node);
         IRValue* visitStmt(NodePtr node);
