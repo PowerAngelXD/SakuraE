@@ -21,9 +21,6 @@
 #include "Compiler/IR/generator.hpp"
 
 namespace sakuraE::Codegen {
-    // Used to represent the set of all intra-function scopes within the current module.
-    using FuncSet = std::map<IR::IRValue*, llvm::Value*>;
-
     // Represent LLVM Function Instantce
     struct LLVMFunction {
         fzlib::String name;
@@ -42,6 +39,8 @@ namespace sakuraE::Codegen {
         IR::Program* program;
         llvm::LLVMContext* context = nullptr;
         llvm::IRBuilder<>* builder = nullptr;
+        // State Maintainer ===================================================
+
 
         // Instruction Referring ==============================================
         std::map<IR::IRValue*, llvm::Value*> instructionMap;
