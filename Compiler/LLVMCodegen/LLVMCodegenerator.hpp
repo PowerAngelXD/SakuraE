@@ -24,6 +24,7 @@ namespace sakuraE::Codegen {
     // Represent LLVM Function Instantce
     struct LLVMFunction {
         fzlib::String name;
+        llvm::Function* content = nullptr;
         llvm::Type* returnType = nullptr;
         std::vector<std::pair<fzlib::String, llvm::Type*>> formalParams;
         IR::Scope<llvm::Value*> scope;
@@ -104,18 +105,18 @@ namespace sakuraE::Codegen {
 
         // Module Manager ======================================================
         std::map<fzlib::String, LLVMModule*> moduleList;
-        fzlib::String curModule;
+        fzlib::String curModuleName;
 
         void createModule(fzlib::String id) {
             if (moduleList.find(id) != moduleList.end()) {}
             else {
                 moduleList[id] = new LLVMModule(id, *context);
-                curModule = id;
+                curModuleName = id;
             }
         }
 
         LLVMModule* getCurrentUsingModule() {
-            return moduleList[curModule];
+            return moduleList[curModuleName];
         }
         // =====================================================================
     public:
