@@ -1,6 +1,8 @@
 #ifndef SAKURAE_TYPE_INFO_HPP
 #define SAKURAE_TYPE_INFO_HPP
 
+#include <map>
+
 #include "type.hpp"
 #include "Compiler/Error/error.hpp"
 

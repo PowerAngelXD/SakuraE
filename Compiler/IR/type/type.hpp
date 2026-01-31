@@ -1,7 +1,6 @@
 #ifndef SAKURAE_TYPE_HPP
 #define SAKURAE_TYPE_HPP
 
-#include <utility> 
 #include <map>
 
 #include <llvm/IR/Type.h>

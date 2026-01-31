@@ -51,6 +51,7 @@ namespace sakuraE::Codegen {
             if (funcs.find(n) != funcs.end()) return;
             else {
                 LLVMFunction* fn = new LLVMFunction(n, retT, formalP, info);
+                funcs[n] = fn;
             }
         }
 
@@ -136,10 +137,13 @@ namespace sakuraE::Codegen {
                         fzlib::String strVal = constant->getContentValue<fzlib::String>();
                         return builder->CreateGlobalString(strVal.c_str());
                     }
+                    break;
                 }
                 default:
                     return nullptr;
             }
+
+            return nullptr;
         }
 
         llvm::Value* toLLVMValue(IR::IRValue* value) {

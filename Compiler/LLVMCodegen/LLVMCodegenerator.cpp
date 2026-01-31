@@ -305,6 +305,7 @@ llvm::Value* sakuraE::Codegen::LLVMCodeGenerator::codegen(IR::Instruction* ins) 
         case IR::OpKind::declare: {
             auto insName = ins->getName();
             auto identifierName = insName.split('.')[1];
+            break;
         }
         default:
             break;
