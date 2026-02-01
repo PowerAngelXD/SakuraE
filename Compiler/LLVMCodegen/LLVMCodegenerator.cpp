@@ -1,4 +1,5 @@
 #include "LLVMCodegenerator.hpp"
+#include "Compiler/IR/struct/instruction.hpp"
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Instructions.h>
 
@@ -343,6 +344,21 @@ namespace sakuraE::Codegen {
                 }
 
                 store(ins, alloca);
+                getCurrentUsingModule()->getActive()->scope.declare(identifierName, alloca, nullptr);
+
+                break;
+            }
+            case IR::OpKind::assign: {
+                auto insName = ins->arg(0)->getName();
+                auto identifierName = insName.split('.')[1];
+
+                auto alloca = lookup<llvm::Value*>(identifierName)->address;
+                auto val = toLLVMValue(ins->arg(1));
+
+                if (alloca && val) {
+                    // TODO: Ignore the different type (Assume they are the same)
+                    builder->CreateStore(val, alloca);
+                }
 
                 break;
             }
