@@ -11,13 +11,13 @@ namespace sakuraE::IR {
         Program program;
 
         IRValue* declareSymbol(fzlib::String name, IRValue* t, IRValue* initVal = nullptr) {
-            IRValue* addr = curFunc()
-                                ->curBlock()
-                                ->createInstruction(OpKind::declare, IRType::getVoidTy(), {t, initVal}, "declare." + name);
-            
             auto constInst = dynamic_cast<Instruction*>(t);
             auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
             TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
+
+            IRValue* addr = curFunc()
+                                ->curBlock()
+                                ->createInstruction(OpKind::declare, typeInfo->toIRType(), {initVal}, "declare." + name);
 
             curFunc()->fnScope().declare(name, addr, typeInfo->toIRType());
 
@@ -27,7 +27,7 @@ namespace sakuraE::IR {
         IRValue* declareSymbol(fzlib::String name, IRType* t, IRValue* initVal = nullptr) {
             IRValue* addr = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::declare, IRType::getVoidTy(), {initVal}, "declare." + name);
+                                ->createInstruction(OpKind::declare, t, {initVal}, "declare." + name);
             
             curFunc()->fnScope().declare(name, addr, t);
 
