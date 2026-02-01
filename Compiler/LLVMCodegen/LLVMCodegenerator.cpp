@@ -434,12 +434,40 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::br: {
+                auto targetBlockValue = toLLVMValue(ins->arg(0));
+
+                llvm::BasicBlock* targetBlock = llvm::cast<llvm::BasicBlock>(targetBlockValue);
+
+                auto result = builder->CreateBr(targetBlock);
+
+                bind(ins, result);
                 break;
             }
             case IR::OpKind::cond_br: {
+                auto cond = toLLVMValue(ins->arg(0));
+                auto trueBlockValue = toLLVMValue(ins->arg(1));
+                auto falseBlockValue = toLLVMValue(ins->arg(2));
+
+                llvm::BasicBlock* trueBlock = llvm::cast<llvm::BasicBlock>(trueBlockValue);
+                llvm::BasicBlock* falseBlock = llvm::cast<llvm::BasicBlock>(falseBlockValue);
+
+                auto result = builder->CreateCondBr(cond, trueBlock, falseBlock);
+
+                bind(ins, result);
                 break;
             }
             case IR::OpKind::ret: {
+                if (ins->getOperands().empty()) {
+                    auto result = builder->CreateRetVoid();
+
+                    bind(ins, result);
+                } 
+                else {
+                    llvm::Value* retVal = toLLVMValue(ins->arg(0));
+                    auto result = builder->CreateRet(retVal);
+
+                    bind(ins, result);
+                }
                 break;
             }
             default:
