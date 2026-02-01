@@ -19,11 +19,6 @@ namespace sakuraE::IR {
         // Indicates the current maximum index of fnList
         long cursor = -1;
 
-        // Determine whether a module has an entry
-        bool hasEntry;
-        // Indicate the entry function's position in FnList
-        std::size_t entry;
-
         Program* program;
     public:
         Module(fzlib::String id, PositionInfo info):
@@ -100,6 +95,10 @@ namespace sakuraE::IR {
 
         const long& cur() {
             return cursor;
+        }
+
+        void reset() {
+            cursor = 0;
         }
 
         const fzlib::String& id() {

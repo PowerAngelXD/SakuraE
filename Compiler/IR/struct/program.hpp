@@ -9,24 +9,28 @@ namespace sakuraE::IR {
 
         std::vector<Module*> moduleList;
         // Indicates the current maximum index of moduleList
-        int cur = -1;
+        int cursor = -1;
     public:
         Program(fzlib::String id): ID(id) {}
 
         Program& buildModule(fzlib::String id, PositionInfo info) {
             Module* module = new Module(id, info);
             moduleList.emplace_back(module);
-            cur ++;
+            cursor ++;
 
             return *this;
         }
 
         Module* curMod () {
-            return moduleList[cur];
+            return moduleList[cursor];
         }
 
         Module* mod(std::size_t index) {
             return moduleList[index];
+        }
+
+        void reset() {
+            cursor = 0;
         }
 
         fzlib::String getID() {
