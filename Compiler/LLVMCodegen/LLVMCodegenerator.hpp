@@ -21,66 +21,73 @@
 #include "Compiler/IR/generator.hpp"
 
 namespace sakuraE::Codegen {
-    // Represent LLVM Function Instantce
-    struct LLVMFunction {
-        fzlib::String name;
-        llvm::Function* content = nullptr;
-        llvm::Type* returnType = nullptr;
-        std::vector<std::pair<fzlib::String, llvm::Type*>> formalParams;
-        IR::Scope<llvm::Value*> scope;
-        
-        LLVMFunction(fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info):
-            name(n), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)) {}
-
-        ~LLVMFunction() {
-            name.free();
-        }
-    };
-
-    // Represent LLVM Module Instantce
-    struct LLVMModule {
-        fzlib::String ID;
-        llvm::Module* content = nullptr;
-        std::map<fzlib::String, LLVMFunction*> funcs;
-
-        LLVMModule(fzlib::String id, llvm::LLVMContext& ctx):
-            ID(id), content(new llvm::Module(id.c_str(), ctx)) {}
-        
-        ~LLVMModule() {
-            ID.free();
-        }
-        
-        void declareFunction(fzlib::String n) {
-            if (funcs.find(n) == funcs.end())
-                funcs[n] = nullptr;
-            else return;
-        }
-
-        void declareFunction(fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
-            if (funcs.find(n) != funcs.end()) return;
-            else {
-                LLVMFunction* fn = new LLVMFunction(n, retT, formalP, info);
-                funcs[n] = fn;
-            }
-        }
-
-        LLVMFunction* get(fzlib::String n) {
-            if (funcs.find(n) == funcs.end()) {
-                declareFunction(n);
-                return nullptr;
-            }
-            else {
-                return funcs[n];
-            }
-        }
-    };
-    
     class LLVMCodeGenerator {
         IR::Program* program;
-        llvm::LLVMContext* context = nullptr;
-        llvm::IRBuilder<>* builder = nullptr;
-        // State Maintainer ===================================================
+        static llvm::LLVMContext* context;
+        static llvm::IRBuilder<>* builder;
+        
+        // Struct Definition ==================================================
+        struct LLVMModule;
+        // Represent LLVM Function Instantce
+        struct LLVMFunction {
+            fzlib::String name;
+            llvm::Function* content = nullptr;
+            llvm::Type* returnType = nullptr;
+            std::vector<std::pair<fzlib::String, llvm::Type*>> formalParams;
+            IR::Scope<llvm::Value*> scope;
+            LLVMModule* parent = nullptr;
+            
+            LLVMFunction(fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, LLVMModule* p, PositionInfo info):
+                name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p) {}
 
+            ~LLVMFunction() {
+                name.free();
+            }
+
+            // Instantiates an LLVM Function, performing the transformation from IR Function to LLVM Function.
+            // Note: This call resets the insertion point to the entry block of the current function.
+            llvm::BasicBlock* impl();
+        };
+
+        // Represent LLVM Module Instantce
+        struct LLVMModule {
+            fzlib::String ID;
+            llvm::Module* content = nullptr;
+            std::map<fzlib::String, LLVMFunction*> funcs;
+
+            LLVMModule(fzlib::String id, llvm::LLVMContext& ctx):
+                ID(id), content(nullptr) {}
+            
+            ~LLVMModule() {
+                ID.free();
+            }
+
+            void declareFunction(fzlib::String n) {
+                if (funcs.find(n) == funcs.end())
+                    funcs[n] = nullptr;
+                else return;
+            }
+
+            void declareFunction(fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
+                if (funcs.find(n) != funcs.end()) return;
+                else {
+                    LLVMFunction* fn = new LLVMFunction(n, retT, formalP, this, info);
+                    funcs[n] = fn;
+                }
+            }
+
+            LLVMFunction* get(fzlib::String n) {
+                if (funcs.find(n) == funcs.end()) {
+                    declareFunction(n);
+                    return nullptr;
+                }
+                else {
+                    return funcs[n];
+                }
+            }
+        };
+
+        // ====================================================================
 
         // Instruction Referring ==============================================
         std::map<IR::IRValue*, llvm::Value*> instructionMap;
@@ -104,19 +111,19 @@ namespace sakuraE::Codegen {
         // =====================================================================
 
         // Module Manager ======================================================
-        std::map<fzlib::String, LLVMModule*> moduleList;
-        fzlib::String curModuleName;
+        std::vector<std::pair<fzlib::String, LLVMModule*>> moduleList;
+        long curModuleIndex = -1;
 
         void createModule(fzlib::String id) {
-            if (moduleList.find(id) != moduleList.end()) {}
-            else {
-                moduleList[id] = new LLVMModule(id, *context);
-                curModuleName = id;
+            for (auto mod: moduleList) {
+                if (mod.first == id) return ;
             }
+            moduleList.emplace_back(id, new LLVMModule(id, *context));
+            curModuleIndex ++;
         }
 
         LLVMModule* getCurrentUsingModule() {
-            return moduleList[curModuleName];
+            return moduleList[curModuleIndex].second;
         }
         // =====================================================================
     public:
