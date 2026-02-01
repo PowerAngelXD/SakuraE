@@ -66,6 +66,31 @@ namespace sakuraE::IR {
             return createInfo;
         }
 
+        fzlib::String toString() {
+            return std::visit([](auto&& arg) -> fzlib::String {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                    return "null";
+                } else if constexpr (std::is_same_v<T, int>) {
+                    return std::to_string(arg);
+                } else if constexpr (std::is_same_v<T, double>) {
+                    return std::to_string(arg);
+                } else if constexpr (std::is_same_v<T, fzlib::String>) {
+                    return fzlib::String("\"") + arg + "\"";
+                } else if constexpr (std::is_same_v<T, char>) {
+                    char buf[4] = {'\'', arg, '\'', '\0'};
+                    return fzlib::String(buf);
+                } else if constexpr (std::is_same_v<T, bool>) {
+                    return arg ? "true" : "false";
+                } else if constexpr (std::is_same_v<T, TypeInfo*>) {
+                    return "<TypeInfo>";
+                } else if constexpr (std::is_same_v<T, IRValue*>) {
+                    return arg ? arg->getName() : "null";
+                }
+                return "unknown";
+            }, content);
+        }
+
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx);
     };
 
