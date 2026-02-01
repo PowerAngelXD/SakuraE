@@ -37,7 +37,7 @@ namespace sakuraE::IR {
         IRValue* buildFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
             Function* func = new Function(name, retType, params, info);
             func->setName("#" + name);
-            func->buildBlock(name + ".init");
+            func->buildBlock("entry");
             fnList.push_back(func);
             cursor = fnList.size() - 1;
 
@@ -91,6 +91,10 @@ namespace sakuraE::IR {
             throw SakuraError(OccurredTerm::IR_GENERATING,
                             "Expected to get an unknown function in module: '" + ID + "'",
                             createInfo);
+        }
+
+        std::vector<Function*> getFunctions() {
+            return fnList;
         }
 
         const long& cur() {

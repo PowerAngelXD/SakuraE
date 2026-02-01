@@ -110,6 +110,10 @@ namespace sakuraE::IR {
             cursor = 0;
         }
 
+        std::vector<Block*> getBlocks() {
+            return blocks;
+        }
+
         Block* block(int index) {
             return blocks[index];
         }
