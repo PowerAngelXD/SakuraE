@@ -18,7 +18,10 @@
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
 #include <llvm/Transforms/Utils.h>
 
+#include "Compiler/Error/error.hpp"
 #include "Compiler/IR/generator.hpp"
+#include "Compiler/IR/struct/function.hpp"
+#include "Compiler/IR/type/type.hpp"
 
 namespace sakuraE::Codegen {
     class LLVMCodeGenerator {
@@ -44,9 +47,10 @@ namespace sakuraE::Codegen {
                 name.free();
             }
 
+            llvm::BasicBlock* entryBlock = nullptr;
             // Instantiates an LLVM Function, performing the transformation from IR Function to LLVM Function.
             // Note: This call resets the insertion point to the entry block of the current function.
-            llvm::BasicBlock* impl();
+            void impl();
         };
 
         // Represent LLVM Module Instantce
@@ -54,6 +58,8 @@ namespace sakuraE::Codegen {
             fzlib::String ID;
             llvm::Module* content = nullptr;
             std::map<fzlib::String, LLVMFunction*> funcs;
+            // State Manager
+            fzlib::String activeFunctionName;
 
             LLVMModule(fzlib::String id, llvm::LLVMContext& ctx):
                 ID(id), content(nullptr) {}
@@ -73,6 +79,45 @@ namespace sakuraE::Codegen {
                 else {
                     LLVMFunction* fn = new LLVMFunction(n, retT, formalP, this, info);
                     funcs[n] = fn;
+
+                    activeFunctionName = n;
+                }
+            }
+
+            void declareFunction(fzlib::String n, IR::IRType* retT, IR::FormalParamsDefine formalP, PositionInfo info) {
+                if (funcs.find(n) != funcs.end()) return;
+                else {
+                    llvm::Type* llvmReturnType = retT->toLLVMType(*context);
+
+                    std::vector<std::pair<fzlib::String, llvm::Type*>> llvmFormalP;
+                    for (auto param: formalP) {
+                        llvmFormalP.emplace_back(param.first, param.second->toLLVMType(*context));
+                    }
+
+                    LLVMFunction* fn = new LLVMFunction(n, llvmReturnType, llvmFormalP, this, info);
+                    funcs[n] = fn;
+
+                    activeFunctionName = n;
+                }
+            }
+
+            void implFunction(fzlib::String n) {
+                // Undeclare
+                if (funcs.find(n) == funcs.end()) declareFunction(n);
+                // Just declare but not complete the function type
+                else if (funcs[n] == nullptr) return ;
+                // Fit
+                else {
+                    funcs[n]->impl();
+                }
+            }
+
+            void implActive() {
+                // Just declare but not complete the function type
+                if (funcs[activeFunctionName] == nullptr) return ;
+                // Fit
+                else {
+                    funcs[activeFunctionName]->impl();
                 }
             }
 
@@ -84,6 +129,10 @@ namespace sakuraE::Codegen {
                 else {
                     return funcs[n];
                 }
+            }
+
+            LLVMFunction* getActive() {
+                return funcs[activeFunctionName];
             }
         };
 
@@ -124,6 +173,10 @@ namespace sakuraE::Codegen {
 
         LLVMModule* getCurrentUsingModule() {
             return moduleList[curModuleIndex].second;
+        }
+
+        LLVMModule* getModule(long index) {
+            return moduleList[index].second;
         }
         // =====================================================================
     public:
