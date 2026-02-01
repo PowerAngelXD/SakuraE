@@ -1,6 +1,7 @@
 #ifndef SAKURAE_LLVMCODEGENERATOR_HPP
 #define SAKURAE_LLVMCODEGENERATOR_HPP
 
+#include <llvm/IR/Instructions.h>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -203,6 +204,19 @@ namespace sakuraE::Codegen {
         template<typename T>
         IR::Symbol<T>* lookup(fzlib::String n) {
             return getCurrentUsingModule()->getActive()->scope.lookup(n);
+        }
+
+        llvm::AllocaInst* createAlloca(llvm::Type *ty, llvm::Value *arraySize = nullptr, fzlib::String name = "") {
+            llvm::BasicBlock* currentBlock = builder->GetInsertBlock();
+            llvm::BasicBlock::iterator currentPoint = builder->GetInsertPoint();
+
+            builder->SetInsertPoint(getCurrentUsingModule()->getActive()->entryBlock);
+
+            llvm::AllocaInst* alloca = builder->CreateAlloca(ty, arraySize, name.c_str());
+
+            builder->SetInsertPoint(currentBlock, currentPoint);
+
+            return alloca;
         }
         // =====================================================================
     public:
