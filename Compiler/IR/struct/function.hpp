@@ -106,6 +106,10 @@ namespace sakuraE::IR {
             return blocks[cursor];
         }
 
+        void reset() {
+            cursor = 0;
+        }
+
         Block* block(int index) {
             return blocks[index];
         }

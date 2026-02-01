@@ -31,6 +31,9 @@ namespace sakuraE::IR {
 
         void reset() {
             cursor = 0;
+            for (auto mod: moduleList) {
+                mod->reset();
+            }
         }
 
         fzlib::String getID() {

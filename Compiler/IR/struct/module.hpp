@@ -99,6 +99,9 @@ namespace sakuraE::IR {
 
         void reset() {
             cursor = 0;
+            for (auto fn: fnList) {
+                fn->reset();
+            }
         }
 
         const fzlib::String& id() {
