@@ -196,8 +196,13 @@ namespace sakuraE::Codegen {
 
         // Look up an identifier matching the conditions in the current active function's scope.
         template<typename T>
-        IR::Symbol<T>* lookup(fzlib::String n) {
+        IR::Symbol<T>* IRScopeLookup(fzlib::String n) {
             return curIRFunc()->fnScope().lookup(n);
+        }
+
+        template<typename T>
+        IR::Symbol<T>* lookup(fzlib::String n) {
+            return getCurrentUsingModule()->getActive()->scope.lookup(n);
         }
         // =====================================================================
     public:
