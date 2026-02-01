@@ -1,5 +1,6 @@
 #include "generator.hpp"
 #include "Compiler/Error/error.hpp"
+#include "Compiler/IR/type/type.hpp"
 
 namespace sakuraE::IR {
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
@@ -12,10 +13,11 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
         IRValue* indexResult = visitAddExprNode((*node)[ASTTag::HeadExpr]);
+        auto elementType = dynamic_cast<IRArrayType*>(addr->getType())->getElementType();
 
         return curFunc()
                 ->curBlock()
-                ->createInstruction(OpKind::indexing, indexResult->getType(), {addr, indexResult}, "indexing");
+                ->createInstruction(OpKind::indexing, elementType, {addr, indexResult}, "indexing");
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node) {
