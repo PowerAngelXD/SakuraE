@@ -3,6 +3,7 @@
 
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include <llvm/IR/LLVMContext.h>
@@ -21,6 +22,7 @@
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/generator.hpp"
 #include "Compiler/IR/struct/function.hpp"
+#include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 
 namespace sakuraE::Codegen {
@@ -132,6 +134,9 @@ namespace sakuraE::Codegen {
             }
 
             LLVMFunction* getActive() {
+                if (!funcs[activeFunctionName]) {
+                    throw std::runtime_error("activeFunction is null!");
+                }
                 return funcs[activeFunctionName];
             }
         };
@@ -179,6 +184,22 @@ namespace sakuraE::Codegen {
             return moduleList[index].second;
         }
         // =====================================================================
+
+        // State Tools =========================================================
+        IR::Module* curIRModule() {
+            return program->curMod();
+        }
+
+        IR::Function* curIRFunc() {
+            return curIRModule()->curFunc();
+        }
+
+        // Look up an identifier matching the conditions in the current active function's scope.
+        template<typename T>
+        IR::Symbol<T>* lookup(fzlib::String n) {
+            return curIRFunc()->fnScope().lookup(n);
+        }
+        // =====================================================================
     public:
         LLVMCodeGenerator(IR::Program* p) {
             program = p;
@@ -186,6 +207,9 @@ namespace sakuraE::Codegen {
             builder = new llvm::IRBuilder<>(*context);
 
             createModule("MainModule");
+
+            // Reset, for the state managing
+            program->reset();
         }
 
     private:
