@@ -152,7 +152,7 @@ namespace sakuraE::Codegen {
         }
 
         // Create a new IRValue to llvm Value referrence
-        inline void store(IR::IRValue* sakIRVal, llvm::Value* llvmIRVal) {
+        inline void bind(IR::IRValue* sakIRVal, llvm::Value* llvmIRVal) {
             instructionMap[sakIRVal] = llvmIRVal;
         }
 
@@ -160,7 +160,7 @@ namespace sakuraE::Codegen {
         void buildMapping(IR::Instruction* ins) {
             llvm::Value* result = instgen(ins);
             if (result) {
-                store(ins, result);
+                bind(ins, result);
             }
         }
         // =====================================================================

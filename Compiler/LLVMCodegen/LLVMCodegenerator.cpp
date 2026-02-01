@@ -4,9 +4,13 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/Support/Alignment.h>
 #include <llvm/Support/Casting.h>
 
 namespace sakuraE::Codegen {
+    llvm::LLVMContext* LLVMCodeGenerator::context = nullptr;
+    llvm::IRBuilder<>* LLVMCodeGenerator::builder = nullptr;
+
     void LLVMCodeGenerator::LLVMFunction::impl() {
         std::vector<llvm::Type*> params;
         for (auto param: formalParams) {
@@ -334,13 +338,19 @@ namespace sakuraE::Codegen {
 
                 auto initVal = ins->arg(0);
                 if (initVal) {
-                    builder->CreateStore(toLLVMValue(initVal), alloca);
+                    if (identifierType->isArrayTy()) {
+                        auto arrSize = getCurrentUsingModule()->content->getDataLayout().getTypeAllocSize(identifierType);
+                        builder->CreateMemCpy(alloca, llvm::MaybeAlign(8), toLLVMValue(initVal), llvm::MaybeAlign(8), arrSize);
+                    }
+                    else {
+                        builder->CreateStore(toLLVMValue(initVal), alloca);
+                    }
                 }
                 else {
                     builder->CreateStore(llvm::Constant::getNullValue(identifierType), alloca);
                 }
 
-                store(ins, alloca);
+                bind(ins, alloca);
                 getCurrentUsingModule()->getActive()->scope.declare(identifierName, alloca, nullptr);
 
                 break;
@@ -349,12 +359,18 @@ namespace sakuraE::Codegen {
                 auto insName = ins->arg(0)->getName();
                 auto identifierName = insName.split('.')[1];
 
-                auto alloca = lookup<llvm::Value*>(identifierName)->address;
+                auto alloca = llvm::dyn_cast<llvm::AllocaInst>(lookup<llvm::Value*>(identifierName)->address);
                 auto val = toLLVMValue(ins->arg(1));
 
                 if (alloca && val) {
                     // TODO: Ignore the different type (Assume they are the same)
-                    builder->CreateStore(val, alloca);
+                    if (val->getType()->isArrayTy()) {
+                        auto arrSize = getCurrentUsingModule()->content->getDataLayout().getTypeAllocSize(val->getType());
+                        builder->CreateMemCpy(alloca, llvm::MaybeAlign(8), val, llvm::MaybeAlign(8), arrSize);
+                    }
+                    else {
+                        builder->CreateStore(val, alloca);
+                    }
                 }
 
                 break;
@@ -376,14 +392,26 @@ namespace sakuraE::Codegen {
                     builder->CreateStore(arrayContent[i], ptr);
                 }
 
-                store(ins, alloca);
+                bind(ins, alloca);
+                break;
+            }
+            case IR::OpKind::indexing: {
+                llvm::Value* addr = toLLVMValue(ins->arg(0));
+                llvm::Value* indexVal = toLLVMValue(ins->arg(1));
+
+                llvm::Type* type = ins->arg(0)->getType()->toLLVMType(*context);
+                auto ptr = builder->CreateGEP(type, addr, {builder->getInt32(0), indexVal}, "element_ptr");
+                
+                auto result = builder->CreateLoad(type->getArrayElementType(), ptr, "element_val");
+
+                bind(ins, result);
                 break;
             }
             default:
                 break;
         }
         if (instResult)
-            store(ins, instResult);
+            bind(ins, instResult);
         return instResult;
     }
 }
