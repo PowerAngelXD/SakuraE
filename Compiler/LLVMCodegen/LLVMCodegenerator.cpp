@@ -10,7 +10,7 @@
 
 namespace sakuraE::Codegen {
     void LLVMCodeGenerator::LLVMModule::impl() {
-
+        
     }
 
     void LLVMCodeGenerator::LLVMFunction::impl() {
@@ -77,6 +77,8 @@ namespace sakuraE::Codegen {
                         instResult = builder->CreateFAdd(lhs, rhs, "add.tmp");
                     }
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::sub: {
@@ -101,6 +103,8 @@ namespace sakuraE::Codegen {
                         instResult = builder->CreateFSub(lhs, rhs, "sub.tmp");
                     }
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::mul: {
@@ -125,6 +129,8 @@ namespace sakuraE::Codegen {
                         instResult = builder->CreateFMul(lhs, rhs, "mul.tmp");
                     }
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::div: {
@@ -149,6 +155,8 @@ namespace sakuraE::Codegen {
                         instResult = builder->CreateFDiv(lhs, rhs, "div.tmp");
                     }
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::lgc_equal: {
@@ -182,6 +190,8 @@ namespace sakuraE::Codegen {
                     }
                     instResult = builder->CreateICmpEQ(lhs, rhs, "eq.tmp");
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::lgc_not_equal: {
@@ -215,6 +225,8 @@ namespace sakuraE::Codegen {
                     }
                     instResult = builder->CreateICmpEQ(lhs, rhs, "neq.tmp");
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::lgc_ls_than: {
@@ -248,6 +260,8 @@ namespace sakuraE::Codegen {
                     }
                     instResult = builder->CreateICmpULT(lhs, rhs, "ls.tmp");
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::lgc_mr_than: {
@@ -281,6 +295,8 @@ namespace sakuraE::Codegen {
                     }
                     instResult = builder->CreateICmpUGT(lhs, rhs, "gt.tmp");
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::lgc_eq_ls_than: {
@@ -314,6 +330,8 @@ namespace sakuraE::Codegen {
                     }
                     instResult = builder->CreateICmpULE(lhs, rhs, "eqlt.tmp");
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::lgc_eq_mr_than: {
@@ -347,6 +365,8 @@ namespace sakuraE::Codegen {
                     }
                     instResult = builder->CreateICmpUGE(lhs, rhs, "eqgt.tmp");
                 }
+
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::declare: {
@@ -395,6 +415,7 @@ namespace sakuraE::Codegen {
                     }
                 }
 
+                bind(ins, alloca);
                 break;
             }
             case IR::OpKind::create_array: {
@@ -424,18 +445,18 @@ namespace sakuraE::Codegen {
                 llvm::Type* type = ins->arg(0)->getType()->toLLVMType(*context);
                 auto ptr = builder->CreateGEP(type, addr, {builder->getInt32(0), indexVal}, "element_ptr");
                 
-                auto result = builder->CreateLoad(type->getArrayElementType(), ptr, "element_val");
+                instResult = builder->CreateLoad(type->getArrayElementType(), ptr, "element_val");
 
-                bind(ins, result);
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0));
                 llvm::Type* type = ins->getType()->toLLVMType(*context);
 
-                auto result = builder->CreateLoad(type, addr, "load.tmp");
+                instResult = builder->CreateLoad(type, addr, "load.tmp");
 
-                bind(ins, result);
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::br: {
@@ -443,9 +464,9 @@ namespace sakuraE::Codegen {
 
                 llvm::BasicBlock* targetBlock = llvm::cast<llvm::BasicBlock>(targetBlockValue);
 
-                auto result = builder->CreateBr(targetBlock);
+                instResult = builder->CreateBr(targetBlock);
 
-                bind(ins, result);
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::cond_br: {
@@ -456,22 +477,22 @@ namespace sakuraE::Codegen {
                 llvm::BasicBlock* trueBlock = llvm::cast<llvm::BasicBlock>(trueBlockValue);
                 llvm::BasicBlock* falseBlock = llvm::cast<llvm::BasicBlock>(falseBlockValue);
 
-                auto result = builder->CreateCondBr(cond, trueBlock, falseBlock);
+                instResult = builder->CreateCondBr(cond, trueBlock, falseBlock);
 
-                bind(ins, result);
+                bind(ins, instResult);
                 break;
             }
             case IR::OpKind::ret: {
                 if (ins->getOperands().empty()) {
-                    auto result = builder->CreateRetVoid();
+                    instResult = builder->CreateRetVoid();
 
-                    bind(ins, result);
+                    bind(ins, instResult);
                 } 
                 else {
                     llvm::Value* retVal = toLLVMValue(ins->arg(0));
-                    auto result = builder->CreateRet(retVal);
+                    instResult = builder->CreateRet(retVal);
 
-                    bind(ins, result);
+                    bind(ins, instResult);
                 }
                 break;
             }
@@ -487,9 +508,9 @@ namespace sakuraE::Codegen {
                     llvmArguments.push_back(toLLVMValue(arguments[i]));
                 }
 
-                auto result = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
+                instResult = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
 
-                bind(ins, result);
+                bind(ins, instResult);
                 break;
             }
             default:
