@@ -29,7 +29,7 @@ namespace sakuraE::IR {
 
         return curFunc()
                 ->curBlock()
-                ->createInstruction(OpKind::call, IRType::getInt32Ty(), {params}, "call");
+                ->createInstruction(OpKind::call, IRType::getInt32Ty(), params, "call");
     }
 
     IRValue* IRGenerator::visitAtomIdentifierNode(NodePtr node) {
