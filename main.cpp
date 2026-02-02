@@ -29,7 +29,7 @@ func foo(a: int, b: int, s: string) -> int {
         arr[index] += 5;
     }
 
-    return a + b;
+    return a + b - foo(1, 9);
 }
 )";
 
