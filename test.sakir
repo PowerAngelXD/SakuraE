@@ -15,12 +15,12 @@ TestProject  {
       :fn.foo  {
         constant ""hello"";
         declare $constant;
-        load $declare.$tmp_binary_value0;
-        declare $load.$tmp_binary_value0;
+        load $declare.$tbv.0;
+        declare $load.$tbv.0;
         constant ""hello11"";
         declare $constant;
-        load $declare.$tmp_binary_value1;
-        declare $load.$tmp_binary_value1;
+        load $declare.$tbv.1;
+        declare $load.$tbv.1;
         load $declare.VAR;
         load $declare.VAR1;
         lgc_not_equal $load.VAR $load.VAR1;
@@ -29,23 +29,23 @@ TestProject  {
         
       }
       :short.cur.merge  {
-        load $declare.$tmp_binary_value2;
-        cond_br $load.$tmp_binary_value2 $%if.then $%if.else;
+        load $declare.$tbv.2;
+        cond_br $load.$tbv.2 $%if.then $%if.else;
         
       }
       :and.rhs0  {
         load $declare.a;
         constant 2;
         lgc_equal $load.a $constant;
-        assign $declare.$tmp_binary_value2 $lgc-equal;
+        assign $declare.$tbv.2 $lgc-equal;
         br $%short.cur.merge;
         
       }
       :if.then  {
         constant 0;
         declare $constant;
-        load $declare.$tmp_binary_value3;
-        ret $load.$tmp_binary_value3;
+        load $declare.$tbv.3;
+        ret $load.$tbv.3;
         br $%if.merge;
         
       }
@@ -57,30 +57,30 @@ TestProject  {
         load $declare.VAR1;
         load $declare.s;
         declare $load.s;
-        load $declare.$tmp_binary_value4;
-        assign $load.VAR1 $load.$tmp_binary_value4;
+        load $declare.$tbv.4;
+        assign $load.VAR1 $load.$tbv.4;
         constant 1;
         declare $constant;
-        load $declare.$tmp_binary_value5;
+        load $declare.$tbv.5;
         constant 2;
         declare $constant;
-        load $declare.$tmp_binary_value6;
+        load $declare.$tbv.6;
         constant 3;
         declare $constant;
-        load $declare.$tmp_binary_value7;
+        load $declare.$tbv.7;
         constant 4;
         declare $constant;
-        load $declare.$tmp_binary_value8;
-        create_array $load.$tmp_binary_value5 $load.$tmp_binary_value6 $load.$tmp_binary_value7 $load.$tmp_binary_value8;
+        load $declare.$tbv.8;
+        create_array $load.$tbv.5 $load.$tbv.6 $load.$tbv.7 $load.$tbv.8;
         declare $create-array;
         constant 4;
         declare $constant;
-        load $declare.$tmp_binary_value9;
-        declare $load.$tmp_binary_value9;
+        load $declare.$tbv.9;
+        declare $load.$tbv.9;
         constant 0;
         declare $constant;
-        load $declare.$tmp_binary_value10;
-        declare $load.$tmp_binary_value10;
+        load $declare.$tbv.10;
+        declare $load.$tbv.10;
         br $%for.cond;
         
       }
@@ -89,8 +89,8 @@ TestProject  {
         load $declare.arr_size;
         lgc_ls_than $load.index $load.arr_size;
         declare $lgc-ls-than;
-        load $declare.$tmp_binary_value11;
-        cond_br $load.$tmp_binary_value11 $%for.body $%for.merge;
+        load $declare.$tbv.11;
+        cond_br $load.$tbv.11 $%for.body $%for.merge;
         
       }
       :for.body  {
@@ -99,8 +99,8 @@ TestProject  {
         indexing $load.arr $load.index;
         constant 5;
         declare $constant;
-        load $declare.$tmp_binary_value12;
-        add $indexing $load.$tmp_binary_value12;
+        load $declare.$tbv.12;
+        add $indexing $load.$tbv.12;
         assign $indexing $add;
         br $%for.step;
         
@@ -109,7 +109,7 @@ TestProject  {
         load $declare.index;
         add $load.index 1;
         declare $add;
-        load $declare.$tmp_binary_value13;
+        load $declare.$tbv.13;
         br $%for.cond;
         
       }
@@ -117,9 +117,18 @@ TestProject  {
         load $declare.a;
         load $declare.b;
         add $load.a $load.b;
-        declare $add;
-        load $declare.$tmp_binary_value14;
-        ret $load.$tmp_binary_value14;
+        load $#foo;
+        constant 1;
+        declare $constant;
+        load $declare.$tbv.14;
+        constant 9;
+        declare $constant;
+        load $declare.$tbv.15;
+        call $load.foo $load.$tbv.14 $load.$tbv.15;
+        sub $add $call.foo;
+        declare $sub;
+        load $declare.$tbv.16;
+        ret $load.$tbv.16;
         
       }
     }
