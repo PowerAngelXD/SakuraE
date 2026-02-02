@@ -3,11 +3,16 @@
 #include <cstddef>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constant.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Alignment.h>
 #include <llvm/Support/Casting.h>
 
 namespace sakuraE::Codegen {
+    void LLVMCodeGenerator::LLVMModule::impl() {
+
+    }
+
     void LLVMCodeGenerator::LLVMFunction::impl() {
         std::vector<llvm::Type*> params;
         for (auto param: formalParams) {
@@ -468,6 +473,23 @@ namespace sakuraE::Codegen {
 
                     bind(ins, result);
                 }
+                break;
+            }
+            case IR::OpKind::call: {
+                auto insName = ins->getName();
+                auto fnName = insName.split('.')[1];
+
+                auto fn = getCurrentUsingModule()->get(fnName)->content;
+
+                auto arguments = ins->getOperands();
+                std::vector<llvm::Value*> llvmArguments;
+                for (std::size_t i = 0; i < arguments.size(); i ++) {
+                    llvmArguments.push_back(toLLVMValue(arguments[i]));
+                }
+
+                auto result = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
+
+                bind(ins, result);
                 break;
             }
             default:
