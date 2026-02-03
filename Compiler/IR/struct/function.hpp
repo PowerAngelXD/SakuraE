@@ -84,7 +84,7 @@ namespace sakuraE::IR {
 
         IRValue* buildBlock(fzlib::String id, std::vector<Instruction*> ops) {
             Block* block = new Block(id, ops);
-            block->setName("%" + id);
+            block->setName(id);
             block->setParent(this);
             blocks.push_back(block);
             cursor = blocks.size() - 1;
@@ -94,7 +94,7 @@ namespace sakuraE::IR {
 
         IRValue* buildBlock(fzlib::String id) {
             Block* block = new Block(id);
-            block->setName("%" + id);
+            block->setName(id);
             block->setParent(this);
             blocks.push_back(block);
             cursor = blocks.size() - 1;
