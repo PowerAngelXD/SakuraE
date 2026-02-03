@@ -60,13 +60,15 @@ namespace sakuraE::Codegen {
             // Instantiates an LLVM Function, performing the transformation from IR Function to LLVM Function.
             // Note: This call resets the insertion point to the entry block of the current function.
             void impl();
+            // Start LLVM IR Code generation
+            void codegen();
         };
 
         // Represent LLVM Module Instantce
         struct LLVMModule {
             fzlib::String ID;
             llvm::Module* content = nullptr;
-            std::map<fzlib::String, LLVMFunction*> funcs;
+            std::map<fzlib::String, LLVMFunction*> fnMap;
             LLVMCodeGenerator& codegenContext;
             // State Manager
             fzlib::String activeFunctionName;
@@ -79,23 +81,23 @@ namespace sakuraE::Codegen {
             }
 
             void declareFunction(fzlib::String n) {
-                if (funcs.find(n) == funcs.end())
-                    funcs[n] = nullptr;
+                if (fnMap.find(n) == fnMap.end())
+                    fnMap[n] = nullptr;
                 else return;
             }
 
             void declareFunction(fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
-                if (funcs.find(n) != funcs.end()) return;
+                if (fnMap.find(n) != fnMap.end()) return;
                 else {
                     LLVMFunction* fn = new LLVMFunction(n, retT, formalP, this, codegenContext, info);
-                    funcs[n] = fn;
+                    fnMap[n] = fn;
 
                     activeFunctionName = n;
                 }
             }
 
             void declareFunction(fzlib::String n, IR::IRType* retT, IR::FormalParamsDefine formalP, PositionInfo info) {
-                if (funcs.find(n) != funcs.end()) return;
+                if (fnMap.find(n) != fnMap.end()) return;
                 else {
                     llvm::Type* llvmReturnType = retT->toLLVMType(*codegenContext.context);
 
@@ -105,7 +107,7 @@ namespace sakuraE::Codegen {
                     }
 
                     LLVMFunction* fn = new LLVMFunction(n, llvmReturnType, llvmFormalP, this, codegenContext, info);
-                    funcs[n] = fn;
+                    fnMap[n] = fn;
 
                     activeFunctionName = n;
                 }
@@ -113,40 +115,46 @@ namespace sakuraE::Codegen {
 
             void implFunction(fzlib::String n) {
                 // Undeclare
-                if (funcs.find(n) == funcs.end()) declareFunction(n);
+                if (fnMap.find(n) == fnMap.end()) declareFunction(n);
                 // Just declare but not complete the function type
-                else if (funcs[n] == nullptr) return ;
+                else if (fnMap[n] == nullptr) return ;
                 // Fit
                 else {
-                    funcs[n]->impl();
+                    fnMap[n]->impl();
                 }
             }
 
             void implActive() {
                 // Just declare but not complete the function type
-                if (funcs[activeFunctionName] == nullptr) return ;
+                if (fnMap[activeFunctionName] == nullptr) return ;
                 // Fit
                 else {
-                    funcs[activeFunctionName]->impl();
+                    fnMap[activeFunctionName]->impl();
                 }
             }
 
             LLVMFunction* get(fzlib::String n) {
-                if (funcs.find(n) == funcs.end()) {
+                if (fnMap.find(n) == fnMap.end()) {
                     declareFunction(n);
                     return nullptr;
                 }
                 else {
-                    return funcs[n];
+                    return fnMap[n];
                 }
             }
 
             LLVMFunction* getActive() {
-                if (!funcs[activeFunctionName]) {
+                if (!fnMap[activeFunctionName]) {
                     throw std::runtime_error("activeFunction is null!");
                 }
-                return funcs[activeFunctionName];
+                return fnMap[activeFunctionName];
             }
+
+            // Instantiates an LLVM Module, performing the transformation from IR Module to LLVM Module.
+            void impl();
+
+            // Start LLVM IR Code generation
+            void codegen();
         };
 
         // ====================================================================
@@ -240,6 +248,7 @@ namespace sakuraE::Codegen {
             program->reset();
         }
 
+        void start();
     private:
         llvm::Value* instgen(IR::Instruction* ins);
 
