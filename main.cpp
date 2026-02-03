@@ -8,6 +8,7 @@
 #include "Compiler/Frontend/parser_base.hpp"
 #include "Compiler/Frontend/parser.hpp"
 #include "Compiler/IR/generator.hpp"
+#include "Compiler/LLVMCodegen/LLVMCodegenerator.hpp"
 
 const fzlib::String SOURCE_CODE = R"(
 func foo(a: int, b: int, s: string) -> int {
@@ -64,6 +65,13 @@ int main() {
             std::cout << generator.toFormatString() << std::endl;
 
             current = result.end;
+            auto program = generator.getProgram();
+
+            sakuraE::Codegen::LLVMCodeGenerator llvmCodegen(&program);
+
+            llvmCodegen.start();
+
+            llvmCodegen.print();
         }
     } 
     catch (const std::runtime_error& e) {
