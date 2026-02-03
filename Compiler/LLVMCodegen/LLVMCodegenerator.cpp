@@ -5,14 +5,35 @@
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Support/Alignment.h>
 #include <llvm/Support/Casting.h>
 
 namespace sakuraE::Codegen {
+    // LLVM Module
     void LLVMCodeGenerator::LLVMModule::impl() {
-        
+        content = new llvm::Module(ID.c_str(), *codegenContext.context);
+
+        auto funcs = codegenContext.curIRModule()->getFunctions();
+
+        for (auto func: funcs) {
+            auto retTy = func->getReturnType()->toLLVMType(*codegenContext.context);
+            auto irParams = func->getFormalParams();
+            std::vector<std::pair<fzlib::String, llvm::Type*>> params;
+
+            for (auto param: irParams) {
+                params.emplace_back(param.first, param.second->toLLVMType(*codegenContext.context));
+            }
+
+            declareFunction(func->getName(), retTy, params, func->getInfo());
+        }
+
+        for (auto it = fnMap.begin(); it != fnMap.end(); it ++) {
+            (*it).second->impl();
+        }
     }
 
+    // LLVM Function
     void LLVMCodeGenerator::LLVMFunction::impl() {
         std::vector<llvm::Type*> params;
         for (auto param: formalParams) {
@@ -43,10 +64,20 @@ namespace sakuraE::Codegen {
                 entryBlock = llvmBlock;
             }
         }
-
-        codegenContext.builder->SetInsertPoint(entryBlock);
     }
 
+    void LLVMCodeGenerator::LLVMFunction::codegen() {
+        auto irBlocks = codegenContext.curIRFunc()->getBlocks();
+        for (auto irBlock: irBlocks) {
+            codegenContext.builder->SetInsertPoint(llvm::cast<llvm::BasicBlock>(codegenContext.toLLVMValue(irBlock)));
+
+            for (auto inst: irBlock->getInstructions()) {
+                codegenContext.instgen(inst);
+            }
+        }
+    }
+
+    // Instruction generation
     llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins) {
         llvm::Value* instResult = nullptr;
         switch (ins->getKind())
