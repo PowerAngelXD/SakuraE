@@ -173,8 +173,7 @@ sakuraE::Token sakuraE::Lexer::makeStringLiteral() {
     }
 
     if (peek() == '\"') {
-        next(); 
-        content = "\"" + content + "\"";
+        next();
     }
     else {
         sutils::reportError(OccurredTerm::LEXER, "Unclosed string literal", PositionInfo{start_line, start_column, "Error"});
