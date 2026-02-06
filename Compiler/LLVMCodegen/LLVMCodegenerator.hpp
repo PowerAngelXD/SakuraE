@@ -198,6 +198,7 @@ namespace sakuraE::Codegen {
 
         void print();
     private:
+        llvm::Value* compare(IR::Instruction* ins, LLVMFunction* curFn);
         llvm::Value* instgen(IR::Instruction* ins, LLVMFunction* curFn);
 
         // Tool Methods =========================================================
@@ -347,6 +348,67 @@ namespace sakuraE::Codegen {
 
             return result;
         }
+
+        llvm::Value* compare(llvm::Value* lhs, llvm::Value* rhs, IR::OpKind kind, LLVMFunction* curFn) {
+            if (lhs->getType()->isDoubleTy() || rhs->getType()->isDoubleTy()) {
+                if (lhs->getType()->isIntegerTy()) {
+                    lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(*context), "lhs.promoted");
+                }
+                if (rhs->getType()->isIntegerTy()) {
+                    rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(*context), "rhs.promoted");
+                }
+            
+                llvm::FCmpInst::Predicate pred;
+                switch (kind) {
+                    case IR::OpKind::lgc_equal:       pred = llvm::FCmpInst::FCMP_OEQ; break;
+                    case IR::OpKind::lgc_not_equal:   pred = llvm::FCmpInst::FCMP_ONE; break;
+                    case IR::OpKind::lgc_mr_than:      pred = llvm::FCmpInst::FCMP_OGT; break;
+                    case IR::OpKind::lgc_ls_than:      pred = llvm::FCmpInst::FCMP_OLT; break;
+                    case IR::OpKind::lgc_eq_mr_than:   pred = llvm::FCmpInst::FCMP_OGE; break;
+                    case IR::OpKind::lgc_eq_ls_than:   pred = llvm::FCmpInst::FCMP_OLE; break;
+                    default: return nullptr;
+                }
+                return builder->CreateFCmp(pred, lhs, rhs, "fcmp.tmp");
+            }
+
+            if (lhs->getType()->isIntegerTy() && rhs->getType()->isIntegerTy()) {
+                if (lhs->getType()->getIntegerBitWidth() != rhs->getType()->getIntegerBitWidth()) {
+                    unsigned maxBit = std::max(lhs->getType()->getIntegerBitWidth(), rhs->getType()->getIntegerBitWidth());
+                    auto* targetTy = llvm::Type::getIntNTy(*context, maxBit);
+                    lhs = builder->CreateSExt(lhs, targetTy);
+                    rhs = builder->CreateSExt(rhs, targetTy);
+                }
+
+                llvm::ICmpInst::Predicate pred;
+                switch (kind) {
+                    case IR::OpKind::lgc_equal:       pred = llvm::ICmpInst::ICMP_EQ;  break;
+                    case IR::OpKind::lgc_not_equal:   pred = llvm::ICmpInst::ICMP_NE;  break;
+                    case IR::OpKind::lgc_mr_than:      pred = llvm::ICmpInst::ICMP_SGT; break;
+                    case IR::OpKind::lgc_ls_than:      pred = llvm::ICmpInst::ICMP_SLT; break;
+                    case IR::OpKind::lgc_eq_mr_than:   pred = llvm::ICmpInst::ICMP_SGE; break;
+                    case IR::OpKind::lgc_eq_ls_than:   pred = llvm::ICmpInst::ICMP_SLE; break;
+                    default: return nullptr;
+                }
+                return builder->CreateICmp(pred, lhs, rhs, "icmp.tmp");
+            }
+
+            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy()) {
+                if (kind == IR::OpKind::lgc_equal || kind == IR::OpKind::lgc_not_equal) {
+                    llvm::FunctionCallee strcmpFunc = curFn->parent->content->getOrInsertFunction(
+                        "strcmp", builder->getInt32Ty(), builder->getPtrTy(), builder->getPtrTy()
+                    );
+                    llvm::Value* res = builder->CreateCall(strcmpFunc, {lhs, rhs}, "strcmp.tmp");
+
+                    if (kind == IR::OpKind::lgc_equal)
+                        return builder->CreateICmpEQ(res, builder->getInt32(0), "str.eq");
+                    else
+                        return builder->CreateICmpNE(res, builder->getInt32(0), "str.ne");
+                }
+            }
+
+            return nullptr;
+        }
+
         // =====================================================================
     };
 }
