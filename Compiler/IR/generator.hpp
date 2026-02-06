@@ -3,6 +3,7 @@
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/struct/instruction.hpp"
+#include "includes/magic_enum.hpp"
 #include "struct/program.hpp"
 #include "Compiler/Frontend/AST.hpp"
 #include "Compiler/IR/value/constant.hpp"
@@ -12,10 +13,21 @@ namespace sakuraE::IR {
     class IRGenerator {
         Program program;
 
-        IRValue* declareSymbol(fzlib::String name, IRValue* t, IRValue* initVal = nullptr) {
+        IRValue* declareSymbol(fzlib::String name, IRValue* t, IRValue* initVal, PositionInfo info) {
             auto constInst = dynamic_cast<Instruction*>(t);
             auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
             TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
+
+            auto dType = magic_enum::enum_name(typeInfo->toIRType()->getIRTypeID());
+
+            auto details = "Cannot declare a value to an identifier of a different value type, expect declare: "
+                                    + fzlib::String(dType)
+                                    + ", real: "
+                                    + (initVal?fzlib::String(magic_enum::enum_name(initVal->getType()->getIRTypeID())):"null_type");
+            if (initVal && initVal->getType()->getIRTypeID() != typeInfo->toIRType()->getIRTypeID()) 
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                            details,
+                            info);
 
             IRValue* addr = curFunc()
                                 ->curBlock()
@@ -26,19 +38,30 @@ namespace sakuraE::IR {
             return addr;
         }
 
-        IRValue* declareSymbol(fzlib::String name, IRType* t, IRValue* initVal = nullptr) {
+        IRValue* declareSymbol(fzlib::String name, IRType* t, IRValue* initVal, PositionInfo info) {
             IRValue* addr = curFunc()
                                 ->curBlock()
                                 ->createInstruction(OpKind::declare, t, {initVal}, "declare." + name);
             
+            auto dType = magic_enum::enum_name(t->getIRTypeID());
+
+            auto details = "Cannot declare a value to an identifier of a different value type, expect declare: "
+                                    + fzlib::String(dType)
+                                    + ", real: "
+                                    + (initVal?fzlib::String(magic_enum::enum_name(initVal->getType()->getIRTypeID())):"null_type");
+            if (initVal && initVal->getType()->getIRTypeID() != t->getIRTypeID()) 
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                            details,
+                            info);
+
             curFunc()->fnScope().declare(name, addr, t);
 
             return addr;
         }
 
         IRValue* storeSymbol(IRValue* addr, IRValue* value, PositionInfo info) {
-            if (addr->getType() != value->getType())
-                SakuraError(OccurredTerm::IR_GENERATING,
+            if (addr->getType()->getIRTypeID() != value->getType()->getIRTypeID())
+                throw SakuraError(OccurredTerm::IR_GENERATING,
                             "Cannot assign a value to an identifier of a different value type",
                             info);
             
