@@ -36,14 +36,6 @@ namespace sakuraE::IR {
 
         IRTypeID getIRTypeID() const { return irTypeID; }
 
-        bool operator== (IRType* t) {
-            return irTypeID == t->irTypeID;
-        }
-
-        bool operator!= (IRType* t) {
-            return !operator==(t);
-        }
-
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
         virtual fzlib::String toString() = 0;
 
