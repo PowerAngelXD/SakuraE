@@ -306,7 +306,7 @@ namespace sakuraE::IR {
         fzlib::String resultAddrName = "tbv." + std::to_string(binaryID);
         binaryID ++;
         
-        IRValue* resultAddr = declareSymbol(resultAddrName, IRType::getBoolTy(), lhs);
+        IRValue* resultAddr = declareSymbol(resultAddrName, IRType::getBoolTy(), lhs, node->getPosInfo());
 
         if (node->hasNode(ASTTag::Ops)) {
             auto opChain = (*node)[ASTTag::Ops]->getChildren();
@@ -538,11 +538,11 @@ namespace sakuraE::IR {
         }
 
         IRValue* initVal = visitWholeExprNode((*node)[ASTTag::AssignTerm]);
-
+        
         if (typeInfoIRValue)
-            return declareSymbol(identifier.content, typeInfoIRValue, initVal);
+            return declareSymbol(identifier.content, typeInfoIRValue, initVal, node->getPosInfo());
         else
-            return declareSymbol(identifier.content, initVal->getType(), initVal);
+            return declareSymbol(identifier.content, initVal->getType(), initVal, node->getPosInfo());
     }
 
     IRValue* IRGenerator::visitExprStmtNode(NodePtr node) {
@@ -783,7 +783,7 @@ namespace sakuraE::IR {
                 fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
                 params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
-                declareSymbol(argName, argType);
+                declareSymbol(argName, argType, nullptr, nameList->getChildren()[i]->getPosInfo());
             }
         }
 
