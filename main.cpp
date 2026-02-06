@@ -21,16 +21,6 @@ func foo(a: int, b: int, s: string) -> int {
     else {
         return 8;
     }
-    
-    VAR1 = s;
-
-    let arr = [1, 2, 3, 4];
-    let arr_size = 4;
-    for (let index = 0; index < arr_size; index ++) {
-        arr[index] += 5;
-    }
-
-    return a + b - foo(1, 9);
 }
 )";
 
