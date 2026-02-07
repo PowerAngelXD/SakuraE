@@ -1,0 +1,237 @@
+Stmt: [
+    FuncDefineStmtNode: [
+      Token(foo),
+      Args: [
+        Type: [
+          TypeModifierNode: [
+            BasicTypeModifierNode: [
+              Token(int)
+            ]
+          ],
+          TypeModifierNode: [
+            BasicTypeModifierNode: [
+              Token(int)
+            ]
+          ],
+          TypeModifierNode: [
+            BasicTypeModifierNode: [
+              Token(string)
+            ]
+          ]
+        ],
+        Identifier: [
+          Token(a),
+          Token(b),
+          Token(s)
+        ]
+      ],
+      TypeModifierNode: [
+        BasicTypeModifierNode: [
+          Token(int)
+        ]
+      ],
+      BlockStmtNode: [
+        Stmts: [
+          DeclareStmtNode: [
+            Token(VAR),
+            WholeExprNode: [
+              BinaryExprNode: [
+                Exprs: [
+                  LogicExprNode: [
+                    Exprs: [
+                      AddExprNode: [
+                        Exprs: [
+                          MulExprNode: [
+                            Exprs: [
+                              PrimExprNode: [
+                                LiteralNode: [
+                                  Token(hello)
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ],
+          DeclareStmtNode: [
+            Token(VAR1),
+            WholeExprNode: [
+              BinaryExprNode: [
+                Exprs: [
+                  LogicExprNode: [
+                    Exprs: [
+                      AddExprNode: [
+                        Exprs: [
+                          MulExprNode: [
+                            Exprs: [
+                              PrimExprNode: [
+                                LiteralNode: [
+                                  Token(hello11)
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ],
+          IfStmtNode: [
+            BinaryExprNode: [
+              Exprs: [
+                LogicExprNode: [
+                  Exprs: [
+                    AddExprNode: [
+                      Exprs: [
+                        MulExprNode: [
+                          Exprs: [
+                            PrimExprNode: [
+                              IdentifierExprNode: [
+                                Exprs: [
+                                  AtomIdentifierNode: [
+                                    Token(VAR)
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ],
+                    AddExprNode: [
+                      Exprs: [
+                        MulExprNode: [
+                          Exprs: [
+                            PrimExprNode: [
+                              IdentifierExprNode: [
+                                Exprs: [
+                                  AtomIdentifierNode: [
+                                    Token(VAR1)
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  Ops: [
+                    Token(!=)
+                  ]
+                ],
+                LogicExprNode: [
+                  Exprs: [
+                    AddExprNode: [
+                      Exprs: [
+                        MulExprNode: [
+                          Exprs: [
+                            PrimExprNode: [
+                              IdentifierExprNode: [
+                                Exprs: [
+                                  AtomIdentifierNode: [
+                                    Token(a)
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ],
+                    AddExprNode: [
+                      Exprs: [
+                        MulExprNode: [
+                          Exprs: [
+                            PrimExprNode: [
+                              LiteralNode: [
+                                Token(2)
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ],
+                  Ops: [
+                    Token(==)
+                  ]
+                ]
+              ],
+              Ops: [
+                Token(&&)
+              ]
+            ],
+            BlockStmtNode: [
+              Stmts: [
+                ReturnStmtNode: [
+                  WholeExprNode: [
+                    BinaryExprNode: [
+                      Exprs: [
+                        LogicExprNode: [
+                          Exprs: [
+                            AddExprNode: [
+                              Exprs: [
+                                MulExprNode: [
+                                  Exprs: [
+                                    PrimExprNode: [
+                                      LiteralNode: [
+                                        Token(0)
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            ElseStmtNode: [
+              BlockStmtNode: [
+                Stmts: [
+                  ReturnStmtNode: [
+                    WholeExprNode: [
+                      BinaryExprNode: [
+                        Exprs: [
+                          LogicExprNode: [
+                            Exprs: [
+                              AddExprNode: [
+                                Exprs: [
+                                  MulExprNode: [
+                                    Exprs: [
+                                      PrimExprNode: [
+                                        LiteralNode: [
+                                          Token(8)
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+  ]
