@@ -302,6 +302,10 @@ namespace sakuraE::IR {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
         IRValue* lhs = visitLogicExprNode(chain[0]);
 
+        if (!chain[0]->hasNode(ASTTag::Ops)) {
+            return lhs;
+        }
+
         static int binaryID = 0;
         fzlib::String resultAddrName = "tbv." + std::to_string(binaryID);
         binaryID ++;
