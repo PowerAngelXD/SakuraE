@@ -1,6 +1,7 @@
 #ifndef SAKURAE_LLVMCODEGENERATOR_HPP
 #define SAKURAE_LLVMCODEGENERATOR_HPP
 
+#include <cstddef>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Use.h>
 #include <map>
@@ -133,13 +134,17 @@ namespace sakuraE::Codegen {
             }
 
             LLVMFunction* get(fzlib::String n) {
-                if (fnMap.find(n) == fnMap.end()) {
-                    declareFunction(n);
-                    return nullptr;
+                llvm::FunctionCallee runtimeCallee = nullptr;
+
+                if (isRuntimeFunction(n)) {
+                    runtimeCallee = getRuntime(n);
                 }
-                else {
+
+                if (fnMap.find(n) != fnMap.end()) {
                     return fnMap[n];
                 }
+
+                throw std::runtime_error(fzlib::String("Try to call a unknown function: \"" + n + "\"").c_str());
             }
 
             // Instantiates an LLVM Module, performing the transformation from IR Module to LLVM Module.
@@ -147,6 +152,45 @@ namespace sakuraE::Codegen {
 
             // Start LLVM IR Code generation
             void codegen();
+
+        private:
+            bool isRuntimeFunction(fzlib::String n) {
+                return n == "create_string" || n == "free_string" || n == "concat_string" ||
+                        n == "__alloc" || n == "__free";
+            }
+
+            llvm::FunctionCallee getRuntime(fzlib::String n) {
+                llvm::FunctionCallee result = nullptr;
+
+                if (n == "__alloc") {
+                    result = content->getOrInsertFunction(n.c_str(), 
+                            codegenContext.builder->getPtrTy(), 
+                            codegenContext.builder->getInt64Ty());
+                }
+                else if (n == "__free") {
+                    result = content->getOrInsertFunction(n.c_str(), 
+                            codegenContext.builder->getPtrTy(), 
+                            codegenContext.builder->getVoidTy());
+                }
+                else if (n == "create_string") {
+                    result = content->getOrInsertFunction(n.c_str(), 
+                            codegenContext.builder->getPtrTy(), 
+                            codegenContext.builder->getPtrTy());
+                }
+                else if (n == "free_string") {
+                    result = content->getOrInsertFunction(n.c_str(), 
+                            codegenContext.builder->getPtrTy(), 
+                            codegenContext.builder->getVoidTy());
+                }
+                else if (n == "concat_string") {
+                    result = content->getOrInsertFunction(n.c_str(), 
+                            codegenContext.builder->getPtrTy(), 
+                            codegenContext.builder->getPtrTy(),
+                            codegenContext.builder->getPtrTy());
+                }
+
+                return result;
+            }
         };
 
         // ====================================================================
@@ -214,14 +258,14 @@ namespace sakuraE::Codegen {
                     if (ptrType->getElementType() == IR::IRType::getCharTy()) {
                         // Is String
                         fzlib::String strVal = constant->getContentValue<fzlib::String>();
-                        return builder->CreateGlobalString(strVal.c_str());
+                        return builder->CreateGlobalString(strVal.c_str(), "tmpstr");
                     }
                     else if (ptrType->getElementType()->getIRTypeID() == IR::ArrayTyID) {
                         auto arrType = dynamic_cast<IR::IRArrayType*>(ptrType->getElementType());
                         if (arrType->getElementType() == IR::IRType::getCharTy()) {
                             // Is String
                             fzlib::String strVal = constant->getContentValue<fzlib::String>();
-                            return builder->CreateGlobalString(strVal.c_str());
+                            return builder->CreateGlobalString(strVal.c_str(), "tmpstr");
                         }
                     }
                     break;
