@@ -23,7 +23,7 @@ namespace atri {
             std::cout << "Using gnuc" << __GNUC__ << "." <<  __GNUC_MINOR__ << "." << __GNUC_PATCHLEVEL__ << std::endl;
             std::cout << "Build time: " << __DATE__ << ", " << __TIME__ << std::endl;
             std::cout << "Welcome to atrI, the CLI application for SakuraE  (OvO)=b" << std::endl;
-            std::cout << "If you are confused, you can run the 'help' command to view the usage of each command" << std::endl;
+            std::cout << "Type 'help' for help." << std::endl;
 
             while(true) {
                 try {
