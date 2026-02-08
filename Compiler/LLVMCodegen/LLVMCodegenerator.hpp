@@ -333,13 +333,16 @@ namespace sakuraE::Codegen {
             if (instructionMap.find(value) != instructionMap.end()) {
                 return getRef(value);
             }
-            else if (auto* constant = dynamic_cast<IR::Constant*>(value)) {
+            else if (auto constant = dynamic_cast<IR::Constant*>(value)) {
                 return toLLVMConstant(constant);
             }
-            else if (auto* inst = dynamic_cast<IR::Instruction*>(value)) {
+            else if (auto inst = dynamic_cast<IR::Instruction*>(value)) {
                 return instgen(inst, curFn);
             }
-            throw std::runtime_error("Unknown mapping");
+            else if (auto fn = dynamic_cast<IR::Function*>(value)) {
+                return curFn->parent->fnMap[fn->getName()]->content;
+            }
+            throw std::runtime_error(fzlib::String("Unknown mapping for: " + value->getName()).c_str());
         }
 
         bool hasLLVMValue(IR::IRValue* value) {
