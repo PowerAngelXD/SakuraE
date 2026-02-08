@@ -3,6 +3,8 @@
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/struct/instruction.hpp"
+#include "Compiler/IR/value/value.hpp"
+#include "includes/String.hpp"
 #include "includes/magic_enum.hpp"
 #include "struct/program.hpp"
 #include "Compiler/Frontend/AST.hpp"
@@ -12,6 +14,20 @@
 namespace sakuraE::IR {
     class IRGenerator {
         Program program;
+
+        IRValue* declareParam(fzlib::String name, IRType* t, PositionInfo info) {
+            auto param = curFunc()
+                            ->curBlock()
+                            ->createInstruction(
+                                OpKind::param,
+                                t,
+                                {},
+                                "param." + name
+                            );
+            curFunc()->fnScope().declare(name, param, t);
+
+            return param;
+        }
 
         IRValue* declareSymbol(fzlib::String name, IRValue* t, IRValue* initVal, PositionInfo info) {
             auto constInst = dynamic_cast<Instruction*>(t);
