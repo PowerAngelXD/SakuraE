@@ -57,6 +57,12 @@ SakuraE/
 │   │   └── LLVMCodegenerator.hpp  # LLVM 代码生成定义与状态管理
 │   └── Utils/                     # 工具函数
 │       └── Logger.hpp             # 日志工具
+├── Runtime/                       # 运行时库
+│   ├── alloc.cpp                  # 内存分配器实现
+│   ├── alloc.h                    # 分配器头文件
+│   ├── print.cpp                  # 基础 I/O 实现
+│   ├── raw_string.cpp             # 字符串处理实现
+│   └── README.md                  # 运行时文档
 ├── includes/                      # 外部依赖
 │   ├── magic_enum.hpp             # 枚举反射库
 │   └── String.hpp                 # 自定义字符串工具
@@ -66,9 +72,9 @@ SakuraE/
 ## 构建
 
 ### 前置条件
-- **C++ 编译器**: 支持 C++23 的 GCC 13+ 或 Clang 16+ (如 CMakeLists.txt 中指定)。
-- **CMake**: 3.24 或更高版本。
-- **LLVM**: 已安装并配置 16+ 版本 (项目需要使用 LLVM 库)。
+- **C++ 编译器**: 支持 C++23 的 GCC 13+ 或 Clang 16+ (如 CMakeLists.txt 中指定)
+- **CMake**: 3.24 或更高版本
+- **LLVM**: 已安装并配置 16+ 版本 (项目需要使用 LLVM 库)
 
 ### 构建步骤
 1. **克隆仓库**:
@@ -87,7 +93,7 @@ SakuraE/
    ```bash
    cmake -G Ninja ..
    ```
-   这将检测 LLVM 并使用 Ninja 设置支持 C++23 标准的构建。
+   这将检测 LLVM 并使用 Ninja 设置支持 C++23 标准的构建
 
 4. **编译项目**:
    ```bash
@@ -99,12 +105,17 @@ SakuraE/
    ./SakuraE ../demo.sak
    ```
 
-如果遇到问题，请确保已安装 LLVM 开发库 (例如 `llvm-dev` 包) 并且 `llvm-config` 在 PATH 中可用。
+如果遇到问题，请确保已安装 LLVM 开发库 (例如 `llvm-dev` 包) 并且 `llvm-config` 在 PATH 中可用
 
 ## IR 开发
-关于 IR 的更详细开发规范，请点击下方链接。
+关于 IR 的更详细开发规范，请点击下方链接：
 
 [IR README](Compiler/IR/README-zh_cn.md)
+
+## 运行时库
+如果你想了解关于SakuraE运行时库的内容，点击下面的链接：
+
+[SakuraE Runtime Library](Runtime/README-zh_cn.md)
 
 ## 贡献者
 

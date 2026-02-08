@@ -57,6 +57,12 @@ SakuraE/
 │   │   └── LLVMCodegenerator.hpp  # LLVM Codegen definitions and state management
 │   └── Utils/                     # Utility functions
 │       └── Logger.hpp             # Logging utilities
+├── Runtime/                       # Runtime Library
+│   ├── alloc.cpp                  # Memory allocator implementation
+│   ├── alloc.h                    # Allocator header
+│   ├── print.cpp                  # Basic I/O implementation
+│   ├── raw_string.cpp             # String manipulation implementation
+│   └── README.md                  # Runtime documentation
 ├── includes/                      # External dependencies
 │   ├── magic_enum.hpp             # Enum reflection library
 │   └── String.hpp                 # Custom string utilities
@@ -105,6 +111,11 @@ If you encounter issues, ensure LLVM development libraries are installed (e.g., 
 For more detailed development specifications regarding the IR, please click the link below.
 
 [IR README](Compiler/IR/README.md)
+
+## Runtime Library
+If you want to know something about SakuraE Runtime Library, Click the link:
+
+[SakuraE Runtime Library](Runtime/README.md)
 
 ## Contributor
 
