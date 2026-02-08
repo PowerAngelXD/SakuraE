@@ -1,0 +1,136 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "SakuraE",
+	"scopeName": "source.sak",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#characters"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#operators"
+		},
+		{
+			"include": "#functions"
+		},
+		{
+			"include": "#types"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.sak",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.sak",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.sak",
+					"match": "\\b(if|else|for|while|return)\\b"
+				},
+				{
+					"name": "keyword.other.declaration.sak",
+					"match": "\\b(let|func)\\b"
+				},
+				{
+					"name": "constant.language.boolean.sak",
+					"match": "\\b(true|false)\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.sak",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.sak",
+					"match": "\\\\."
+				}
+			]
+		},
+		"characters": {
+			"name": "string.quoted.single.sak",
+			"match": "'([^'\\\\]|\\\\.)'"
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.float.sak",
+					"match": "\\b\\d+\\.\\d+\\b"
+				},
+				{
+					"name": "constant.numeric.integer.sak",
+					"match": "\\b\\d+\\b"
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.logical.sak",
+					"match": "==|!=|<=|>=|<|>|&&|\\|\\||!"
+				},
+				{
+					"name": "keyword.operator.assignment.sak",
+					"match": "\\+=|-=|/=|\\*=|="
+				},
+				{
+					"name": "keyword.operator.arithmetic.sak",
+					"match": "\\+|\\-|\\*|/|\\+\\+|\\-\\-"
+				},
+				{
+					"name": "keyword.operator.type.sak",
+					"match": "->"
+				}
+			]
+		},
+		"types": {
+			"patterns": [
+				{
+					"name": "storage.type.sak",
+					"match": "\\b(int|char|raw_string|float|double|string)\\b"
+				}
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"match": "\\b(func)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": {
+							"name": "keyword.other.declaration.sak"
+						},
+						"2": {
+							"name": "entity.name.function.sak"
+						}
+					}
+				},
+				{
+					"match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+					"name": "entity.name.function.call.sak"
+				}
+			]
+		}
+	}
+}
