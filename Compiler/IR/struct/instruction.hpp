@@ -52,7 +52,8 @@ namespace sakuraE::IR {
 
         bool isTerminal() {
             return kind == OpKind::br ||
-                    kind == OpKind::cond_br;
+                    kind == OpKind::cond_br ||
+                    kind == OpKind::ret;
         }
 
         void setParent(Block* blk) {
