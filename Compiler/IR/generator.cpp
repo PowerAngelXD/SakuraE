@@ -751,7 +751,8 @@ namespace sakuraE::IR {
                 fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
                 params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
-                declareSymbol(argName, argType, nullptr, nameList->getChildren()[i]->getPosInfo());
+                
+                declareParam(argName, argType, node->getPosInfo());
             }
         }
 
