@@ -19,6 +19,23 @@ namespace sakuraE::Codegen {
 
         auto funcs = source->getFunctions();
 
+        for (auto runtimeFn: runtimeFunctions) {
+            llvm::FunctionCallee runtimeCallee = nullptr;
+            runtimeCallee = getRuntime(runtimeFn);
+            auto llvmFn = llvm::cast<llvm::Function>(runtimeCallee.getCallee());
+
+            LLVMFunction* wrapper = new LLVMFunction {
+                runtimeFn,
+                runtimeCallee.getFunctionType()->getReturnType(),
+                {},
+                this,
+                codegenContext,
+                {0, 0, "runtime function"}
+            };
+            wrapper->content = llvmFn;
+            fnMap[runtimeFn] = wrapper;
+        }
+
         for (auto func: funcs) {
             auto retTy = func->getReturnType()->toLLVMType(*codegenContext.context);
             auto irParams = func->getFormalParams();
@@ -189,7 +206,6 @@ namespace sakuraE::Codegen {
                 auto val = toLLVMValue(ins->arg(1), curFn);
 
                 if (alloca && val) {
-                    // TODO: Ignore the different type (Assume they are the same)
                     if (val->getType()->isArrayTy()) {
                         auto arrSize = curFn->parent->content->getDataLayout().getTypeAllocSize(val->getType());
                         builder->CreateMemCpy(alloca, llvm::MaybeAlign(8), val, llvm::MaybeAlign(8), arrSize);
@@ -287,7 +303,7 @@ namespace sakuraE::Codegen {
                 auto insName = ins->getName();
                 auto fnName = insName.split('.')[1];
 
-                auto fn = curFn->content;
+                auto fn = curFn->parent->get(fnName)->content;
 
                 auto arguments = ins->getOperands();
                 std::vector<llvm::Value*> llvmArguments;
