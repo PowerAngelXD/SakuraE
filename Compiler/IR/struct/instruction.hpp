@@ -26,6 +26,7 @@ namespace sakuraE::IR {
         call,
         load,
         gmem,
+        param,
         // terminal op
         br,
         cond_br,
