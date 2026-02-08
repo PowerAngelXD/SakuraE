@@ -108,7 +108,7 @@ SakuraE/
 
 ## 贡献者
 
-- [The Flysong](https://github.com/theflysong) : 受到 Parser 启发的贡献者
+- [The Flysong](https://github.com/theflysong) : 提供了本项目Parser的设计思路
 
 ## 赞助商
 
