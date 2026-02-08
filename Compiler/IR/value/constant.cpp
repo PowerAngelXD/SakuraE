@@ -39,8 +39,7 @@ namespace sakuraE::IR {
         }
 
         IRType* charTy = IRType::getCharTy();
-        IRType* arrayTy = IRType::getArrayTy(charTy, val.len() + 1);
-        IRType* stringTy = IRType::getPointerTo(arrayTy);
+        IRType* stringTy = IRType::getPointerTo(charTy);
         auto newEntry = stringConstants.emplace(val, Constant(stringTy, val, info));
         return &newEntry.first->second;
     }
