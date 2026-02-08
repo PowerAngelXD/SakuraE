@@ -30,6 +30,7 @@
 #include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/value/value.hpp"
+#include "includes/String.hpp"
 
 namespace sakuraE::Codegen {
     class LLVMCodeGenerator {
@@ -83,6 +84,12 @@ namespace sakuraE::Codegen {
             void codegen();
         };
 
+
+        inline static std::vector<fzlib::String> runtimeFunctions = {
+            "__alloc", "__free",
+            "create_string", "free_string",
+            "concat_string"
+        };
         // Represent LLVM Module Instantce
         struct LLVMModule {
             fzlib::String ID;
@@ -187,8 +194,8 @@ namespace sakuraE::Codegen {
                 }
                 else if (n == "__free") {
                     result = content->getOrInsertFunction(n.c_str(), 
-                            codegenContext.builder->getPtrTy(), 
-                            codegenContext.builder->getVoidTy());
+                            codegenContext.builder->getVoidTy(), 
+                            codegenContext.builder->getPtrTy());
                 }
                 else if (n == "create_string") {
                     result = content->getOrInsertFunction(n.c_str(), 
@@ -245,6 +252,17 @@ namespace sakuraE::Codegen {
             return curIRFunc()->fnScope().lookup(n);
         }
         // =====================================================================
+
+        // Heap Alloc ==========================================================
+        llvm::Value* createHeapAlloc(LLVMModule* parent, llvm::Type* t, fzlib::String name) {
+            size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
+            llvm::Value* sizeVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), size);
+
+            auto allocator = parent->get("__alloc");
+
+            return builder->CreateCall(allocator->content, sizeVal, name.c_str());
+        }
+        // =====================================================================
     public:
         LLVMCodeGenerator()=default;
         LLVMCodeGenerator(IR::Program* p) {
@@ -277,14 +295,6 @@ namespace sakuraE::Codegen {
                         // Is String
                         fzlib::String strVal = constant->getContentValue<fzlib::String>();
                         return builder->CreateGlobalString(strVal.c_str(), "tmpstr");
-                    }
-                    else if (ptrType->getElementType()->getIRTypeID() == IR::ArrayTyID) {
-                        auto arrType = dynamic_cast<IR::IRArrayType*>(ptrType->getElementType());
-                        if (arrType->getElementType() == IR::IRType::getCharTy()) {
-                            // Is String
-                            fzlib::String strVal = constant->getContentValue<fzlib::String>();
-                            return builder->CreateGlobalString(strVal.c_str(), "tmpstr");
-                        }
                     }
                     break;
                 }
