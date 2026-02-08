@@ -88,7 +88,11 @@ namespace sakuraE::Codegen {
 
         std::size_t i = 0;
         for (auto& arg: content->args()) {
+            arg.setName(irParams[i].first.c_str());
+
             llvm::AllocaInst* argAlloca = createAlloca(arg.getType(), nullptr, irParams[i].first);
+
+            paramAllocaMap[irParams[i].first.c_str()] = argAlloca;
 
             codegenContext.builder->CreateStore(&arg, argAlloca);
 
@@ -250,6 +254,15 @@ namespace sakuraE::Codegen {
                 bind(ins, instResult);
                 break;
             }
+            case IR::OpKind::param: {
+                auto insName = ins->getName();
+                auto paramName = insName.split('.')[1];
+
+                llvm::Value* realAddr = curFn->getParamAddress(paramName); 
+
+                bind(ins, realAddr); 
+                break;
+            }
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Type* type = ins->getType()->toLLVMType(*context);
@@ -328,22 +341,22 @@ namespace sakuraE::Codegen {
     void LLVMCodeGenerator::start() {
         auto irModList = program->getMods();
         for (auto mod: irModList) {
-            modules.push_back(LLVMModule(mod->id(), *context, *this));
+            modules.push_back(new LLVMModule(mod->id(), *context, *this));
         }
 
         for (std::size_t i = 0; i < modules.size(); i ++) {
-            modules[i].impl(irModList[i]);
+            modules[i]->impl(irModList[i]);
         }
 
         for (auto mod: modules) {
-            mod.codegen();
+            mod->codegen();
         }
     }
 
     // Debug print
     void LLVMCodeGenerator::print() {
         for (auto mod: modules) {
-            mod.content->print(llvm::outs(), nullptr);
+            mod->content->print(llvm::outs(), nullptr);
         }
     }
 }
