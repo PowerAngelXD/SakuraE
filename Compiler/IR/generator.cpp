@@ -128,21 +128,23 @@ namespace sakuraE::IR {
             switch (Op.type)
             {
                 case TokenType::AINC: {
-                    return curFunc()
-                                ->curBlock()
-                                ->createInstruction(OpKind::add,
-                                                handleUnlogicalBinaryCalc(result, Constant::get(1)),
-                                                {result, Constant::get(1)},
-                                                "add");
+                    auto value = curFunc()
+                                                ->curBlock()
+                                                ->createInstruction(OpKind::add,
+                                                                handleUnlogicalBinaryCalc(result, Constant::get(1)),
+                                                                {result, Constant::get(1)},
+                                                                "add");
+                    return storeSymbol(result, value, Op.info);
                 }
 
                 case TokenType::SDEC: {
-                    return curFunc()
-                                ->curBlock()
-                                ->createInstruction(OpKind::sub,
-                                                    handleUnlogicalBinaryCalc(result, Constant::get(1)),
-                                                    {result, Constant::get(1)},
-                                                    "sub");
+                    auto value = curFunc()
+                                                ->curBlock()
+                                                ->createInstruction(OpKind::sub,
+                                                                handleUnlogicalBinaryCalc(result, Constant::get(1)),
+                                                                {result, Constant::get(1)},
+                                                                "sub");
+                    return storeSymbol(result, value, Op.info);
                 }
                                 
                 default:
@@ -331,7 +333,7 @@ namespace sakuraE::IR {
 
                         curFunc()
                             ->block(beforeBlockIndex)
-                            ->createCondBr(rhs, rhsBlock, mergeBlock);
+                            ->createCondBr(lhs, rhsBlock, mergeBlock);
 
                         storeSymbol(resultAddr, rhs, opChain[i - 1]->getToken().info);
 
@@ -353,7 +355,7 @@ namespace sakuraE::IR {
 
                         curFunc()
                             ->block(beforeBlockIndex)
-                            ->createCondBr(rhs, mergeBlock, rhsBlock);
+                            ->createCondBr(lhs, mergeBlock, rhsBlock);
 
                         storeSymbol(resultAddr, rhs, opChain[i - 1]->getToken().info);
                             
