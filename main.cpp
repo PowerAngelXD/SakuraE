@@ -49,11 +49,15 @@ int main() {
 
             std::cout << res->toFormatString(true) << std::endl;
 
+            std::cout << "=================SakuraE IR Printer==================" << std::endl;
+
             sakuraE::IR::IRGenerator generator("TestProject");
 
             generator.visitStmt(res);
 
             std::cout << generator.toFormatString() << std::endl;
+
+            std::cout << "===================LLVM IR Printer===================" << std::endl;
 
             current = result.end;
             auto program = generator.getProgram();
@@ -62,7 +66,13 @@ int main() {
 
             llvmCodegen.start();
 
+            std::cout << "===================Before Optimize===================" << std::endl;
+
+            llvmCodegen.print();
+
             llvmCodegen.optimize();
+
+            std::cout << "===================After Optimize===================" << std::endl;
 
             llvmCodegen.print();
 
@@ -98,6 +108,15 @@ int main() {
 
             std::cout << "JIT Result: " << func(10,10) << std::endl;
 
+
+            int a=10,b=10;
+            int g=10;
+
+            for (int i=0;i<a+b;i++) {
+                g += i*2;
+            }
+
+            std::cout << "Real Result: " << g << std::endl;
         }
     } 
     catch (const std::runtime_error& e) {
