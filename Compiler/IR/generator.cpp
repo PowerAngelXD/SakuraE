@@ -256,37 +256,37 @@ namespace sakuraE::IR {
                     case TokenType::LGC_LS_THAN: {
                          lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_ls_than, IRType::getBoolTy(), {lhs, rhs}, "lgc-ls-than");
+                                ->createInstruction(OpKind::lgc_ls_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_ls_than");
                         break;
                     }
                     case TokenType::LGC_LSEQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_eq_ls_than, IRType::getBoolTy(), {lhs, rhs}, "lgc-eq-ls-than");
+                                ->createInstruction(OpKind::lgc_eq_ls_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_eq_ls_than");
                         break;
                     }
                     case TokenType::LGC_MR_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_mr_than, IRType::getBoolTy(), {lhs, rhs}, "lgc-mr-than");
+                                ->createInstruction(OpKind::lgc_mr_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_mr_than");
                         break;
                     }
                     case TokenType::LGC_MREQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_eq_mr_than, IRType::getBoolTy(), {lhs, rhs}, "lgc-eq-mr-than");
+                                ->createInstruction(OpKind::lgc_eq_mr_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_eq_mr_than");
                         break;
                     }
                     case TokenType::LGC_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_equal, IRType::getBoolTy(), {lhs, rhs}, "lgc-equal");
+                                ->createInstruction(OpKind::lgc_equal, IRType::getBoolTy(), {lhs, rhs}, "lgc_equal");
                         break;
                     }
                     case TokenType::LGC_NOT_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_not_equal, IRType::getBoolTy(), {lhs, rhs}, "lgc-not-equal");
+                                ->createInstruction(OpKind::lgc_not_equal, IRType::getBoolTy(), {lhs, rhs}, "lgc_not_equal");
                         break;
                     }
                     default:
