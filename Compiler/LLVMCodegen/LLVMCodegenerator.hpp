@@ -88,7 +88,8 @@ namespace sakuraE::Codegen {
         inline static std::vector<fzlib::String> runtimeFunctions = {
             "__alloc", "__free",
             "create_string", "free_string",
-            "concat_string"
+            "concat_string", "__print",
+            "__println"
         };
         // Represent LLVM Module Instantce
         struct LLVMModule {
@@ -212,6 +213,16 @@ namespace sakuraE::Codegen {
                             codegenContext.builder->getPtrTy(), 
                             codegenContext.builder->getPtrTy(),
                             codegenContext.builder->getPtrTy());
+                }
+                else if (n == "__print") {
+                    result = content->getOrInsertFunction(n.c_str(),
+                                    codegenContext.builder->getVoidTy(),
+                                    codegenContext.builder->getPtrTy());
+                }
+                else if (n == "__println") {
+                    result = content->getOrInsertFunction(n.c_str(),
+                                    codegenContext.builder->getVoidTy(),
+                                    codegenContext.builder->getPtrTy());
                 }
 
                 return result;
