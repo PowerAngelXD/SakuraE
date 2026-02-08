@@ -1,12 +1,12 @@
-func main(a: int, b: int) -> int {
-    let g = [1,2,3];
-    for (let i=0; i<a+b; i++) {
-        if (i <= 2) {
-            g[i] += i*2;
-        }
-        else {
-            g[0] += i*2
-        }
+func foo(a: int, b: int) -> int {
+    return a * b;
+}
+
+func main() -> int {
+    let g = foo(1, 2);
+    let a = foo(10, 9);
+    for (let i=0; i<a; i++) {
+        g += i*2;
     }
-    return g[0];
+    return g;
 }
