@@ -347,7 +347,7 @@ namespace sakuraE::Codegen {
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<int>());
                 }
                 case IR::IRTypeID::FloatTyID:
-                    return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<double>());
+                    return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<float>());
                 case IR::IRTypeID::PointerTyID: {
                     auto ptrType = dynamic_cast<IR::IRPointerType*>(constant->getType());
                     if (ptrType->getElementType() == IR::IRType::getCharTy()) {
@@ -395,15 +395,15 @@ namespace sakuraE::Codegen {
 
             if (lTy->isIntegerTy(32)) {
                 if (rTy->isIntegerTy(32)) result = builder->CreateAdd(lhs, rhs, "addtmp");
-                else if (rTy->isDoubleTy()) {
-                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(*context), "promoted.lhs");
+                else if (rTy->isFloatTy()) {
+                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(*context), "promoted.lhs");
                     result = builder->CreateFAdd(pLhs, rhs, "addtmp");
                 }
             }
-            else if (lTy->isDoubleTy()) {
-                if (rTy->isDoubleTy()) result = builder->CreateFAdd(lhs, rhs, "addtmp");
+            else if (lTy->isFloatTy()) {
+                if (rTy->isFloatTy()) result = builder->CreateFAdd(lhs, rhs, "addtmp");
                 else if (rTy->isIntegerTy(32)) {
-                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(*context), "promoted.rhs");
+                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(*context), "promoted.rhs");
                     result = builder->CreateFAdd(lhs, pRhs, "addtmp");
                 }
             }
@@ -419,15 +419,15 @@ namespace sakuraE::Codegen {
 
             if (lTy->isIntegerTy(32)) {
                 if (rTy->isIntegerTy(32)) result = builder->CreateSub(lhs, rhs, "subtmp");
-                else if (rTy->isDoubleTy()) {
-                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(*context), "promoted.lhs");
+                else if (rTy->isFloatTy()) {
+                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(*context), "promoted.lhs");
                     result = builder->CreateFSub(pLhs, rhs, "subtmp");
                 }
             }
-            else if (lTy->isDoubleTy()) {
-                if (rTy->isDoubleTy()) result = builder->CreateFSub(lhs, rhs, "subtmp");
+            else if (lTy->isFloatTy()) {
+                if (rTy->isFloatTy()) result = builder->CreateFSub(lhs, rhs, "subtmp");
                 else if (rTy->isIntegerTy(32)) {
-                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(*context), "promoted.rhs");
+                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(*context), "promoted.rhs");
                     result = builder->CreateFSub(lhs, pRhs, "subtmp");
                 }
             }
@@ -443,15 +443,15 @@ namespace sakuraE::Codegen {
 
             if (lTy->isIntegerTy(32)) {
                 if (rTy->isIntegerTy(32)) result = builder->CreateMul(lhs, rhs, "multmp");
-                else if (rTy->isDoubleTy()) {
-                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(*context), "promoted.lhs");
+                else if (rTy->isFloatTy()) {
+                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(*context), "promoted.lhs");
                     result = builder->CreateFMul(pLhs, rhs, "multmp");
                 }
             }
-            else if (lTy->isDoubleTy()) {
-                if (rTy->isDoubleTy()) result = builder->CreateFMul(lhs, rhs, "multmp");
+            else if (lTy->isFloatTy()) {
+                if (rTy->isFloatTy()) result = builder->CreateFMul(lhs, rhs, "multmp");
                 else if (rTy->isIntegerTy(32)) {
-                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(*context), "promoted.rhs");
+                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(*context), "promoted.rhs");
                     result = builder->CreateFMul(lhs, pRhs, "multmp");
                 }
             }
@@ -467,15 +467,15 @@ namespace sakuraE::Codegen {
 
             if (lTy->isIntegerTy(32)) {
                 if (rTy->isIntegerTy(32)) result = builder->CreateSDiv(lhs, rhs, "divdtmp");
-                else if (rTy->isDoubleTy()) {
-                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(*context), "promoted.lhs");
+                else if (rTy->isFloatTy()) {
+                    auto pLhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(*context), "promoted.lhs");
                     result = builder->CreateFDiv(pLhs, rhs, "divtmp");
                 }
             }
-            else if (lTy->isDoubleTy()) {
-                if (rTy->isDoubleTy()) result = builder->CreateFDiv(lhs, rhs, "divtmp");
+            else if (lTy->isFloatTy()) {
+                if (rTy->isFloatTy()) result = builder->CreateFDiv(lhs, rhs, "divtmp");
                 else if (rTy->isIntegerTy(32)) {
-                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(*context), "promoted.rhs");
+                    auto pRhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(*context), "promoted.rhs");
                     result = builder->CreateFDiv(lhs, pRhs, "divtmp");
                 }
             }
@@ -484,12 +484,12 @@ namespace sakuraE::Codegen {
         }
 
         llvm::Value* compare(llvm::Value* lhs, llvm::Value* rhs, IR::OpKind kind, LLVMFunction* curFn) {
-            if (lhs->getType()->isDoubleTy() || rhs->getType()->isDoubleTy()) {
+            if (lhs->getType()->isFloatTy() || rhs->getType()->isFloatTy()) {
                 if (lhs->getType()->isIntegerTy()) {
-                    lhs = builder->CreateSIToFP(lhs, llvm::Type::getDoubleTy(*context), "lhs.promoted");
+                    lhs = builder->CreateSIToFP(lhs, llvm::Type::getFloatTy(*context), "lhs.promoted");
                 }
                 if (rhs->getType()->isIntegerTy()) {
-                    rhs = builder->CreateSIToFP(rhs, llvm::Type::getDoubleTy(*context), "rhs.promoted");
+                    rhs = builder->CreateSIToFP(rhs, llvm::Type::getFloatTy(*context), "rhs.promoted");
                 }
             
                 llvm::FCmpInst::Predicate pred;

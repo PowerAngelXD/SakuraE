@@ -18,7 +18,7 @@ namespace sakuraE::IR {
         std::variant<
             std::monostate, 
             int, 
-            double, 
+            float, 
             fzlib::String, 
             char, 
             bool, 
@@ -29,7 +29,7 @@ namespace sakuraE::IR {
 
         Constant(IRType* ty, int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+        Constant(IRType* ty, float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, const fzlib::String& val, PositionInfo info)
             : IRValue(ty), content(val), createInfo(info) {}
@@ -44,7 +44,7 @@ namespace sakuraE::IR {
 
     public:
         static Constant* get(int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(const fzlib::String& val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
@@ -73,7 +73,7 @@ namespace sakuraE::IR {
                     return "null";
                 } else if constexpr (std::is_same_v<T, int>) {
                     return std::to_string(arg);
-                } else if constexpr (std::is_same_v<T, double>) {
+                } else if constexpr (std::is_same_v<T, float>) {
                     return std::to_string(arg);
                 } else if constexpr (std::is_same_v<T, fzlib::String>) {
                     return arg;

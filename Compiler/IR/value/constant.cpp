@@ -21,7 +21,7 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
-    Constant* Constant::get(double val, PositionInfo info) {
+    Constant* Constant::get(float val, PositionInfo info) {
         auto it = doubleConstants.find(val);
         if (it != doubleConstants.end()) {
             return &it->second;
@@ -95,7 +95,7 @@ namespace sakuraE::IR {
             case TokenType::INT_N:
                 return Constant::get(std::stoi(tok.content.c_str()), tok.info);
             case TokenType::FLOAT_N:
-                return Constant::get(std::stod(tok.content.c_str()), tok.info);
+                return Constant::get(std::stof(tok.content.c_str()), tok.info);
             case TokenType::STRING:
                 return Constant::get(fzlib::String(tok.content.c_str()), tok.info);
             case TokenType::CHAR:
