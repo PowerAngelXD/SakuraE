@@ -6,8 +6,7 @@
     By FZSGBall
 */
 
-#include <cstdlib>
-#include <stdio.h>
+#include "print.h"
 
 extern "C" void __print(char* str) {
     if(str) printf("%s", str);

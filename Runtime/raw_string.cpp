@@ -5,9 +5,7 @@
 
     By FZSGBall
 */
-#include <cstdlib>
-#include <cstring>
-#include <cstdio>
+#include "raw_string.h"
 #include "alloc.h"
 
 extern "C" char* create_string(const char* literal) {
