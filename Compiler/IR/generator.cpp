@@ -13,13 +13,13 @@ namespace sakuraE::IR {
                 ->createInstruction(OpKind::constant, literal->getType(), {literal}, "constant");
     }
 
-    IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
+    IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, fzlib::String target, NodePtr node) {
         IRValue* indexResult = visitAddExprNode((*node)[ASTTag::HeadExpr]);
         auto elementType = dynamic_cast<IRArrayType*>(addr->getType())->getElementType();
 
         return curFunc()
                 ->curBlock()
-                ->createInstruction(OpKind::indexing, elementType, {addr, indexResult}, "indexing");
+                ->createInstruction(OpKind::indexing, elementType, {addr, indexResult}, "indexing." + target);
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, fzlib::String target, NodePtr node) {
@@ -49,7 +49,7 @@ namespace sakuraE::IR {
             for (auto op: (*node)[ASTTag::Ops]->getChildren()) {
                 switch (op->getTag()) {
                     case ASTTag::IndexOpNode: {
-                        result = visitIndexOpNode(result, op);
+                        result = visitIndexOpNode(result, targetName, op);
                         break;
                     }
                     case ASTTag::CallingOpNode: {
@@ -83,7 +83,7 @@ namespace sakuraE::IR {
                 for (auto op: (*chain[i])[ASTTag::Ops]->getChildren()) {
                     switch (op->getTag()) {
                         case ASTTag::IndexOpNode: {
-                            result = visitIndexOpNode(result, op);
+                            result = visitIndexOpNode(result, memberName, op);
                             break;
                         }
                         case ASTTag::CallingOpNode: {
@@ -574,6 +574,7 @@ namespace sakuraE::IR {
         }
 
         curFunc()->fnScope().enter();
+        curFunc()->curBlock()->createEnterScope();
         
         curFunc()->moveCursor(curFunc()->cur());
 
@@ -582,6 +583,7 @@ namespace sakuraE::IR {
         }
 
         curFunc()->curBlock()->createFree();
+        curFunc()->curBlock()->createLeaveScope();
         curFunc()->fnScope().leave();
         
         return block;
