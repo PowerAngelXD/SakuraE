@@ -232,11 +232,12 @@ namespace sakuraE::Codegen {
                     arrayContent.push_back(toLLVMValue(element, curFn));
                 }
                 auto arrayType = ins->getType()->toLLVMType(*context);
+                auto elementType = arrayType->getArrayElementType();
 
                 llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, "tmparr");
 
                 for (std::size_t i = 0; i < arrayContent.size(); i ++) {
-                    auto ptr = builder->CreateGEP(arrayType, 
+                    auto ptr = builder->CreateGEP(elementType, 
                                                             arrayPtr, 
                                                             {builder->getInt32(i)});
                     builder->CreateStore(arrayContent[i], ptr);
@@ -249,10 +250,12 @@ namespace sakuraE::Codegen {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* indexVal = toLLVMValue(ins->arg(1), curFn);
 
-                llvm::Type* type = ins->arg(0)->getType()->toLLVMType(*context);
-                auto ptr = builder->CreateGEP(type, addr, {indexVal}, "indexing.ptr");
+                auto irArrayType = dynamic_cast<IR::IRArrayType*>(ins->arg(0)->getType());
+                llvm::Type* elementType = irArrayType->getElementType()->toLLVMType(*context);
+
+                auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
                 
-                instResult = builder->CreateLoad(type->getArrayElementType(), ptr, "indexing.val");
+                instResult = builder->CreateLoad(elementType, ptr, "indexing.val");
 
                 bind(ins, instResult);
                 break;
@@ -335,6 +338,14 @@ namespace sakuraE::Codegen {
             case IR::OpKind::free_cur_heap: {
                 curFn->FreeCurrentHeap();
 
+                break;
+            }
+            case IR::OpKind::enter_scope: {
+                curFn->enterNewHeapScope();
+                break;
+            }
+            case IR::OpKind::leave_scope: {
+                curFn->leaveHeapScope();
                 break;
             }
             default:
