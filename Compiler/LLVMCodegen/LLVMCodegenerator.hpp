@@ -45,14 +45,25 @@ namespace sakuraE::Codegen {
         struct LLVMModule;
         // Represent LLVM Function Instantce
         struct LLVMFunction {
+            // Function Name
             fzlib::String name;
+            // LLVM IR Function represent
             llvm::Function* content = nullptr;
+            // Function Return Type
             llvm::Type* returnType = nullptr;
+            // Function Formal Params
             std::vector<std::pair<fzlib::String, llvm::Type*>> formalParams;
+            // Scope for current Function
             IR::Scope<llvm::Value*> scope;
+            // Parent Module
             LLVMModule* parent = nullptr;
+            // Parent LLVMCodeGenerator
             LLVMCodeGenerator& codegenContext;
+            // Params Alloca Map
             std::map<fzlib::String, llvm::AllocaInst*> paramAllocaMap;
+            // Heap Stack, Like a scope
+            std::stack<std::map<fzlib::String, llvm::Value*>> heapStack;
+            // SAK IR Function
             IR::Function* sourceFn;
             
             LLVMFunction(fzlib::String n, 
@@ -67,6 +78,14 @@ namespace sakuraE::Codegen {
                 name.free();
             }
 
+            void enterNewHeapScope() {
+                heapStack.push({});
+            }
+
+            void leaveHeapScope() {
+                heapStack.pop();
+            }
+
             llvm::AllocaInst* createAlloca(llvm::Type *ty, llvm::Value *arraySize = nullptr, fzlib::String n = "") {
                 llvm::BasicBlock* currentBlock = codegenContext.builder->GetInsertBlock();
                 llvm::BasicBlock::iterator currentPoint = codegenContext.builder->GetInsertPoint();
@@ -78,6 +97,31 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->SetInsertPoint(currentBlock, currentPoint);
 
                 return alloca;
+            }
+
+            llvm::Value* createHeapAlloc(llvm::Type* t, fzlib::String n) {
+                size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
+                llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
+
+                llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
+
+                auto allocator = parent->get("__alloc");
+
+                auto result = codegenContext.builder->CreateCall(allocator->content, sizeVal, n.c_str());
+
+                heapStack.top()[n] = result;
+
+                return result;
+            }
+
+            void FreeCurrentHeap() {
+                auto freer = parent->get("__free");
+
+                for (auto ptr: heapStack.top()) {
+                    codegenContext.builder->CreateCall(freer->content, {ptr.second});
+                }
+
+                heapStack.top().clear();
             }
 
             llvm::Value* getParamAddress(fzlib::String n) {
@@ -272,21 +316,6 @@ namespace sakuraE::Codegen {
         template<typename T>
         IR::Symbol<T>* IRScopeLookup(fzlib::String n) {
             return curIRFunc()->fnScope().lookup(n);
-        }
-        // =====================================================================
-
-        // Heap Alloc ==========================================================
-        llvm::Value* createHeapAlloc(LLVMModule* parent, llvm::Type* t, fzlib::String name) {
-            size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
-            llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*context);
-
-            llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
-
-            auto allocator = parent->get("__alloc");
-
-            auto result = builder->CreateCall(allocator->content, sizeVal, name.c_str());
-            
-            return result;
         }
         // =====================================================================
     public:

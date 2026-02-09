@@ -65,6 +65,9 @@ namespace sakuraE::Codegen {
 
     // LLVM Function
     void LLVMCodeGenerator::LLVMFunction::impl(IR::Function* source) {
+        // initialize the heapStack
+        heapStack.push({});
+
         std::vector<llvm::Type*> params;
         for (auto param: formalParams) {
             params.push_back(param.second);
@@ -327,6 +330,9 @@ namespace sakuraE::Codegen {
                 instResult = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
 
                 bind(ins, instResult);
+                break;
+            }
+            case IR::OpKind::free_cur_heap: {
                 break;
             }
             default:
