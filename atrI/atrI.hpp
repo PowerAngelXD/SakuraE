@@ -1,5 +1,6 @@
 #ifndef SAKURAE_ATRI_CPP
 #define SAKURAE_ATRI_CPP
+#define DEBUG
 
 #include <fstream>
 #include <iterator>
@@ -27,6 +28,7 @@ namespace atri {
 
             while(true) {
                 try {
+#ifndef DEBUG
                     fzlib::String line;
                     std::cout << ">> ";
                     getline(std::cin, line);
@@ -37,15 +39,29 @@ namespace atri {
                     }
 
                     parseCommand(list[0], args);
+#else               
+                    std::cout << "RUNNING DEBUG MODE, TEST PROGRAM: " << std::endl;
+                    parseCommand("run", {"test.sak", "-ast", "-sakir", "-rawllvm", "-llvmir"});
+                    parseCommand("exit", {});
+#endif
                 } 
                 catch (const std::runtime_error& e) {
                     std::cerr << e.what() << "\n";
+#ifdef DEBUG
+                    exit(1);
+#endif
                 } 
                 catch (sakuraE::SakuraError& e) {
                     std::cerr << e.toString() << "\n";
+#ifdef DEBUG
+                    exit(1);
+#endif
                 } 
                 catch (const std::exception& e) {
                     std::cerr << "OtherError: " << e.what() << "\n";
+#ifdef DEBUG
+                    exit(1);
+#endif
                 }
             }
         }
