@@ -124,6 +124,20 @@ namespace sakuraE::IR {
                                     "free_cur_heap");
         }
 
+        IRValue* createEnterScope() {
+            return createInstruction(OpKind::enter_scope,
+                                    IRType::getVoidTy(),
+                                    {},
+                                    "enter_scope");
+        }
+
+        IRValue* createLeaveScope() {
+            return insertBeforeTerminal(OpKind::leave_scope,
+                                    IRType::getVoidTy(),
+                                    {},
+                                    "leave_scope");
+        }
+
         Instruction* op(std::size_t pos) {
             return instructions[pos];
         }
