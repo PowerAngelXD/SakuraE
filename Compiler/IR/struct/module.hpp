@@ -1,6 +1,8 @@
 #ifndef SAKURAE_MODULE_HPP
 #define SAKURAE_MODULE_HPP
 
+#include "Compiler/Error/error.hpp"
+#include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "function.hpp"
 
@@ -19,7 +21,7 @@ namespace sakuraE::IR {
         // Indicates the current maximum index of fnList
         long cursor = -1;
 
-        std::vector<Module*> refs;
+        std::vector<Module*> usingList;
 
         Program* program;
     public:
@@ -120,6 +122,24 @@ namespace sakuraE::IR {
 
         const fzlib::String& id() {
             return ID;
+        }
+
+        void use(Module* mod) {
+            usingList.push_back(mod);
+        }
+
+        Symbol<IRValue*>* lookup(fzlib::String n) {
+            auto result = moduleScope.lookup(n);
+            if (result) return result;
+
+            for (auto mod: usingList) {
+                result = mod->lookup(n);
+                if (result) return result;
+            }
+
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                            "Undefined symbol: '" + n + "'",
+                            createInfo);
         }
 
         fzlib::String toString() {
