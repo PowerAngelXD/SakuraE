@@ -72,6 +72,21 @@ namespace sakuraE::IR {
             return ins;
         }
 
+        IRValue* insertBeforeTerminal(OpKind k, IRType* t, std::vector<IRValue*> params, const fzlib::String& n) {
+            Instruction* ins = new Instruction(k, t, params);
+            ins->setParent(this);
+            ins->setName(n);
+
+            if (!instructions.empty() && instructions.back()->isTerminal()) {
+                instructions.insert(instructions.end() - 1, ins);
+            }
+            else {
+                instructions.push_back(ins);
+            }
+
+            return ins;
+        }
+
         IRValue* createBr(IRValue* targetBlock) {
             if (!instructions.back()->isTerminal())
                 return createInstruction(OpKind::br,
@@ -100,6 +115,13 @@ namespace sakuraE::IR {
                                         "ret");
             
             return nullptr;
+        }
+
+        IRValue* createFree() {
+            return insertBeforeTerminal(OpKind::free_cur_heap,
+                                    IRType::getVoidTy(),
+                                    {},
+                                    "free_cur_heap");
         }
 
         Instruction* op(std::size_t pos) {
