@@ -553,8 +553,17 @@ namespace sakuraE::IR {
         if (node->hasNode(ASTTag::Type)) {
             typeInfoIRValue = visitTypeModifierNode((*node)[ASTTag::Type]);
         }
+        IRValue* initVal = nullptr;
 
-        IRValue* initVal = visitWholeExprNode((*node)[ASTTag::AssignTerm]);
+        if (node->hasNode(ASTTag::AssignTerm)) {
+            initVal = visitWholeExprNode((*node)[ASTTag::AssignTerm]);
+        }
+
+        if (!initVal && !typeInfoIRValue) {
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                            "A let statement cannot be used to declare a identifier without a specified type or an initial value.",
+                            node->getPosInfo());
+        }
         
         if (typeInfoIRValue)
             return declareSymbol(identifier.content, typeInfoIRValue, initVal, node->getPosInfo());
