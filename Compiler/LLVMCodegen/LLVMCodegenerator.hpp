@@ -278,11 +278,15 @@ namespace sakuraE::Codegen {
         // Heap Alloc ==========================================================
         llvm::Value* createHeapAlloc(LLVMModule* parent, llvm::Type* t, fzlib::String name) {
             size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
-            llvm::Value* sizeVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context), size);
+            llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*context);
+
+            llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
 
             auto allocator = parent->get("__alloc");
 
-            return builder->CreateCall(allocator->content, sizeVal, name.c_str());
+            auto result = builder->CreateCall(allocator->content, sizeVal, name.c_str());
+            
+            return result;
         }
         // =====================================================================
     public:
