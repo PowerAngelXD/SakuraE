@@ -121,7 +121,7 @@ SakuraE/
 
 5. **Run the compiler** (optional test):
    ```bash
-   ./SakuraE ../demo.sak
+   ./SakuraE
    ```
 
 If you encounter issues, ensure LLVM development libraries are installed (e.g., `llvm-dev` package) and `llvm-config` is available in PATH.

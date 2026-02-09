@@ -121,7 +121,7 @@ SakuraE/
 
 5. **运行编译器** (可选测试):
    ```bash
-   ./SakuraE ../demo.sak
+   ./SakuraE
    ```
 
 如果遇到问题，请确保已安装 LLVM 开发库 (例如 `llvm-dev` 包) 并且 `llvm-config` 在 PATH 中可用
