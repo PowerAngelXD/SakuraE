@@ -48,6 +48,9 @@ namespace sakuraE::IR {
         static IRType* getInt32Ty();
         static IRType* getInt64Ty();
         static IRType* getIntNTy(unsigned bitWidth);
+        static IRType* getUInt32Ty();
+        static IRType* getUInt64Ty();
+        static IRType* getUIntNTy(unsigned bitWidth);
         static IRType* getFloatTy();
         static IRType* getTypeInfoTy();
         static IRType* getPointerTo(IRType* elementType);

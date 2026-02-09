@@ -2,6 +2,7 @@
 
 namespace sakuraE::IR {
     static std::map<unsigned, IRIntegerType> IRIntegerTypes;
+    static std::map<unsigned, IRIntegerType> IRUIntegerTypes;
     static std::map<IRType*, IRPointerType> IRPointerTypes;
     static std::map<std::pair<IRType*, uint64_t>, IRArrayType> arrayTypes;
     static std::map<std::pair<IRType*, std::vector<IRType*>>, IRFunctionType> funcTypes;
@@ -38,6 +39,23 @@ namespace sakuraE::IR {
             return &it->second;
         }
         auto newEntry = IRIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth));
+        return &newEntry.first->second;
+    }
+
+    IRType* IRType::getUInt32Ty() {
+        static IRIntegerType ui32Single(32, false);
+        return &ui32Single;
+    }
+    IRType* IRType::getUInt64Ty() {
+        static IRIntegerType ui64Single(64, false);
+        return &ui64Single;
+    }
+    IRType* IRType::getUIntNTy(unsigned bitWidth) {
+        auto it = IRUIntegerTypes.find(bitWidth);
+        if (it != IRUIntegerTypes.end()) {
+            return &it->second;
+        }
+        auto newEntry = IRUIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth, false));
         return &newEntry.first->second;
     }
 
