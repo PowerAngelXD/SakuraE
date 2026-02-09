@@ -5,6 +5,7 @@
 #include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "function.hpp"
+#include <map>
 
 namespace sakuraE::IR {
     class Program;
@@ -129,17 +130,23 @@ namespace sakuraE::IR {
         }
 
         Symbol<IRValue*>* lookup(fzlib::String n) {
+            std::map<fzlib::String, Module*> map;
+            return lookup(n, map);
+        }
+
+        Symbol<IRValue*>* lookup(fzlib::String n, std::map<fzlib::String, Module*>& visited) {
+            if (visited.contains(ID)) return nullptr;
+            visited[ID] = this;
+
             auto result = moduleScope.lookup(n);
             if (result) return result;
 
             for (auto mod: usingList) {
-                result = mod->lookup(n);
+                result = mod->lookup(n, visited);
                 if (result) return result;
             }
 
-            throw SakuraError(OccurredTerm::IR_GENERATING,
-                            "Undefined symbol: '" + n + "'",
-                            createInfo);
+            return nullptr;
         }
 
         fzlib::String toString() {
