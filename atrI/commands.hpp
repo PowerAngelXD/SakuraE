@@ -60,7 +60,7 @@ namespace atri::cmds {
         auto r = lexer.tokenize();
 
         sakuraE::TokenIter current = r.begin();
-        sakuraE::IR::IRGenerator generator("TestProject");
+        sakuraE::IR::IRGenerator generator("__main");
 
         while ((*current).type != sakuraE::TokenType::_EOF_) {
             auto result = sakuraE::StatementParser::parse(current, r.end());
@@ -104,10 +104,6 @@ namespace atri::cmds {
             llvmCodegen.print();
         }
 
-        auto module = llvmCodegen.getModules()[1];
-        llvm::Module* rawModule = module->content; 
-        auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
-
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
         llvm::InitializeNativeTargetAsmParser();
@@ -127,13 +123,21 @@ namespace atri::cmds {
 
         llvm::cantFail(JD.define(llvm::orc::absoluteSymbols(runtimeSymbols)));
 
-        auto TSCtx = llvm::orc::ThreadSafeContext(std::unique_ptr<llvm::LLVMContext>(llvmCodegen.context));
-        auto TSM = llvm::orc::ThreadSafeModule(
-            std::move(modulePtr),
-            std::move(TSCtx)
-        );
+        auto TSCtx = llvm::orc::ThreadSafeContext(llvmCodegen.releaseContext());
 
-        llvm::cantFail(JIT->addIRModule(std::move(TSM)));
+        for (auto mod: llvmCodegen.getModules()) {
+            if (mod->ID == "__main") {
+                auto module = mod;
+                llvm::Module* rawModule = module->content; 
+                auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
+                auto TSM = llvm::orc::ThreadSafeModule(
+                    std::move(modulePtr),
+                    TSCtx
+                );
+                llvm::cantFail(JIT->addIRModule(std::move(TSM)));
+                break;
+            }
+        }
 
         auto mainSymbol = llvm::cantFail(JIT->lookup("main"));
         auto sakuraMain = mainSymbol.toPtr<int(*)()>();
