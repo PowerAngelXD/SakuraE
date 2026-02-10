@@ -26,9 +26,20 @@
 		},
 		{
 			"include": "#types"
+		},
+		{
+			"include": "#variables"
 		}
 	],
 	"repository": {
+		"variables": {
+			"patterns": [
+				{
+					"name": "variable.other.readwrite.sak",
+					"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+				}
+			]
+		},
 		"comments": {
 			"patterns": [
 				{
