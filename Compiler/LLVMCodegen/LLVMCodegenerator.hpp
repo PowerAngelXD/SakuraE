@@ -256,6 +256,10 @@ namespace sakuraE::Codegen {
             return curIRFunc()->fnScope().lookup(n);
         }
         // =====================================================================
+
+        // Resources ===========================================================
+        std::map<fzlib::String, llvm::Value*> stringPool;
+        // =====================================================================
     public:
         LLVMCodeGenerator()=default;
         LLVMCodeGenerator(IR::Program* p) {
@@ -303,12 +307,16 @@ namespace sakuraE::Codegen {
                     if (ptrType->getElementType() == IR::IRType::getCharTy()) {
                         // Is String
                         fzlib::String strVal = constant->getContentValue<fzlib::String>();
+
+                        if (stringPool.contains(strVal)) return stringPool[strVal];
+
                         auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
 
                         auto string_creater = curFn->parent->lookup("create_string");
 
                         llvm::Value* heapStr = builder->CreateCall(string_creater->content, {strVar}, "heap_str");
                         curFn->heapStack.top()[strVal] = heapStr;
+                        stringPool[strVal] = heapStr;
 
                         return heapStr;
                     }
