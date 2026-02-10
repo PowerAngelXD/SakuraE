@@ -361,6 +361,7 @@ sakuraE::NodePtr sakuraE::DeclareStmtParser::genResource() {
                             "A DeclareStatement must have an initialization declaration if no type constraint is specified.",
                             info);
     }
+    else if (std::get<3>(getTuple())->isEmpty() && hasTypeStriction) {}
     else {
         (*root)[ASTTag::AssignTerm] = std::get<1>(std::get<3>(getTuple())->getClosure().at(0)->getTuple())->genResource();
     }
