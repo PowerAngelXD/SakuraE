@@ -141,32 +141,30 @@ SakuraE/
    ```
    然后编写如下程序进行测试：
    ```go
-   func foo(a: int, b: int) -> int {
-       return a * b;
+   func fib(n: int) -> int {
+      if (n <= 1) {
+         return n;
+      }
+      return fib(n - 1) + fib(n - 2);
    }
 
    func main() -> int {
-       let g = foo(1, 2);
-       let a = foo(10, 9);
-       for (let i=0; i<a; i++) {
-           g += i*2;
-       }
-       return g;
+       __println("Hello world, check fib(21):");
+       return fib(21);
    }
    ```
 
    ```bash
-   echo "func foo(a: int, b: int) -> int {
-       return a * b;
+   echo "func fib(n: int) -> int {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
    }
-
+   
    func main() -> int {
-       let g = foo(1, 2);
-       let a = foo(10, 9);
-       for (let i=0; i<a; i++) {
-           g += i*2;
-       }
-       return g;
+       __println("Hello world, check fib(21):");
+       return fib(21);
    }" >> test.sak
    ```
 
