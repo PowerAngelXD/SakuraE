@@ -84,10 +84,6 @@ namespace sakuraE::Codegen {
                         PositionInfo info):
                 type(ty), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
-            ~LLVMFunction() {
-                name.free();
-            }
-
             void enterNewHeapScope() {
                 heapStack.push({});
             }
@@ -169,9 +165,11 @@ namespace sakuraE::Codegen {
 
             LLVMModule(fzlib::String id, llvm::LLVMContext& ctx, LLVMCodeGenerator& codegen):
                 ID(id), content(nullptr), codegenContext(codegen) {}
-            
+
             ~LLVMModule() {
-                ID.free();
+                for (auto& pair : fnMap) {
+                    if (pair.second) delete pair.second;
+                }
             }
 
             void declareFunction(fzlib::String n) {
@@ -268,18 +266,32 @@ namespace sakuraE::Codegen {
             // Reset, for the state managing
             program->reset();
         }
+        ~LLVMCodeGenerator() {
+            if (context) delete context;
+            if (builder) delete builder;
+
+            for (auto mod: modules) delete mod;
+        }   
 
         void start();
         std::vector<LLVMModule*> getModules() {
             return modules;
         }
         void print();
+
+        std::unique_ptr<llvm::LLVMContext> releaseContext() {
+            if (!context) return nullptr;
+
+            auto ptr = std::unique_ptr<llvm::LLVMContext>(context);
+            context = nullptr;
+            return ptr;
+        }
     private:
         llvm::Value* compare(IR::Instruction* ins, LLVMFunction* curFn);
         llvm::Value* instgen(IR::Instruction* ins, LLVMFunction* curFn);
 
         // Tool Methods =========================================================
-        llvm::Value* toLLVMConstant(IR::Constant* constant) {
+        llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
             switch (constant->getType()->getIRTypeID()){
                 case IR::IRTypeID::Integer32TyID: {
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<int>());
@@ -291,7 +303,14 @@ namespace sakuraE::Codegen {
                     if (ptrType->getElementType() == IR::IRType::getCharTy()) {
                         // Is String
                         fzlib::String strVal = constant->getContentValue<fzlib::String>();
-                        return builder->CreateGlobalString(strVal.c_str(), "tmpstr");
+                        auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
+
+                        auto string_creater = curFn->parent->lookup("create_string");
+
+                        llvm::Value* heapStr = builder->CreateCall(string_creater->content, {strVar}, "heap_str");
+                        curFn->heapStack.top()[strVal] = heapStr;
+
+                        return heapStr;
                     }
                     break;
                 }
@@ -307,7 +326,7 @@ namespace sakuraE::Codegen {
                 return getRef(value);
             }
             else if (auto constant = dynamic_cast<IR::Constant*>(value)) {
-                return toLLVMConstant(constant);
+                return toLLVMConstant(constant, curFn);
             }
             else if (auto inst = dynamic_cast<IR::Instruction*>(value)) {
                 return instgen(inst, curFn);

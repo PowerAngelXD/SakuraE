@@ -141,9 +141,9 @@ namespace sakuraE::Codegen {
         {
             case IR::OpKind::constant: {
                 auto constant = dynamic_cast<IR::Constant*>(ins->arg(0));
-                auto llvmConst = toLLVMConstant(constant);
+                auto llvmConst = toLLVMConstant(constant, curFn);
                 bind(ins, llvmConst);
-                return toLLVMConstant(constant);
+                return toLLVMConstant(constant, curFn);
             }
             case IR::OpKind::add: {
                 llvm::Value* lhs = toLLVMValue(ins->arg(0), curFn);
@@ -265,8 +265,15 @@ namespace sakuraE::Codegen {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* indexVal = toLLVMValue(ins->arg(1), curFn);
 
-                auto irArrayType = dynamic_cast<IR::IRArrayType*>(ins->arg(0)->getType());
-                llvm::Type* elementType = irArrayType->getElementType()->toLLVMType(*context);
+                llvm::Type* elementType = nullptr;
+
+                if (auto irArrayType = dynamic_cast<IR::IRArrayType*>(ins->arg(0)->getType())) {
+                    elementType = irArrayType->getElementType()->toLLVMType(*context);
+                }
+                else if (auto irPtrType = dynamic_cast<IR::IRPointerType*>(ins->arg(0)->getType())) {
+                    elementType = irPtrType->getElementType()->toLLVMType(*context);
+                }
+                
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
                 
