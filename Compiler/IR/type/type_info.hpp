@@ -14,6 +14,7 @@ namespace sakuraE::IR {
         Bool,
         Char,
         String,
+        Null,
         Custom,
         // Structure
         Array
@@ -87,6 +88,7 @@ namespace sakuraE::IR {
 
         static TypeInfo* makeTypeID(TypeID typeID);
         static TypeInfo* makeTypeID(std::vector<TypeInfo*> tArray);
+        static void clearAll();
     };
 }
 
