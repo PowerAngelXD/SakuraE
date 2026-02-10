@@ -1,0 +1,13 @@
+func fib(n: int) -> int {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+func main() -> int {
+    let str = "Hello world";
+    str[0] = 'F';
+    __println(str);
+    return fib(21);
+}
