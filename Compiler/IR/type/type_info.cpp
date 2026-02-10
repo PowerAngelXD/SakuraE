@@ -25,4 +25,16 @@ namespace sakuraE::IR {
 
         return info;
     }
+
+    void TypeInfo::clearAll() {
+        for (auto& pair : primaryTypeIDPool) {
+            delete pair.second;
+        }
+        primaryTypeIDPool.clear();
+
+        for (auto& pair : arrayTypeIDPool) {
+            delete pair.second;
+        }
+        arrayTypeIDPool.clear();
+    }
 }

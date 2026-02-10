@@ -44,6 +44,12 @@ namespace sakuraE::IR {
                     return result;
                 }())), funcName(n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
 
+        ~Function() {
+            for (auto blk: blocks) {
+                delete blk;
+            }
+        }
+
         void setParent(Module* mod) {
             parent = mod;
         }

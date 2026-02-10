@@ -31,6 +31,12 @@ namespace sakuraE::IR {
             moduleScope.setParent(nullptr);
         }
 
+        ~Module() {
+            for (auto fn: fnList) {
+                delete fn;
+            }
+        }
+
         void setSourceProgram(Program* pgm) {
             program = pgm;
         }

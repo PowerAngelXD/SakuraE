@@ -27,6 +27,12 @@ namespace sakuraE::IR {
             runtimeMod->declareFunction("__println", IRType::getVoidTy(), { {"str", IRType::getPointerTo(IRType::getCharTy())} }, info);
         }
 
+        ~Program() {
+            for (auto mod: moduleList) {
+                delete mod;
+            }
+        }
+
         Program& buildModule(fzlib::String id, PositionInfo info, bool isRuntime = false) {
             Module* module = new Module(id, info);
             // Using runtime module
