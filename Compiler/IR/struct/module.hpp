@@ -57,6 +57,23 @@ namespace sakuraE::IR {
             return func;
         }
 
+        IRValue* declareFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
+            Function* func = new Function(name, retType, params, info);
+            func->setName(name);
+            func->setParent(this);
+            fnList.push_back(func);
+            cursor = fnList.size() - 1;
+
+            std::vector<IRType *> tParams;
+            for (auto param: params) {
+                tParams.push_back(param.second);
+            }
+            moduleScope.declare(name, func, IRType::getFunctionTy(retType, tParams));
+
+            func->fnScope().setParent(&moduleScope);
+            return func;
+        }
+
         Scope<IRValue*>& modScope() {
             return moduleScope;
         }
@@ -127,6 +144,10 @@ namespace sakuraE::IR {
 
         void use(Module* mod) {
             usingList.push_back(mod);
+        }
+
+        std::vector<Module*> getUsingList() {
+            return usingList;
         }
 
         Symbol<IRValue*>* lookup(fzlib::String n) {
