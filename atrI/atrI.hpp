@@ -42,7 +42,7 @@ namespace atri {
                     parseCommand(list[0], args);
 #else               
                     std::cout << "RUNNING DEBUG MODE, TEST PROGRAM: " << std::endl;
-                    parseCommand("run", {"test1.sak", "-ast", "-sakir", "-rawllvm", "-llvmir"});
+                    parseCommand("run", {"test1.sak", "-sakir", "-llvmir"});
                     parseCommand("exit", {});
 #endif
                 } 
