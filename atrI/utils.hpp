@@ -25,6 +25,13 @@ namespace atri {
         fzlib::String result = content;
         return result;
     }
+
+    inline bool contains(std::vector<fzlib::String> arr, fzlib::String target) {
+        for (auto e: arr) {
+            if (target == e) return true;
+        }
+        return false;
+    }
 }
 
 #endif // !SAKURAE_ATRI_UTILS_HPP
