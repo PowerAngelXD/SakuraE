@@ -2,6 +2,7 @@
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/struct/instruction.hpp"
 #include "Compiler/IR/struct/module.hpp"
+#include "Compiler/IR/type/type.hpp"
 #include <cstddef>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constant.h>
@@ -203,13 +204,7 @@ namespace sakuraE::Codegen {
 
                 auto initVal = ins->arg(0);
                 if (initVal) {
-                    if (identifierType->isArrayTy()) {
-                        auto arrSize = curFn->parent->content->getDataLayout().getTypeAllocSize(identifierType);
-                        builder->CreateMemCpy(alloca, llvm::MaybeAlign(8), toLLVMValue(initVal, curFn), llvm::MaybeAlign(8), arrSize);
-                    }
-                    else {
-                        builder->CreateStore(toLLVMValue(initVal, curFn), alloca);
-                    }
+                    builder->CreateStore(toLLVMValue(initVal, curFn), alloca);
                 }
                 else {
                     builder->CreateStore(llvm::Constant::getNullValue(identifierType), alloca);
@@ -221,23 +216,16 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::assign: {
-                auto insName = ins->arg(0)->getName();
-                auto identifierName = insName.split('.')[1];
+                llvm::Value* destAddr = toLLVMValue(ins->arg(0), curFn);
+                llvm::Value* srcVal = toLLVMValue(ins->arg(1), curFn);
 
-                auto alloca = llvm::dyn_cast<llvm::AllocaInst>(curFn->scope.lookup(identifierName)->address);
-                auto val = toLLVMValue(ins->arg(1), curFn);
-
-                if (alloca && val) {
-                    if (val->getType()->isArrayTy()) {
-                        auto arrSize = curFn->parent->content->getDataLayout().getTypeAllocSize(val->getType());
-                        builder->CreateMemCpy(alloca, llvm::MaybeAlign(8), val, llvm::MaybeAlign(8), arrSize);
-                    }
-                    else {
-                        builder->CreateStore(val, alloca);
-                    }
+                if (destAddr && srcVal) {
+                    builder->CreateStore(srcVal, destAddr);
+                    bind(ins, srcVal); 
+                } 
+                else {
+                    throw std::runtime_error("Assign failed: Null operand.");
                 }
-
-                bind(ins, alloca);
                 break;
             }
             case IR::OpKind::create_array: {
@@ -265,7 +253,12 @@ namespace sakuraE::Codegen {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* indexVal = toLLVMValue(ins->arg(1), curFn);
 
+                auto addrIRType = ins->arg(0)->getType();
                 llvm::Type* elementType = nullptr;
+
+                if (addrIRType->getIRTypeID() == IR::IRTypeID::PointerTyID) {
+                    addr = builder->CreateLoad(builder->getPtrTy(), addr, "load_ptr");
+                }
 
                 if (auto irArrayType = dynamic_cast<IR::IRArrayType*>(ins->arg(0)->getType())) {
                     elementType = irArrayType->getElementType()->toLLVMType(*context);
@@ -277,7 +270,7 @@ namespace sakuraE::Codegen {
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
                 
-                instResult = builder->CreateLoad(elementType, ptr, "indexing.val");
+                instResult = ptr;
 
                 bind(ins, instResult);
                 break;
@@ -349,7 +342,12 @@ namespace sakuraE::Codegen {
                 auto arguments = ins->getOperands();
                 std::vector<llvm::Value*> llvmArguments;
                 for (std::size_t i = 0; i < arguments.size(); i ++) {
-                    llvmArguments.push_back(toLLVMValue(arguments[i], curFn));
+                    auto argVal = toLLVMValue(arguments[i], curFn);
+                    if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(argVal)) {
+                        llvm::Type* allocatedType = allocaInst->getAllocatedType();
+                        argVal = builder->CreateLoad(allocatedType, allocaInst, "call.arg.load");
+                    }
+                    llvmArguments.push_back(argVal);
                 }
 
                 instResult = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
