@@ -18,6 +18,9 @@ namespace sakuraE::IR {
         std::variant<
             std::monostate, 
             int, 
+            long long,
+            unsigned int,
+            unsigned long long,
             float, 
             fzlib::String, 
             char, 
@@ -28,6 +31,12 @@ namespace sakuraE::IR {
         PositionInfo createInfo;
 
         Constant(IRType* ty, int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+            : IRValue(ty), content(val), createInfo(info) {}
+        Constant(IRType* ty, unsigned int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+            : IRValue(ty), content(val), createInfo(info) {}
+        Constant(IRType* ty, unsigned long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+            : IRValue(ty), content(val), createInfo(info) {}
+        Constant(IRType* ty, long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
@@ -43,6 +52,9 @@ namespace sakuraE::IR {
             : IRValue(ty), content(val), createInfo(info) {}
 
     public:
+        static Constant* get(unsigned int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(unsigned long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(const fzlib::String& val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
@@ -50,6 +62,7 @@ namespace sakuraE::IR {
         static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(IRValue* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* getDefault(IRType* ty, PositionInfo info);
         static Constant* getFromToken(const Token& tok);
 
         template<typename T>
