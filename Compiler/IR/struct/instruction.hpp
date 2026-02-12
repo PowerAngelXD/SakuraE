@@ -54,6 +54,13 @@ namespace sakuraE::IR {
                     kind == OpKind::ret;
         }
 
+        bool isLValue() {
+            return kind == OpKind::create_alloca ||
+                    kind == OpKind::indexing ||
+                    kind == OpKind::param ||
+                    kind == OpKind::gmem;
+        }
+
         void setParent(Block* blk) {
             parent = blk;
         }
