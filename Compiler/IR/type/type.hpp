@@ -21,7 +21,7 @@ namespace sakuraE::IR {
         CharTyID,
         BoolTyID,
         TypeInfoTyID,
-    
+        // ComplexType
         PointerTyID,
         ArrayTyID,
 
@@ -37,7 +37,10 @@ namespace sakuraE::IR {
     public:
         virtual ~IRType() = default;
 
+        IRType* unboxComplex(bool untilID = false);
         IRTypeID getIRTypeID() const { return irTypeID; }
+        bool isComplexType() { return irTypeID == PointerTyID || irTypeID == ArrayTyID; }
+        bool isEqual(IRType* ty);
 
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
         virtual fzlib::String toString() = 0;

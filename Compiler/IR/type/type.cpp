@@ -1,4 +1,5 @@
 #include "type.hpp"
+#include <llvm/Support/Casting.h>
 
 namespace sakuraE::IR {
     static std::map<unsigned, IRIntegerType> IRIntegerTypes;
@@ -7,6 +8,86 @@ namespace sakuraE::IR {
     static std::map<std::pair<IRType*, uint64_t>, IRArrayType> arrayTypes;
     static std::map<std::pair<IRType*, std::vector<IRType*>>, IRFunctionType> funcTypes;
 
+    IRType* IRType::unboxComplex() {
+        if (!isComplexType()) return this;
+        else {
+            IRType* result = this;
+
+            auto isBasicType = [&]()->bool {
+                if (!result->isComplexType()) return true;
+
+                if (result->irTypeID == PointerTyID) {
+                    auto ptr = static_cast<IRPointerType*>(result);
+                    if (ptr->getElementType()->irTypeID == IRTypeID::CharTyID) return true;
+                }
+
+                return false;
+            };
+
+            while (!isBasicType()) {
+                if (result->irTypeID == ArrayTyID) {
+                    auto arrTy = static_cast<IRArrayType*>(result);
+                    result = arrTy->getElementType();
+                }
+                else if (result->irTypeID == PointerTyID) {
+                    auto ptrTy = static_cast<IRPointerType*>(result);
+                    result = ptrTy->getElementType();
+                }
+            }
+
+            return result;
+        }
+    }
+
+    bool IRType::isEqual(IRType* ty) {
+        if (this == ty) return true;
+        if (!ty) return false;
+        if (irTypeID != ty->irTypeID) return false;
+
+        switch (irTypeID) {
+            case Integer32TyID:
+            case Integer64TyID:
+            case UInteger32TyID:
+            case UInteger64TyID:
+            case CharTyID:
+            case BoolTyID:
+            case TypeInfoTyID:
+            case FloatTyID:
+            case VoidTyID:
+                return true;
+            case IntegerNTyID:
+            case UIntegerNTyID: {
+                auto lInt = static_cast<IRIntegerType*>(this);
+                auto rInt = static_cast<IRIntegerType*>(ty);
+                return lInt->getBitWidth() == rInt->getBitWidth();
+            }
+            case ArrayTyID: {
+                auto lArr = static_cast<IRArrayType*>(this);
+                auto rArr = static_cast<IRArrayType*>(ty);
+                return lArr->getNumElements() == rArr->getNumElements() &&
+                    lArr->getElementType()->isEqual(rArr->getElementType());
+            }
+            case PointerTyID: {
+                auto lPtr = static_cast<IRPointerType*>(this);
+                auto rPtr = static_cast<IRPointerType*>(ty);
+                return lPtr->getElementType()->isEqual(rPtr->getElementType());
+            }
+            case FunctionTyID: {
+                auto lFn = static_cast<IRFunctionType*>(this);
+                auto rFn = static_cast<IRFunctionType*>(ty);
+                auto& lParams = lFn->paramsType;
+                auto& rParams = rFn->paramsType;
+                if (lParams.size() != rParams.size()) return false;
+                else {
+                    for (std::size_t i = 0; i < lParams.size(); i ++) {
+                        if (!lParams[i]->isEqual(rParams[i])) return false;
+                    }
+                }
+                return lFn->returnType->isEqual(rFn->returnType);
+            }
+            default: return false;
+        }
+    }
 
     IRType* IRType::getVoidTy() {
         static IRVoidType voidSingle;
