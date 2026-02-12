@@ -25,7 +25,8 @@ For now `version dev 0.0`:
 - [x] Function Declaration and Calling
 - [ ] More Type Checker
 - [ ] Complete Runtime Support
-- [ ] Complete String Implement
+- [x] Complete String Implement
+- [ ] Implement of pointer type and other constant
 - [ ] Language Flexibility
 - [ ] Structure Declaration and Using
 - [ ] Module System
