@@ -194,7 +194,7 @@ namespace sakuraE::Codegen {
                 instResult = compare(lhs, rhs, ins->getKind(), curFn);
                 break;
             }
-            case IR::OpKind::declare: {
+            case IR::OpKind::create_alloca: {
                 auto insName = ins->getName();
                 auto identifierName = insName.split('.')[1];
 
@@ -215,7 +215,7 @@ namespace sakuraE::Codegen {
 
                 break;
             }
-            case IR::OpKind::assign: {
+            case IR::OpKind::store: {
                 llvm::Value* destAddr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* srcVal = toLLVMValue(ins->arg(1), curFn);
 
