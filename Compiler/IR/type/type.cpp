@@ -20,6 +20,9 @@ namespace sakuraE::IR {
                     auto ptr = static_cast<IRPointerType*>(result);
                     if (ptr->getElementType()->irTypeID == IRTypeID::CharTyID) return true;
                 }
+                else if (result->irTypeID == ArrayTyID) {
+                    return true;
+                }
 
                 return false;
             };
