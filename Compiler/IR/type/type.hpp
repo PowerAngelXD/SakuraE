@@ -37,9 +37,11 @@ namespace sakuraE::IR {
     public:
         virtual ~IRType() = default;
 
-        IRType* unboxComplex(bool untilID = false);
+        IRType* unboxComplex();
         IRTypeID getIRTypeID() const { return irTypeID; }
-        bool isComplexType() { return irTypeID == PointerTyID || irTypeID == ArrayTyID; }
+        bool isPointer() { return irTypeID == PointerTyID; }
+        bool isArray() { return irTypeID == ArrayTyID; }
+        bool isComplexType() { return isPointer() || isArray(); }
         bool isEqual(IRType* ty);
 
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
