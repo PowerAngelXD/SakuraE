@@ -499,6 +499,14 @@ sakuraE::NodePtr sakuraE::ReturnStmtParser::genResource() {
     return root;
 }
 
+sakuraE::NodePtr sakuraE::BreakStmtParser::genResource() {
+    return std::make_shared<Node>(ASTTag::BreakStmtNode);
+}
+
+sakuraE::NodePtr sakuraE::ContinueStmtParser::genResource() {
+    return std::make_shared<Node>(ASTTag::ContinueStmtNode);
+}
+
 sakuraE::NodePtr sakuraE::StatementParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::Stmt);
 

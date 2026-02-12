@@ -26,7 +26,7 @@ namespace sakuraE {
         // Stmt Header
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
-        ReturnStmtNode, Stmt, 
+        ReturnStmtNode, BreakStmtNode, ContinueStmtNode, Stmt, 
         // Token
         Literal, Identifier, Symbol, Keyword,
         // Branches

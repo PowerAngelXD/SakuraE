@@ -782,6 +782,54 @@ namespace sakuraE {
 
         NodePtr genResource() override;
     };
+
+    using BreakStmtParserRule = 
+    ConnectionParser<
+        TokenParser<TokenType::KEYWORD_BREAK>,
+        TokenParser<TokenType::STMT_END>
+    >;
+    class BreakStmtParser: public ResourceFetcher, public BreakStmtParserRule {
+    public:
+        BreakStmtParser(BreakStmtParserRule&& base) : BreakStmtParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return BreakStmtParserRule::check(begin, end);
+        }
+
+        static Result<BreakStmtParser> parse(TokenIter begin, TokenIter end) {
+            auto result = BreakStmtParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
+            }
+            return {result.status, std::make_shared<BreakStmtParser>(std::move(*result.val)), result.end};
+        }
+
+        NodePtr genResource() override;
+    };
+
+    using ContinueStmtParserRule = 
+    ConnectionParser<
+        TokenParser<TokenType::KEYWORD_BREAK>,
+        TokenParser<TokenType::STMT_END>
+    >;
+    class ContinueStmtParser: public ResourceFetcher, public ContinueStmtParserRule {
+    public:
+        ContinueStmtParser(ContinueStmtParserRule&& base) : ContinueStmtParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return BreakStmtParserRule::check(begin, end);
+        }
+
+        static Result<ContinueStmtParser> parse(TokenIter begin, TokenIter end) {
+            auto result = BreakStmtParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
+            }
+            return {result.status, std::make_shared<ContinueStmtParser>(std::move(*result.val)), result.end};
+        }
+
+        NodePtr genResource() override;
+    };
     
     using ContainableStmt = 
     OptionsParser<
