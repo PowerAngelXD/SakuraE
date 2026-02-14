@@ -809,7 +809,7 @@ namespace sakuraE {
 
     using ContinueStmtParserRule = 
     ConnectionParser<
-        TokenParser<TokenType::KEYWORD_BREAK>,
+        TokenParser<TokenType::KEYWORD_CONTINUE>,
         TokenParser<TokenType::STMT_END>
     >;
     class ContinueStmtParser: public ResourceFetcher, public ContinueStmtParserRule {
@@ -817,11 +817,11 @@ namespace sakuraE {
         ContinueStmtParser(ContinueStmtParserRule&& base) : ContinueStmtParserRule(std::move(base)) {}
 
         static bool check(TokenIter begin, TokenIter end) {
-            return BreakStmtParserRule::check(begin, end);
+            return ContinueStmtParserRule::check(begin, end);
         }
 
         static Result<ContinueStmtParser> parse(TokenIter begin, TokenIter end) {
-            auto result = BreakStmtParserRule::parse(begin, end);
+            auto result = ContinueStmtParserRule::parse(begin, end);
             if (result.status != ParseStatus::SUCCESS) {
                 return {result.status, nullptr, result.end, result.err, result.err_pos};
             }
