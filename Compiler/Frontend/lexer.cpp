@@ -1,4 +1,6 @@
 #include "lexer.h"
+#include "Compiler/Error/error.hpp"
+#include <cctype>
 
 sakuraE::Token::Token(TokenType t, const fzlib::String& c, int l, int col, const fzlib::String& det)
     : content(c), type(t) {
@@ -129,6 +131,8 @@ sakuraE::Token sakuraE::Lexer::makeNumberLiteral() {
     fzlib::String details = "integer";
     bool has_decimal = false;
 
+    content += next();
+
     while (std::isdigit(peek()) || (!has_decimal && peek() == '.' && std::isdigit(peek(1)))) {
         if (peek() == '.') {
             has_decimal = true;
@@ -137,6 +141,22 @@ sakuraE::Token sakuraE::Lexer::makeNumberLiteral() {
         }
         content += next();
     }
+
+    fzlib::String suffix;
+
+    while (std::isalpha(peek())) {
+        suffix += next();
+    }
+
+    if (suffix == "U" || suffix == "UL" || suffix == "L" || suffix == "F") {
+        content += suffix;
+    }
+    else if (!suffix.isEmpty()) {
+        throw SakuraError(OccurredTerm::LEXER,
+                        "Unknown suffix of number literal: " + suffix,
+                        {current_line, current_column, "lexer error"});
+    }
+    
     
     return Token(type, content, start_line, start_column, details);
 }
@@ -410,7 +430,7 @@ std::vector<sakuraE::Token> sakuraE::Lexer::tokenize() {
         if (std::isalpha(c) || c == '_') {
             token = makeIdentifierOrKeyword();
         } 
-        else if (std::isdigit(c)) {
+        else if (std::isdigit(c) || (c == '-' && std::isdigit(peek(1)))) {
             token = makeNumberLiteral();
         } 
         else if (c == '\"') {
