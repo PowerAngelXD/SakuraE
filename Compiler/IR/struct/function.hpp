@@ -25,6 +25,14 @@ namespace sakuraE::IR {
         // Indicates the current maximum index of blocks
         long cursor = -1;
 
+        // Break and Continue manager
+        struct LoopInfo {
+            IRValue* continueTarget;
+            IRValue* breakTarget;
+        };
+
+        std::stack<LoopInfo> loopStack;
+
         Module* parent;
     public:
         Function(fzlib::String n, IRType* retType, PositionInfo info): 
@@ -49,6 +57,18 @@ namespace sakuraE::IR {
                 delete blk;
             }
         }
+
+        void enterLoop(IRValue* c, IRValue* b) {
+            loopStack.push({c, b});
+        }
+
+        void leaveLoop() {
+            if (!loopStack.empty()) loopStack.pop();
+        }
+
+        bool isLookEmpty() { return loopStack.empty(); }
+
+        LoopInfo& getLoopTop() { return loopStack.top(); }
 
         void setParent(Module* mod) {
             parent = mod;
