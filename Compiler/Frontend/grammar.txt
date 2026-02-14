@@ -34,4 +34,6 @@ WhileStmt -> 'while' '(' BinaryExpr ')' Stmt | BlockStmt
 ForStmt -> 'for' '(' LetStmt BinaryExpr ';' WholeExpr ';' ')' Stmt | BlockStmt
 FuncDefineStmt -> 'func' <field> '(' (<field> ':' TypeModifier) (',' <field> ':' TypeModifier) ')' '->' TypeModifier BlockStmt
 ReturnStmt -> 'return' WholeExpr ';'
-Stmt -> DeclareStmt | ExprStmt | BlockStmt | IfStmt | ElseStmt | WhileStmt | ForStmt | ReturnStmt
+BreakStmt -> 'break' ';'
+ContinueStmt -> 'continue' ';'
+Stmt -> DeclareStmt | ExprStmt | BlockStmt | IfStmt | ElseStmt | WhileStmt | ForStmt | ReturnStmt | BreakStmt | ContinueStmt
