@@ -1,6 +1,7 @@
 #ifndef FZSGBALL_STRING_HPP
 #define FZSGBALL_STRING_HPP
 
+#include <cstddef>
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -158,6 +159,8 @@ namespace fzlib {
 
             return _content[index];
         }
+
+        bool isEmpty() { return _content == nullptr; }
 
         String &append(const char *str) {
             std::size_t app_len = strlen(str);
