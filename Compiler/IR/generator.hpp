@@ -14,6 +14,8 @@
 #include "Compiler/IR/value/constant.hpp"
 #include "Compiler/Frontend/lexer.h"
 
+
+
 namespace sakuraE::IR {
     class IRGenerator {
         Program program;
@@ -248,6 +250,8 @@ namespace sakuraE::IR {
         IRValue* visitBlockStmtNode(NodePtr node, fzlib::String blockName, long beforeBlock = -1);
         IRValue* visitFuncDefineStmtNode(NodePtr node);
         IRValue* visitReturnStmtNode(NodePtr node);
+        IRValue* visitBreakStmtNode(NodePtr node);
+        IRValue* visitContinueStmtNode(NodePtr node);
         IRValue* visitStmt(NodePtr node);
     };
 }
