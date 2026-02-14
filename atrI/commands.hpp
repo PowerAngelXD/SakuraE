@@ -18,6 +18,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include "Compiler/IR/type/type_info.hpp"
 #include "Runtime/alloc.h"
+#include "Runtime/gc.h"
 #include "Runtime/raw_string.h"
 #include "Runtime/print.h"
 
@@ -121,6 +122,12 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("concat_string")] = { llvm::orc::ExecutorAddr::fromPtr(&concat_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__print")] = { llvm::orc::ExecutorAddr::fromPtr(&__print), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__println")] = { llvm::orc::ExecutorAddr::fromPtr(&__println), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_safe_point")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_safe_point), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_create_thread")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_create_thread), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_pop")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_pop), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_register")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register), llvm::JITSymbolFlags::Exported };
 
         llvm::cantFail(JD.define(llvm::orc::absoluteSymbols(runtimeSymbols)));
 
