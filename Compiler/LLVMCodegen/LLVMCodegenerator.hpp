@@ -2,6 +2,7 @@
 #define SAKURAE_LLVMCODEGENERATOR_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Use.h>
@@ -35,6 +36,7 @@
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/value/value.hpp"
 #include "includes/String.hpp"
+#include "Runtime/gc.h"
 
 namespace sakuraE::Codegen {
     class LLVMCodeGenerator {
@@ -43,7 +45,6 @@ namespace sakuraE::Codegen {
         llvm::LLVMContext* context;
         llvm::IRBuilder<>* builder;
     private:
-        
         // Struct Definition ==================================================
         enum class FunctionType {
             Definition,
@@ -71,8 +72,8 @@ namespace sakuraE::Codegen {
             LLVMCodeGenerator& codegenContext;
             // Params Alloca Map
             std::map<fzlib::String, llvm::AllocaInst*> paramAllocaMap;
-            // Heap Stack, Like a scope
-            std::stack<std::map<fzlib::String, llvm::Value*>> heapStack;
+            // Count gc root
+            std::stack<uint32_t> gcRootCountStack;
             // SAK IR Function
             IR::Function* sourceFn;
             
@@ -85,12 +86,60 @@ namespace sakuraE::Codegen {
                         PositionInfo info):
                 type(ty), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
+            void gcCreateThread() {
+                auto fn = parent->lookup("__gc_create_thread");
+                codegenContext.builder->CreateCall(fn->content, {});
+            }
+
+            void gcInsertSafepoint() {
+                auto fn = parent->lookup("__gc_safe_point");
+                codegenContext.builder->CreateCall(fn->content, {});
+            }
+
+            llvm::Value* gcAlloc(llvm::Value* size, runtime::ObjectType ty) {
+                auto fn = parent->lookup("__gc_alloc");
+                return codegenContext.builder->CreateCall(fn->content,  {
+                    size, codegenContext.builder->getInt32(ty)
+                });
+            }
+
+            llvm::Value* gcAlloc(int size, runtime::ObjectType ty) {
+                auto fn = parent->lookup("__gc_alloc");
+                auto sTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
+                return codegenContext.builder->CreateCall(fn->content,  {
+                    llvm::ConstantInt::get(sTy, size), codegenContext.builder->getInt32(ty)
+                });
+            }
+
+            void gcRegisterRoot(llvm::Value* addr) {
+                auto fn = parent->lookup("__gc_register");
+                auto ptr = codegenContext.builder->CreateBitCast(addr, llvm::PointerType::getUnqual(*codegenContext.context));
+
+                codegenContext.builder->CreateCall(fn->content, {ptr});
+
+                if (!gcRootCountStack.empty()) gcRootCountStack.top() ++;
+            }
+
+            void gcPop(size_t times) {
+                if (times == 0) return;
+                auto fn = parent->lookup("__gc_pop");
+                codegenContext.builder->CreateCall(fn->content, {codegenContext.builder->getInt32(times)});
+            }
+
+            void gcCollect() {
+                auto fn = parent->lookup("__gc_collect");
+                codegenContext.builder->CreateCall(fn->content, {});
+            }
+
             void enterNewHeapScope() {
-                heapStack.push({});
+                gcRootCountStack.push(0);
             }
 
             void leaveHeapScope() {
-                heapStack.pop();
+                if (gcRootCountStack.empty()) return;
+                uint32_t count = gcRootCountStack.top();
+                gcPop(count);
+                gcRootCountStack.pop();
             }
 
             llvm::AllocaInst* createAlloca(llvm::Type *ty, llvm::Value *arraySize = nullptr, fzlib::String n = "") {
@@ -98,37 +147,21 @@ namespace sakuraE::Codegen {
                 llvm::BasicBlock::iterator currentPoint = codegenContext.builder->GetInsertPoint();
 
                 codegenContext.builder->SetInsertPoint(entryBlock, entryBlock->getFirstInsertionPt());
-
                 llvm::AllocaInst* alloca = codegenContext.builder->CreateAlloca(ty, arraySize, n.c_str());
 
+                if (ty->isPointerTy()) gcRegisterRoot(alloca);
                 codegenContext.builder->SetInsertPoint(currentBlock, currentPoint);
 
                 return alloca;
             }
 
-            llvm::Value* createHeapAlloc(llvm::Type* t, fzlib::String n) {
+            llvm::Value* createHeapAlloc(llvm::Type* t, runtime::ObjectType objTy, fzlib::String n) {
                 size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
                 llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
 
                 llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
 
-                auto allocator = parent->lookup("__alloc");
-
-                auto result = codegenContext.builder->CreateCall(allocator->content, sizeVal, n.c_str());
-
-                heapStack.top()[n] = result;
-
-                return result;
-            }
-
-            void FreeCurrentHeap() {
-                auto freer = parent->lookup("__free");
-
-                for (auto ptr: heapStack.top()) {
-                    codegenContext.builder->CreateCall(freer->content, {ptr.second});
-                }
-
-                heapStack.top().clear();
+                return gcAlloc(sizeVal, objTy);
             }
 
             llvm::Value* getParamAddress(fzlib::String n) {
@@ -144,14 +177,6 @@ namespace sakuraE::Codegen {
             void impl(IR::Function* source);
             // Start LLVM IR Code generation
             void codegen();
-        };
-
-
-        inline static std::vector<fzlib::String> runtimeFunctions = {
-            "__alloc", "__free",
-            "create_string", "free_string",
-            "concat_string", "__print",
-            "__println"
         };
         // Represent LLVM Module Instantce
         struct LLVMModule {
@@ -215,12 +240,6 @@ namespace sakuraE::Codegen {
 
             // Start LLVM IR Code generation
             void codegen();
-
-        private:
-            bool isRuntimeFunction(fzlib::String n) {
-                return n == "create_string" || n == "free_string" || n == "concat_string" ||
-                        n == "__alloc" || n == "__free";
-            }
         };
 
         // ====================================================================
@@ -316,7 +335,6 @@ namespace sakuraE::Codegen {
                         auto string_creater = curFn->parent->lookup("create_string");
 
                         llvm::Value* heapStr = builder->CreateCall(string_creater->content, {strVar}, "heap_str");
-                        curFn->heapStack.top()[strVal] = heapStr;
                         stringPool[strVal] = heapStr;
 
                         return heapStr;
