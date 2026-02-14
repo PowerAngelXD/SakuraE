@@ -1,10 +1,4 @@
 #include "gc.h"
-#include <algorithm>
-#include <atomic>
-#include <cstdint>
-#include <cstdlib>
-#include <mutex>
-#include <stack>
 
 namespace sakuraE::runtime {
     extern "C" void   __gc_create_thread() {
@@ -102,8 +96,8 @@ namespace sakuraE::runtime {
         while (it != global_heap.end()) {
             ObjectHeader* header = *it;
             if (header->obj_status == Unscanned) {
-                free(header);
                 allocated_bytes.fetch_sub(header->obj_size);
+                free(header);
                 it = global_heap.erase(it);
             }
             else {
@@ -120,4 +114,14 @@ namespace sakuraE::runtime {
         resume_cv.notify_all();
     }
 
+
+    struct GCCleaner {
+        ~GCCleaner() {
+            for (auto* header : global_heap) {
+                free(header);
+            }
+            global_heap.clear();
+        }
+    };
+    static GCCleaner cleaner;
 }
