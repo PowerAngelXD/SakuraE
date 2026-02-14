@@ -6,13 +6,16 @@
     By FZSGBall
 */
 #include "raw_string.h"
+#include "gc.h"
 #include "alloc.h"
+
+using namespace sakuraE::runtime;
 
 extern "C" char* create_string(const char* literal) {
     if (!literal) return nullptr;
 
     size_t len = strlen(literal);
-    char* str = (char*)__alloc(len + 1);
+    char* str = (char*)__gc_alloc(len + 1, ObjectType::String);
 
     strcpy(str, literal);
     return str;
@@ -29,7 +32,7 @@ extern "C" char* concat_string(const char* s1, const char* s2) {
     size_t len1 = strlen(s1);
     size_t len2 = strlen(s2);
         
-    char* result = (char*)__alloc(len1 + len2 + 1);
+    char* result = (char*)__gc_alloc(len1 + len2 + 1, ObjectType::String);
     if (!result) exit(1);
 
     strcpy(result, s1);
