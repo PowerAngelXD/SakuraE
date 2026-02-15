@@ -14,7 +14,6 @@ namespace sakuraE::IR {
 
     // SakuraE Function
     class Function: public IRValue {
-        fzlib::String funcName;
         IRType* returnType;
         FormalParamsDefine formalParams;
         Scope<IRValue*> funcScope;
@@ -36,11 +35,11 @@ namespace sakuraE::IR {
         Module* parent;
     public:
         Function(fzlib::String n, IRType* retType, PositionInfo info): 
-            IRValue(IRType::getFunctionTy(retType, {})), funcName(n), returnType(retType), funcScope(info), createInfo(info) {}
+            IRValue(IRType::getFunctionTy(retType, {}), n), returnType(retType), funcScope(info), createInfo(info) {}
         
         // just for pre-defing
         Function(fzlib::String n, PositionInfo info):
-            IRValue(nullptr), funcName(n), returnType(nullptr), formalParams({}), funcScope(info), createInfo(info) {}
+            IRValue(nullptr, n), returnType(nullptr), formalParams({}), funcScope(info), createInfo(info) {}
         
         Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info): 
             IRValue(IRType::getFunctionTy(retType, 
@@ -50,7 +49,7 @@ namespace sakuraE::IR {
                         result.push_back(param.second);
                     }
                     return result;
-                }())), funcName(n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
+                }()), n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
 
         ~Function() {
             for (auto blk: blocks) {
@@ -87,8 +86,6 @@ namespace sakuraE::IR {
                     return result;
                 }()
             ));
-
-            setName(funcName);
         }
 
         Module* getParent() {
@@ -156,10 +153,6 @@ namespace sakuraE::IR {
             return *this;
         }
 
-        const fzlib::String& getName() {
-            return funcName;
-        }
-
         Scope<IRValue*>& fnScope() {
             return funcScope;
         }
@@ -181,7 +174,7 @@ namespace sakuraE::IR {
         }
 
         fzlib::String toString() {
-            fzlib::String result = funcName + "(";
+            fzlib::String result = name + "(";
             for (std::size_t i = 0; i < formalParams.size(); i ++) {
                 auto arg = formalParams[i];
                 if (i == formalParams.size() - 1)
