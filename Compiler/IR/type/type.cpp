@@ -57,6 +57,7 @@ namespace sakuraE::IR {
             case BoolTyID:
             case TypeInfoTyID:
             case Float32TyID:
+            case Float64TyID:
             case VoidTyID:
                 return true;
             case IntegerNTyID:
