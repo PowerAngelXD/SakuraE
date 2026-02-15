@@ -10,10 +10,9 @@ namespace sakuraE::IR {
     template<typename T>
     requires std::is_pointer_v<T>
     struct Symbol: public IRValue {
-        fzlib::String name = "DefaultSymbol";
         T address = nullptr;
 
-        Symbol(fzlib::String n, T addr, IRType* t): IRValue(t), name(n), address(addr) {}
+        Symbol(fzlib::String n, T addr, IRType* t): IRValue(t, n), address(addr) {}
     };
 
     template<typename T>
