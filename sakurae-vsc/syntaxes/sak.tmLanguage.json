@@ -57,7 +57,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.sak",
-					"match": "\\b(if|else|for|while|return|break|continue)\\b"
+					"match": "\\b(if|else|for|while|return|break|continue|repeat|match)\\b"
 				},
 				{
 					"name": "keyword.other.declaration.sak",
@@ -88,11 +88,23 @@
 			"patterns": [
 				{
 					"name": "constant.numeric.float.sak",
-					"match": "\\b\\d+\\.\\d+\\b"
+					"match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b"
 				},
 				{
-					"name": "constant.numeric.integer.sak",
-					"match": "\\b\\d+\\b"
+					"name": "constant.numeric.integer.hexadecimal.sak",
+					"match": "\\b0[xX][0-9a-fA-F]+\\b"
+				},
+				{
+					"name": "constant.numeric.integer.binary.sak",
+					"match": "\\b0[bB][01]+\\b"
+				},
+				{
+					"name": "constant.numeric.integer.octal.sak",
+					"match": "\\b0[oO][0-7]+\\b"
+				},
+				{
+					"name": "constant.numeric.integer.decimal.sak",
+					"match": "\\b(0|[1-9]\\d*)(UL|L|U|ul|l|u)?\\b"
 				}
 			]
 		},
