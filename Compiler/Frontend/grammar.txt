@@ -21,7 +21,7 @@ AssignExpr -> IdentifierExpr '=' | '+=' | '-=' | '/=' | '*=' WholeExpr
 
 WholeExpr -> AddExpr | BinaryExpr | ArrayExpr | AssignExpr
 
-BasicTypeModifier -> 'int'|'char'|'raw_string'|'float'|'float'|＜field>
+BasicTypeModifier -> 'i32'|'i64'|'ui32'|'ui64'|'f32'|'f64'|'bool'|'char'|'string'|＜field>
 ArrayTypeModifier ->  BasicTypeModifier ('[' <number> ']')*
 TypeModifier -> ArrayTypeModifier | BasicTypeModifier
 
