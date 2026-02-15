@@ -320,7 +320,7 @@ namespace sakuraE::Codegen {
                 case IR::IRTypeID::Integer32TyID: {
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<int>());
                 }
-                case IR::IRTypeID::FloatTyID:
+                case IR::IRTypeID::Float32TyID:
                     return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<float>());
                 case IR::IRTypeID::PointerTyID: {
                     auto ptrType = dynamic_cast<IR::IRPointerType*>(constant->getType());
