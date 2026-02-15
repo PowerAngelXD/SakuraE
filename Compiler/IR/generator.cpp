@@ -55,41 +55,51 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, fzlib::String target, NodePtr node) {
         std::vector<IRValue*> params;
+        std::vector<IRType*> argTypes;
 
         for (auto argExpr: (*node)[ASTTag::Exprs]->getChildren()) {
-            params.push_back(visitWholeExprNode(argExpr));
+            auto arg = visitWholeExprNode(argExpr);
+            params.push_back(arg);
+            argTypes.push_back(arg->getType());
         }
+
+        auto mangledName = mangleFnName(target, argTypes);
+        auto symbol = lookup(mangledName, node->getPosInfo());
+        auto fn = dynamic_cast<Function*>(symbol->address);
 
         return curFunc()
             ->curBlock()
             ->createInstruction(
                 OpKind::call, 
-                IRType::getInt32Ty(), 
+                fn->getReturnType(), 
                 params, 
-                "call." + target
+                "call." + mangledName
             );
     }
 
     IRValue* IRGenerator::visitAtomIdentifierNode(NodePtr node) {
         auto name = (*node)[ASTTag::Identifier]->getToken().content;
-        auto symbol = lookup(name, node->getPosInfo());
-
         auto ops = (*node)[ASTTag::Ops]->getChildren();
-        auto resultAddr = symbol->address;
+
+        IRValue* resultAddr = nullptr;
+        bool isCall = (!ops.empty() && ops[0]->getTag() == ASTTag::CallingOpNode);
+
+        if (!isCall) {
+            auto symbol = lookup(name, node->getPosInfo());
+            resultAddr = symbol->address;
+        }
+
         for (auto op: ops) {
             switch (op->getTag()) {
-                case ASTTag::IndexOpNode: {
-                    resultAddr = visitIndexOpNode(symbol->address, name, op);
+                case ASTTag::IndexOpNode:
+                    resultAddr = visitIndexOpNode(resultAddr, name, op);
                     break;
-                }
-                case ASTTag::CallingOpNode: {
-                    resultAddr = visitCallingOpNode(symbol->address, name, op);
+                case ASTTag::CallingOpNode:
+                    resultAddr = visitCallingOpNode(resultAddr, name, op);
                     break;
-                }
                 default: break;
             }
         }
-
         return resultAddr;
     }
 
@@ -841,27 +851,25 @@ namespace sakuraE::IR {
         IRType* retType = IRType::getVoidTy();
         FormalParamsDefine params;
 
-        IRValue* fn = curModule()->buildFunction(fnName, retType, params, node->getPosInfo());
-        long initBlockIndex = curFunc()->cur();
-
         if (node->hasNode(ASTTag::Args)) {
             auto typeList = (*node)[ASTTag::Args]->getChildren()[0];
             auto nameList = (*node)[ASTTag::Args]->getChildren()[1];
             for (std::size_t i = 0; i < typeList->getChildren().size(); i ++) {
-                IRValue* typeInfoIRValue = visitTypeModifierNode(typeList->getChildren()[i]);
-
-                // Unboxing
-                auto constInst = dynamic_cast<Instruction*>(typeInfoIRValue);
-                auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
-                TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
-
-                IRType* argType = typeInfo->toIRType();
-
+                auto tyInfo = getTypeInfoFromNode(typeList->getChildren()[i]);
+                IRType* argType = tyInfo->toIRType();
                 fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
                 params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
-                
-                createParam(argName, argType, node->getPosInfo());
+            }
+        }
+        
+        fnName = mangleFnName(fnName, params);
+        IRValue* fn = curModule()->buildFunction(fnName, retType, params, node->getPosInfo());
+        long initBlockIndex = curFunc()->cur();
+
+        if (node->hasNode(ASTTag::Args)) {
+            for (auto arg: params) {
+                createParam(arg.first, arg.second, node->getPosInfo());
             }
         }
 
