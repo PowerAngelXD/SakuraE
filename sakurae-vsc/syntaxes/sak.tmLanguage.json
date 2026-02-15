@@ -57,7 +57,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.sak",
-					"match": "\\b(if|else|for|while|return|break|continue|repeat|match)\\b"
+					"match": "\\b(if|else|for|while|return|break|continue|repeat|match|struct|impl)\\b"
 				},
 				{
 					"name": "keyword.other.declaration.sak",
@@ -132,7 +132,7 @@
 			"patterns": [
 				{
 					"name": "storage.type.sak",
-					"match": "\\b(int|char|raw_string|float|double|string)\\b"
+					"match": "\\b(i32|i64|f32|f64|char|string)\\b"
 				}
 			]
 		},
