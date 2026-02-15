@@ -2,6 +2,7 @@
 #define SAKURAE_GENERATOR_HPP
 
 #include "Compiler/Error/error.hpp"
+#include "Compiler/IR/struct/function.hpp"
 #include "Compiler/IR/struct/instruction.hpp"
 #include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
@@ -128,6 +129,67 @@ namespace sakuraE::IR {
             curFunc()->fnScope().declare(n, addr, finalType);
 
             return addr;
+        }
+
+        TypeInfo* getTypeInfoFromNode(sakuraE::NodePtr node) {
+            if (node->getTag() == ASTTag::TypeModifierNode) {
+                if (node->hasNode(ASTTag::BasicTypeModifierNode)) {
+                    return getTypeInfoFromNode((*node)[ASTTag::BasicTypeModifierNode]);
+                } 
+                else if (node->hasNode(ASTTag::ArrayTypeModifierNode)) {
+                    return getTypeInfoFromNode((*node)[ASTTag::ArrayTypeModifierNode]);
+                }
+            }
+        
+            if (node->getTag() == ASTTag::BasicTypeModifierNode) {
+                auto kwNode = (*node)[ASTTag::Keyword];
+                auto token = kwNode->getToken();
+
+                switch (token.type) {
+                    case TokenType::TYPE_I32:   return TypeInfo::makeTypeID(TypeID::Int32);
+                    case TokenType::TYPE_I64:   return TypeInfo::makeTypeID(TypeID::Int64);
+                    case TokenType::TYPE_UI32:  return TypeInfo::makeTypeID(TypeID::UInt32);
+                    case TokenType::TYPE_UI64:  return TypeInfo::makeTypeID(TypeID::UInt64);
+                    case TokenType::TYPE_F32:   return TypeInfo::makeTypeID(TypeID::Float32);
+                    case TokenType::TYPE_F64:   return TypeInfo::makeTypeID(TypeID::Float64);
+                    case TokenType::TYPE_CHAR:  return TypeInfo::makeTypeID(TypeID::Char);
+                    case TokenType::TYPE_BOOL:  return TypeInfo::makeTypeID(TypeID::Bool);
+                    case TokenType::TYPE_STRING:return TypeInfo::makeTypeID(TypeID::String);
+                    default:
+                        return TypeInfo::makeTypeID(TypeID::Custom);
+                }
+            }
+        
+            if (node->getTag() == ASTTag::ArrayTypeModifierNode) {
+                auto headType = getTypeInfoFromNode((*node)[ASTTag::HeadExpr]);
+                auto dims = (*node)[ASTTag::Exprs]->getChildren();
+
+                TypeInfo* currentType = headType;
+                for (auto it = dims.rbegin(); it != dims.rend(); it ++) {
+                    std::vector<TypeInfo*> elements;
+                    elements.push_back(currentType); 
+                    currentType = TypeInfo::makeTypeID(elements);
+                }
+                return currentType;
+            }
+        
+            return TypeInfo::makeTypeID(TypeID::Null);
+        }
+
+        fzlib::String mangleFnName(fzlib::String n, FormalParamsDefine args) {
+            fzlib::String result = n;
+            for (auto ty: args) {
+                result += "_" + ty.second->toString();
+            }
+            return result;
+        }
+
+        fzlib::String mangleFnName(fzlib::String n, std::vector<IRType*> args) {
+            fzlib::String result = n;
+            for (auto ty: args) {
+                result += "_" + ty->toString();
+            }
+            return result;
         }
 
         // Used to obtain the type of the result from a non-logical binary operation
