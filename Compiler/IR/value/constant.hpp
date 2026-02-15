@@ -21,6 +21,7 @@ namespace sakuraE::IR {
             long long,
             unsigned int,
             unsigned long long,
+            double,
             float, 
             fzlib::String, 
             char, 
@@ -40,6 +41,8 @@ namespace sakuraE::IR {
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
+        Constant(IRType* ty, double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+            : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, const fzlib::String& val, PositionInfo info)
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
@@ -57,6 +60,7 @@ namespace sakuraE::IR {
         static Constant* get(long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(const fzlib::String& val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});

@@ -3,11 +3,12 @@
 #include "Compiler/IR/type/type.hpp"
 
 namespace sakuraE::IR {
-    static std::map<int, Constant> intConstants;
-    static std::map<unsigned int, Constant> uIntConstants;
-    static std::map<long long, Constant> llConstants;
-    static std::map<unsigned long long, Constant> uLLConstants;
-    static std::map<double, Constant> doubleConstants;
+    static std::map<int, Constant> i32Constants;
+    static std::map<unsigned int, Constant> ui32Constants;
+    static std::map<long long, Constant> i64Constants;
+    static std::map<unsigned long long, Constant> ui64Constants;
+    static std::map<float, Constant> f32Constants;
+    static std::map<double, Constant> f64Constants;
     static std::map<fzlib::String, Constant> stringConstants;
     static std::map<char, Constant> charConstants;
     static std::map<bool, Constant> boolConstants;
@@ -16,55 +17,66 @@ namespace sakuraE::IR {
 
 
     Constant* Constant::get(unsigned int val, PositionInfo info) {
-        auto it = uIntConstants.find(val);
-        if (it != uIntConstants.end()) {
+        auto it = ui32Constants.find(val);
+        if (it != ui32Constants.end()) {
             return &it->second;
         }
 
         IRType* uint32Ty = IRType::getUInt32Ty();
-        auto newEntry = uIntConstants.emplace(val, Constant(uint32Ty, val, info));
+        auto newEntry = ui32Constants.emplace(val, Constant(uint32Ty, val, info));
         return &newEntry.first->second;
     }
     Constant* Constant::get(unsigned long long val, PositionInfo info) {
-        auto it = uLLConstants.find(val);
-        if (it != uLLConstants.end()) {
+        auto it = ui64Constants.find(val);
+        if (it != ui64Constants.end()) {
             return &it->second;
         }
 
-        IRType* uInt64Ty = IRType::getUInt64Ty();
-        auto newEntry = uLLConstants.emplace(val, Constant(uInt64Ty, val, info));
+        IRType* uint64Ty = IRType::getUInt64Ty();
+        auto newEntry = ui64Constants.emplace(val, Constant(uint64Ty, val, info));
         return &newEntry.first->second;
     }
     Constant* Constant::get(long long val, PositionInfo info) {
-        auto it = llConstants.find(val);
-        if (it != llConstants.end()) {
+        auto it = i64Constants.find(val);
+        if (it != i64Constants.end()) {
             return &it->second;
         }
 
         IRType* int64Ty = IRType::getInt64Ty();
-        auto newEntry = llConstants.emplace(val, Constant(int64Ty, val, info));
+        auto newEntry = i64Constants.emplace(val, Constant(int64Ty, val, info));
         return &newEntry.first->second;
     }
 
     Constant* Constant::get(int val, PositionInfo info) {
-        auto it = intConstants.find(val);
-        if (it != intConstants.end()) {
+        auto it = i32Constants.find(val);
+        if (it != i32Constants.end()) {
             return &it->second;
         }
 
         IRType* int32Ty = IRType::getInt32Ty();
-        auto newEntry = intConstants.emplace(val, Constant(int32Ty, val, info));
+        auto newEntry = i32Constants.emplace(val, Constant(int32Ty, val, info));
         return &newEntry.first->second;
     }
 
     Constant* Constant::get(float val, PositionInfo info) {
-        auto it = doubleConstants.find(val);
-        if (it != doubleConstants.end()) {
+        auto it = f32Constants.find(val);
+        if (it != f32Constants.end()) {
             return &it->second;
         }
 
-        IRType* floatTy = IRType::getFloatTy();
-        auto newEntry = doubleConstants.emplace(val, Constant(floatTy, val, info));
+        IRType* float32Ty = IRType::getFloat32Ty();
+        auto newEntry = f32Constants.emplace(val, Constant(float32Ty, val, info));
+        return &newEntry.first->second;
+    }
+
+    Constant* Constant::get(double val, PositionInfo info) {
+        auto it = f64Constants.find(val);
+        if (it != f64Constants.end()) {
+            return &it->second;
+        }
+
+        IRType* float64Ty = IRType::getFloat32Ty();
+        auto newEntry = f64Constants.emplace(val, Constant(float64Ty, val, info));
         return &newEntry.first->second;
     }
 
@@ -139,7 +151,7 @@ namespace sakuraE::IR {
                 return get((unsigned long long)0, info);
             case IRTypeID::CharTyID:
                 return get(' ', info);
-            case IRTypeID::FloatTyID:
+            case IRTypeID::Float32TyID:
                 return get((float)0.0, info);
             default:
                 throw SakuraError(OccurredTerm::IR_GENERATING,
