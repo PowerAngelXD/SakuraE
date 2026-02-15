@@ -31,6 +31,17 @@ namespace sakuraE::IR {
         BlockTyID
     };
 
+    static std::map<IRTypeID, int> rankList = {
+        {BoolTyID, 1},
+        {CharTyID, 2},
+        {UInteger32TyID, 3},
+        {Integer32TyID, 4},
+        {UInteger64TyID, 5},
+        {Integer64TyID, 6},
+        {Float32TyID, 7},
+        {Float64TyID, 8},
+    };
+
     class IRType {
     protected:
         const IRTypeID irTypeID;
