@@ -10,7 +10,11 @@ namespace sakuraE::IR {
     enum TypeID {
         // Token
         Int32,
-        Float,
+        Int64,
+        UInt32,
+        UInt64,
+        Float32,
+        Float64,
         Bool,
         Char,
         String,
@@ -25,8 +29,16 @@ namespace sakuraE::IR {
         {
         case TypeID::Int32:
             return IRType::getInt32Ty();
-        case TypeID::Float:
-            return IRType::getFloatTy();
+        case TypeID::Int64:
+            return IRType::getInt64Ty();
+        case TypeID::UInt32:
+            return IRType::getUInt32Ty();
+        case TypeID::UInt64:
+            return IRType::getUInt64Ty();
+        case TypeID::Float32:
+            return IRType::getFloat32Ty();
+        case TypeID::Float64:
+            return IRType::getFloat64Ty();
         case TypeID::Char:
             return IRType::getCharTy();
         case TypeID::Bool:
