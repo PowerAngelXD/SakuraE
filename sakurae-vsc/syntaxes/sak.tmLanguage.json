@@ -57,11 +57,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.sak",
-					"match": "\\b(if|else|for|while|return|break|continue|repeat|match|struct|impl)\\b"
+					"match": "\\b(if|else|for|while|return|break|continue|repeat|match|is|typeof)\\b"
 				},
 				{
 					"name": "keyword.other.declaration.sak",
-					"match": "\\b(let|func)\\b"
+					"match": "\\b(let|func|struct|impl)\\b"
 				},
 				{
 					"name": "constant.language.boolean.sak",
@@ -88,7 +88,7 @@
 			"patterns": [
 				{
 					"name": "constant.numeric.float.sak",
-					"match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b"
+					"match": "\\b\\d+(\\.\\d+)?[f]\\b"
 				},
 				{
 					"name": "constant.numeric.integer.hexadecimal.sak",
@@ -104,7 +104,7 @@
 				},
 				{
 					"name": "constant.numeric.integer.decimal.sak",
-					"match": "\\b(0|[1-9]\\d*)(UL|L|U|ul|l|u)?\\b"
+					"match": "\\b(0|[1-9]\\d*)(UL|L|U)?\\b"
 				}
 			]
 		},
