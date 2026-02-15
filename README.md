@@ -127,29 +127,15 @@ SakuraE/
    touch test.sak
    ```
    Then write this program for test:
-   ```go
-   func fib(n: int) -> int {
-      if (n <= 1) {
-         return n;
-      }
-      return fib(n - 1) + fib(n - 2);
-   }
-
-   func main() -> int {
-      __println("Hello world, check fib(21):");
-      return fib(21);
-   }
-   ```
-
    ```bash
-   echo "func fib(n: int) -> int {
+   echo "func fib(n: i32) -> i32 {
     if (n <= 1) {
         return n;
     }
     return fib(n - 1) + fib(n - 2);
    }
 
-   func main() -> int {
+   func main() -> i32 {
        __println(\"Hello world, check fib(21):\");
        return fib(21);
    }" >> test.sak
