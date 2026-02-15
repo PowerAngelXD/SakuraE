@@ -446,6 +446,13 @@ namespace sakuraE::Codegen {
                 builder->CreateFDiv(lhs, rhs, "divftmp") : builder->CreateSDiv(lhs, rhs, "divtmp");
         }
 
+        llvm::Value* mod(llvm::Value* lhs, llvm::Value* rhs) {
+            auto targetTy = promote(lhs, rhs);
+            if (!targetTy) return nullptr;
+            return targetTy->isFloatingPointTy() ? 
+                builder->CreateFRem(lhs, rhs, "remftmp") : builder->CreateSRem(lhs, rhs, "remtmp");
+        }
+
         llvm::Value* compare(llvm::Value* lhs, llvm::Value* rhs, IR::OpKind kind, LLVMFunction* curFn) {
             auto targetTy = promote(lhs, rhs);
             

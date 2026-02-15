@@ -185,6 +185,15 @@ namespace sakuraE::Codegen {
                 bind(ins, instResult);
                 break;
             }
+            case IR::OpKind::mod: {
+                llvm::Value* lhs = toLLVMValue(ins->arg(0), curFn);
+                llvm::Value* rhs = toLLVMValue(ins->arg(1), curFn);
+
+                instResult = mod(lhs, rhs);
+
+                bind(ins, instResult);
+                break;
+            }
             case IR::OpKind::lgc_equal:
             case IR::OpKind::lgc_not_equal:
             case IR::OpKind::lgc_mr_than:
