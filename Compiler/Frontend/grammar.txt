@@ -9,7 +9,7 @@ Literal -> <number> | <string> | 'true' | 'false' | <char>
 IndexOp -> '[' AddExpr ']'
 CallingOp -> '(' WholeExpr (',' WholeExpr)* ')'
 AtomIdentifierExpr -> Identifier (IndexOp|CallingOp)*
-IdentifierExpr -> ('!' | ('++' | '--')) AtomIdentifierExpr ('.' AtomIdentifierExpr) ('++' | '--')*
+IdentifierExpr -> ('!' | ('++' | '--') | '*' | '&') AtomIdentifierExpr ('.' AtomIdentifierExpr) ('++' | '--')*
 PrimExpr -> Literal | IdentifierExpr
 
 MulExpr -> PrimExpr (('*'|'/') PrimExpr)*
@@ -21,9 +21,9 @@ AssignExpr -> IdentifierExpr '=' | '+=' | '-=' | '/=' | '*=' WholeExpr
 
 WholeExpr -> AddExpr | BinaryExpr | ArrayExpr | AssignExpr
 
-BasicTypeModifier -> 'i32'|'i64'|'ui32'|'ui64'|'f32'|'f64'|'bool'|'char'|'string'|＜field>
+BasicTypeModifier -> 'i32'|'i64'|'ui32'|'ui64'|'f32'|'f64'|'bool'|'char'|'string'|<field>
 ArrayTypeModifier ->  BasicTypeModifier ('[' <number> ']')*
-TypeModifier -> ArrayTypeModifier | BasicTypeModifier
+TypeModifier -> ArrayTypeModifier | BasicTypeModifier (('*')*|&)
 
 DeclareStmt -> 'let' <field> (':' TypeModifier) '=' WholeExpr '；'
 ExprStmt -> IdentifierExpr | AssignExpr ';'
