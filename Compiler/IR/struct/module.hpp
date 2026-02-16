@@ -63,9 +63,8 @@ namespace sakuraE::IR {
             return func;
         }
 
-        IRValue* declareFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
-            Function* func = new Function(name, retType, params, info);
-            func->setName(name);
+        IRValue* declareRuntimeFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
+            Function* func = new Function(name, name, retType, params, info);
             func->setParent(this);
             fnList.push_back(func);
             cursor = fnList.size() - 1;
@@ -73,7 +72,9 @@ namespace sakuraE::IR {
             std::vector<IRType *> tParams;
             for (auto param: params) {
                 tParams.push_back(param.second);
+                name += "_" + param.second->toString();
             }
+            func->setName(name);
             moduleScope.declare(name, func, IRType::getFunctionTy(retType, tParams));
 
             func->fnScope().setParent(&moduleScope);

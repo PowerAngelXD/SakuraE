@@ -14,6 +14,7 @@ namespace sakuraE::IR {
 
     // SakuraE Function
     class Function: public IRValue {
+        fzlib::String rawName;
         IRType* returnType;
         FormalParamsDefine formalParams;
         Scope<IRValue*> funcScope;
@@ -50,6 +51,16 @@ namespace sakuraE::IR {
                     }
                     return result;
                 }()), n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
+        
+        Function(fzlib::String n, fzlib::String raw, IRType* retType, FormalParamsDefine params, PositionInfo info): 
+            IRValue(IRType::getFunctionTy(retType, 
+                [&]() -> std::vector<IRType*> {
+                    std::vector<IRType*> result;
+                    for (auto param: params) {
+                        result.push_back(param.second);
+                    }
+                    return result;
+                }()), n), rawName(raw), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
 
         ~Function() {
             for (auto blk: blocks) {
@@ -72,6 +83,8 @@ namespace sakuraE::IR {
         void setParent(Module* mod) {
             parent = mod;
         }
+
+        fzlib::String getRawName() { return rawName; }
 
         void setFuncDefineInfo(FormalParamsDefine params, IRType* retType) {
             formalParams = params;
