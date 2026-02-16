@@ -1,5 +1,6 @@
 #ifndef SAKURAE_ATRI_CPP
 #define SAKURAE_ATRI_CPP
+#include "Compiler/IR/type/type_info.hpp"
 #define DEBUG
 
 #include <fstream>
@@ -49,18 +50,21 @@ namespace atri {
                 catch (const std::runtime_error& e) {
                     std::cerr << e.what() << "\n";
 #ifdef DEBUG
+                    sakuraE::IR::TypeInfo::clearAll();
                     exit(1);
 #endif
                 } 
                 catch (sakuraE::SakuraError& e) {
                     std::cerr << e.toString() << "\n";
 #ifdef DEBUG
+                    sakuraE::IR::TypeInfo::clearAll();
                     exit(1);
 #endif
                 } 
                 catch (const std::exception& e) {
                     std::cerr << "OtherError: " << e.what() << "\n";
 #ifdef DEBUG
+                    sakuraE::IR::TypeInfo::clearAll();
                     exit(1);
 #endif
                 }
