@@ -135,7 +135,6 @@ namespace sakuraE::IR {
             }
         }
         
-        // If has any other op, then cast to RValue
         IRValue* resultValue = resultAddr;
         if (node->hasNode(ASTTag::PreOp)) {
             auto preOp = (*node)[ASTTag::PreOp]->getToken();
@@ -565,58 +564,13 @@ namespace sakuraE::IR {
         }
     }
 
-    IRValue* IRGenerator::visitBasicTypeModifierNode(NodePtr node) {
-        auto createTypeConst = [&](TypeID tid) {
-            return curFunc()
-                ->curBlock()
-                ->createInstruction(OpKind::constant,
-                                    IRType::getTypeInfoTy(),
-                                    {Constant::get(TypeInfo::makeTypeID(tid))},
-                                    "constant");
-        };
-
-        switch ((*node)[ASTTag::Keyword]->getToken().type) {
-            case TokenType::TYPE_I32:    return createTypeConst(TypeID::Int32);
-            case TokenType::TYPE_I64:    return createTypeConst(TypeID::Int64);
-            case TokenType::TYPE_UI32:   return createTypeConst(TypeID::UInt32);
-            case TokenType::TYPE_UI64:   return createTypeConst(TypeID::UInt64);
-            case TokenType::TYPE_F32:    return createTypeConst(TypeID::Float32);
-            case TokenType::TYPE_F64:    return createTypeConst(TypeID::Float64);
-            case TokenType::TYPE_BOOL:   return createTypeConst(TypeID::Bool);
-            case TokenType::TYPE_CHAR:   return createTypeConst(TypeID::Char);
-            case TokenType::TYPE_STRING: return createTypeConst(TypeID::String);
-            default:
-                throw SakuraError(OccurredTerm::IR_GENERATING,
-                                    "Unknown TypeID",
-                                    node->getPosInfo());
-        }
-    }
-
-    IRValue* IRGenerator::visitArrayTypeModifierNode(NodePtr node) {
-        std::vector<IRValue*> result;
-        auto headType = visitBasicTypeModifierNode((*node)[ASTTag::HeadExpr]);
-        result.push_back(headType);
-
-        auto dimensions = (*node)[ASTTag::Exprs]->getChildren();
-
-        for (auto addexpr: dimensions) {
-            result.push_back(visitAddExprNode(addexpr));
-        }
-
-        return curFunc()
-                    ->curBlock()
-                    ->createInstruction(OpKind::constant,
-                                        IRType::getTypeInfoTy(),
-                                        result,
-                                        "constant");
-    }
-
     IRValue* IRGenerator::visitTypeModifierNode(NodePtr node) {
-        if (node->hasNode(ASTTag::BasicTypeModifierNode)) {
-            return visitBasicTypeModifierNode((*node)[ASTTag::BasicTypeModifierNode]);
-        }
-        else 
-            return visitArrayTypeModifierNode((*node)[ASTTag::ArrayTypeModifierNode]);
+        return curFunc()
+            ->curBlock()
+            ->createInstruction(OpKind::constant,
+                                IRType::getTypeInfoTy(),
+                                {Constant::get(getTypeInfoFromNode(node))},
+                                "constant");
     }
 
     // Statements
