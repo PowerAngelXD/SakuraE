@@ -33,7 +33,7 @@ namespace sakuraE::Codegen {
             }
 
             if (source->id() == "__runtime")
-                declareFunction(FunctionType::ExternalLinkage, func->getName(), retTy, params, func->getInfo());
+                declareFunction(FunctionType::ExternalLinkage, func->getName(), func->getRawName(), retTy, params, func->getInfo());
             else 
                 declareFunction(FunctionType::Definition, func->getName(), retTy, params, func->getInfo());
         }
@@ -54,18 +54,14 @@ namespace sakuraE::Codegen {
                     params.emplace_back(param.first, param.second->toLLVMType(*codegenContext.context));
                 }
 
-                declareFunction(FunctionType::ExternalLinkage, func->getName(), retTy, params, func->getInfo());
-            }
-        }
+                declareFunction(FunctionType::ExternalLinkage, func->getName(), func->getRawName(), retTy, params, func->getInfo());
+                lookup(func->getName())->impl(func);
 
-        for (auto usingMod: source->getUsingList()) {
-            for (auto func: usingMod->getFunctions()) {
-                fnMap[func->getName()]->impl(func);
             }
         }
 
         for (auto irFn: funcs) {
-            fnMap[irFn->getName()]->impl(irFn);
+            lookup(irFn->getName())->impl(irFn);
         }
 
         sourceModule = source;
@@ -74,7 +70,8 @@ namespace sakuraE::Codegen {
     void LLVMCodeGenerator::LLVMModule::codegen() {
         auto funcList = sourceModule->getFunctions();
         for (auto fn: funcList) {
-            auto curFn = fnMap[fn->getName()];
+            LLVMFunction* curFn = lookup(fn->getName());
+            
             if (curFn->type == FunctionType::Definition)
                 curFn->codegen();
         }
@@ -90,7 +87,7 @@ namespace sakuraE::Codegen {
         }
 
         llvm::FunctionType* fnType = llvm::FunctionType::get(returnType, params, false);
-        content = llvm::Function::Create(fnType, llvm::Function::ExternalLinkage, name.c_str(), parent->content);
+        content = llvm::Function::Create(fnType, llvm::Function::ExternalLinkage, linkageName.c_str(), parent->content);
 
         if (type == FunctionType::ExternalLinkage) return ;
 
