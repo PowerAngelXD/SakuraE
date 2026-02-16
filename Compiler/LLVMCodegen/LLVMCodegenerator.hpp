@@ -56,6 +56,8 @@ namespace sakuraE::Codegen {
         struct LLVMFunction {
             // Function Type
             FunctionType type;
+            // Function linkage name
+            fzlib::String linkageName;
             // Function Name
             fzlib::String name;
             // LLVM IR Function represent
@@ -84,7 +86,17 @@ namespace sakuraE::Codegen {
                         LLVMModule* p, 
                         LLVMCodeGenerator& codegen,
                         PositionInfo info):
-                type(ty), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
+                type(ty), linkageName(n), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
+            
+            LLVMFunction(FunctionType ty,
+                        fzlib::String n, 
+                        fzlib::String lkn,
+                        llvm::Type* retT, 
+                        std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, 
+                        LLVMModule* p, 
+                        LLVMCodeGenerator& codegen,
+                        PositionInfo info):
+                type(ty), linkageName(lkn), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
             void gcCreateThread() {
                 auto fn = parent->lookup("__gc_create_thread");
@@ -183,6 +195,7 @@ namespace sakuraE::Codegen {
             fzlib::String ID;
             llvm::Module* content = nullptr;
             std::map<fzlib::String, LLVMFunction*> fnMap;
+            std::map<fzlib::String, fzlib::String> fnNameMapping;
             LLVMCodeGenerator& codegenContext;
 
             std::vector<LLVMModule*> useList;
@@ -198,12 +211,6 @@ namespace sakuraE::Codegen {
                 }
             }
 
-            void declareFunction(fzlib::String n) {
-                if (fnMap.find(n) == fnMap.end())
-                    fnMap[n] = nullptr;
-                else return;
-            }
-
             void declareFunction(FunctionType ty, fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
                 if (fnMap.find(n) != fnMap.end()) return;
                 else {
@@ -212,22 +219,18 @@ namespace sakuraE::Codegen {
                 }
             }
 
-            void declareFunction(FunctionType ty, fzlib::String n, IR::IRType* retT, IR::FormalParamsDefine formalP, PositionInfo info) {
+            void declareFunction(FunctionType ty, fzlib::String n, fzlib::String lkn, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
                 if (fnMap.find(n) != fnMap.end()) return;
                 else {
-                    llvm::Type* llvmReturnType = retT->toLLVMType(*codegenContext.context);
-
-                    std::vector<std::pair<fzlib::String, llvm::Type*>> llvmFormalP;
-                    for (auto param: formalP) {
-                        llvmFormalP.emplace_back(param.first, param.second->toLLVMType(*codegenContext.context));
-                    }
-
-                    LLVMFunction* fn = new LLVMFunction(ty, n, llvmReturnType, llvmFormalP, this, codegenContext, info);
+                    LLVMFunction* fn = new LLVMFunction(ty, n, lkn, retT, formalP, this, codegenContext, info);
+                    fnNameMapping[lkn] = n;
                     fnMap[n] = fn;
                 }
             }
 
             LLVMFunction* lookup(fzlib::String n) {
+                if (fnNameMapping.contains(n)) n = fnNameMapping[n];
+
                 if (fnMap.find(n) != fnMap.end()) {
                     return fnMap[n];
                 }
