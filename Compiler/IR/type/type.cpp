@@ -6,6 +6,7 @@ namespace sakuraE::IR {
     static std::map<unsigned, IRIntegerType> IRIntegerTypes;
     static std::map<unsigned, IRIntegerType> IRUIntegerTypes;
     static std::map<IRType*, IRPointerType> IRPointerTypes;
+    static std::map<IRType*, IRRefType> IRRefTypes;
     static std::map<std::pair<IRType*, uint64_t>, IRArrayType> arrayTypes;
     static std::map<std::pair<IRType*, std::vector<IRType*>>, IRFunctionType> funcTypes;
 
@@ -13,7 +14,7 @@ namespace sakuraE::IR {
         if (!isComplexType()) return this;
         else {
             IRType* result = this;
-            bool flag = false;
+            bool ptrFlag = false, refFlag = false;
 
             auto isBasicType = [&]()->bool {
                 if (!result->isComplexType()) return true;
@@ -21,8 +22,12 @@ namespace sakuraE::IR {
                 if (result->irTypeID == PointerTyID) {
                     auto ptr = static_cast<IRPointerType*>(result);
                     if (ptr->getElementType()->irTypeID == IRTypeID::CharTyID) return true;
-                    if (flag) return true;
-                    flag = true;
+                    if (ptrFlag) return true;
+                    ptrFlag = true;
+                }
+                else if (result->irTypeID == RefTyID) {
+                    if (refFlag) return true;
+                    refFlag = true;
                 }
                 else if (result->irTypeID == ArrayTyID) {
                     return true;
@@ -39,6 +44,10 @@ namespace sakuraE::IR {
                 else if (result->irTypeID == PointerTyID) {
                     auto ptrTy = static_cast<IRPointerType*>(result);
                     result = ptrTy->getElementType();
+                }
+                else if (result->irTypeID == RefTyID) {
+                    auto refTy = static_cast<IRRefType*>(result);
+                    result = refTy->getElementType();
                 }
             }
 
@@ -172,6 +181,15 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
+    IRType* IRType::getRefTo(IRType* elementType) {
+        auto it = IRRefTypes.find(elementType);
+        if (it != IRRefTypes.end()) {
+            return &it->second;
+        }
+        auto newEntry = IRRefTypes.emplace(elementType, IRRefType(elementType));
+        return &newEntry.first->second;
+    }
+
     IRType* IRType::getArrayTy(IRType* elementType, uint64_t numElements) {
         auto key = std::make_pair(elementType, numElements);
         auto it = arrayTypes.find(key);
@@ -217,6 +235,10 @@ namespace sakuraE::IR {
     }
 
     llvm::Type* IRPointerType::toLLVMType(llvm::LLVMContext& ctx) {
+        return llvm::PointerType::get(ctx, 0);
+    }
+
+    llvm::Type* IRRefType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::PointerType::get(ctx, 0);
     }
 
@@ -273,6 +295,10 @@ namespace sakuraE::IR {
 
     fzlib::String IRPointerType::toString() {
         return "ptr@" + elementType->toString();
+    }
+
+    fzlib::String IRRefType::toString() {
+        return "ref@" + elementType->toString();
     }
 
     fzlib::String IRArrayType::toString() {
