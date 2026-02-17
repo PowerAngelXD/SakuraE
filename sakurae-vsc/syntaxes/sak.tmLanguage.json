@@ -57,7 +57,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.sak",
-					"match": "\\b(if|else|for|while|return|break|continue|repeat|match|is|typeof)\\b"
+					"match": "\\b(if|else|for|while|return|break|continue|repeat|match)\\b"
 				},
 				{
 					"name": "keyword.other.declaration.sak",
@@ -66,6 +66,14 @@
 				{
 					"name": "constant.language.boolean.sak",
 					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "keyword.operator.comparison.sak",
+					"match": "\\b(is|as)\\b"
+				},
+				{
+					"name": "keyword.operator.word.sak",
+					"match": "\\b(typeof|ref)\\b"
 				}
 			]
 		},
@@ -120,7 +128,7 @@
 				},
 				{
 					"name": "keyword.operator.arithmetic.sak",
-					"match": "\\+|\\-|\\*|/|\\+\\+|\\-\\-"
+					"match": "\\+|\\-|\\*|/|\\+\\+|\\-\\-|&"
 				},
 				{
 					"name": "keyword.operator.type.sak",
