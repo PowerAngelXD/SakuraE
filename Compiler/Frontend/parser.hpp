@@ -143,6 +143,7 @@ namespace sakuraE {
             TokenParser<TokenType::SDEC>,
             TokenParser<TokenType::AND>,
             TokenParser<TokenType::MUL>,
+            TokenParser<TokenType::KEYWORD_REF>,
             NullParser
         >,
         AtomIdentifierExprParser,
