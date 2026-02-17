@@ -43,11 +43,11 @@ namespace sakuraE::IR {
                         "An L-value is required as the left operand of an assignment.",
                         info);
                 }
-                
+
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        addr->getType()->unboxComplex(),
+                        inst->getType()->unboxComplex(),
                         {addr},
                         "load" + addr->getName());
             }
@@ -132,16 +132,16 @@ namespace sakuraE::IR {
         }
 
         TypeInfo* getTypeInfoFromNode(sakuraE::NodePtr node) {
+            TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Null);
+
             if (node->getTag() == ASTTag::TypeModifierNode) {
                 if (node->hasNode(ASTTag::BasicTypeModifierNode)) {
-                    return getTypeInfoFromNode((*node)[ASTTag::BasicTypeModifierNode]);
+                    resultTyInfo = getTypeInfoFromNode((*node)[ASTTag::BasicTypeModifierNode]);
                 } 
                 else if (node->hasNode(ASTTag::ArrayTypeModifierNode)) {
-                    return getTypeInfoFromNode((*node)[ASTTag::ArrayTypeModifierNode]);
+                    resultTyInfo = getTypeInfoFromNode((*node)[ASTTag::ArrayTypeModifierNode]);
                 }
             }
-
-            TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Null);
         
             if (node->getTag() == ASTTag::BasicTypeModifierNode) {
                 auto kwNode = (*node)[ASTTag::Keyword];
