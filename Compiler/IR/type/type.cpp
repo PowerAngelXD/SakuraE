@@ -13,6 +13,7 @@ namespace sakuraE::IR {
         if (!isComplexType()) return this;
         else {
             IRType* result = this;
+            bool flag = false;
 
             auto isBasicType = [&]()->bool {
                 if (!result->isComplexType()) return true;
@@ -20,6 +21,8 @@ namespace sakuraE::IR {
                 if (result->irTypeID == PointerTyID) {
                     auto ptr = static_cast<IRPointerType*>(result);
                     if (ptr->getElementType()->irTypeID == IRTypeID::CharTyID) return true;
+                    if (flag) return true;
+                    flag = true;
                 }
                 else if (result->irTypeID == ArrayTyID) {
                     return true;
