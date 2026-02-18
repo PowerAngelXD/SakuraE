@@ -89,7 +89,7 @@ namespace sakuraE::IR {
         }
 
         fzlib::String toString() {
-            fzlib::String result = magic_enum::enum_name(kind);
+            fzlib::String result = "%" + name + " = " + magic_enum::enum_name(kind);
             for (auto arg: args) {
                 if (!arg) {
                     result += " <null>";
@@ -97,10 +97,10 @@ namespace sakuraE::IR {
                 }
                 
                 if (auto* constant = dynamic_cast<Constant*>(arg)) {
-                    result += " " + constant->toString();
+                    result += " " + constant->getType()->toString() + " " + constant->toString();
                 } 
                 else {
-                    result += " $" + arg->getName();
+                    result += " " + arg->getType()->toString() + " %" + arg->getName();
                 }
             }
             return result;
