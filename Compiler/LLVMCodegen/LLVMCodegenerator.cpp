@@ -269,7 +269,8 @@ namespace sakuraE::Codegen {
                     addr = builder->CreateLoad(builder->getPtrTy(), addr, "load_ptr");
                 }
             
-                auto unboxedType = addrIRType->unboxComplex();
+                auto unboxedType = addrIRType;
+                if (unboxedType->isPointer()) unboxedType = unboxedType->unwrapPointer();
             
                 if (unboxedType->isArray()) {
                     elementType = static_cast<IR::IRArrayType*>(unboxedType)->getElementType()->toLLVMType(*context);
