@@ -1,4 +1,7 @@
 #include "parser.hpp"
+#include <memory>
+#include <type_traits>
+#include <variant>
 
 sakuraE::NodePtr sakuraE::LiteralParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::LiteralNode);
@@ -46,8 +49,23 @@ sakuraE::NodePtr sakuraE::CallingOpParser::genResource() {
 sakuraE::NodePtr sakuraE::AtomIdentifierExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::AtomIdentifierNode);
 
-    root->setInfo(std::get<0>(getTuple())->token->info);
-    (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<0>(getTuple())->token);
+    std::visit([&](auto& var) {
+        using VarType = std::decay_t<decltype(var)>;
+        using TargetType = ConnectionParser<
+            TokenParser<TokenType::LEFT_PAREN>,
+            WholeExprParser,
+            TokenParser<TokenType::RIGHT_PAREN>
+        >;
+
+        if constexpr (std::is_same_v<VarType, std::shared_ptr<TokenParser<TokenType::IDENTIFIER>>>) {
+            root->setInfo(var->token->info);
+            (*root)[ASTTag::Identifier] = std::make_shared<Node>(var->token);
+        }
+        else if constexpr (std::is_same_v<VarType, std::shared_ptr<TargetType>>) {
+            root->setInfo(std::get<0>(var->getTuple())->token->info);
+            (*root)[ASTTag::IdentifierExprNode] = std::get<1>(var->getTuple())->genResource();
+        }
+    }, std::get<0>(getTuple())->option());
     
     auto closure = std::get<1>(getTuple());
     if (closure->isEmpty()) return root; // No operator existing, return

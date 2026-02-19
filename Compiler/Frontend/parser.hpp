@@ -106,7 +106,14 @@ namespace sakuraE {
     };
 
     using AtomIdentifierExprParserRule = ConnectionParser<
-        TokenParser<TokenType::IDENTIFIER>,
+        OptionsParser<
+            TokenParser<TokenType::IDENTIFIER>,
+            ConnectionParser<
+                TokenParser<TokenType::LEFT_PAREN>,
+                WholeExprParser,
+                TokenParser<TokenType::RIGHT_PAREN>
+            >
+        >,
         ClosureParser<
             OptionsParser<
                 CallingOpParser,
