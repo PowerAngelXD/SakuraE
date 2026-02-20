@@ -348,8 +348,9 @@ namespace sakuraE::IR {
 
         // --- Visit Expressions ---
         IRValue* visitLiteralNode(NodePtr node);
-        IRValue* visitIndexOpNode(IRValue* addr, fzlib::String target, NodePtr node);
-        IRValue* visitCallingOpNode(IRValue* addr, fzlib::String target, NodePtr node);
+        IRValue* visitIndexOpNode(IRValue* addr, NodePtr node);
+        IRValue* visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args);
+        IRValue* visitCallingOpNode(IRValue* addr, NodePtr node);
         IRValue* visitAtomIdentifierNode(NodePtr node);
         IRValue* visitIdentifierExprNode(NodePtr node);
         IRValue* visitPrimExprNode(NodePtr node);

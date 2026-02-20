@@ -1,6 +1,7 @@
 #include "generator.hpp"
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Frontend/AST.hpp"
+#include "Compiler/IR/struct/function.hpp"
 #include "Compiler/IR/struct/instruction.hpp"
 #include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
@@ -23,7 +24,7 @@ namespace sakuraE::IR {
             );
     }
 
-    IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, fzlib::String target, NodePtr node) {
+    IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
         auto indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
         auto ty = addr->getType();
         if (ty->isPointer()) {
@@ -35,7 +36,11 @@ namespace sakuraE::IR {
         }
         else if (ty->isPointer()) {
             ty = static_cast<IRPointerType*>(ty)->getElementType();
-            if (ty->getIRTypeID() != IRTypeID::CharTyID) goto error_indexing;
+            if (ty->getIRTypeID() == IRTypeID::CharTyID) {}
+            else if (ty->isArray()) {
+                ty = static_cast<IRArrayType*>(ty)->getElementType();
+            }
+            else goto error_indexing;
         }
         else {
             error_indexing:
@@ -56,54 +61,87 @@ namespace sakuraE::IR {
             );
     }
 
-    IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, fzlib::String target, NodePtr node) {
-        std::vector<IRValue*> params;
-        std::vector<IRType*> argTypes;
-
-        for (auto argExpr: (*node)[ASTTag::Exprs]->getChildren()) {
-            auto arg = visitWholeExprNode(argExpr);
-            params.push_back(arg);
-            argTypes.push_back(arg->getType());
+    IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args) {
+        IRType* retType = IRType::getVoidTy();
+    
+        if (auto fn = dynamic_cast<Function*>(addr)) {
+            retType = fn->getReturnType();
+        } 
+        else {
+            auto ty = addr->getType();
+            if (ty->isPointer()) ty = ty->unwrapPointer();
+            if (ty->getIRTypeID() == IRTypeID::FunctionTyID) {
+                retType = static_cast<IRFunctionType*>(ty)->getReturnType();
+            }
         }
-
-        auto mangledName = mangleFnName(target, argTypes);
-        auto symbol = lookup(mangledName, node->getPosInfo());
-        auto fn = dynamic_cast<Function*>(symbol->address);
 
         return curFunc()
             ->curBlock()
             ->createInstruction(
                 OpKind::call, 
-                fn->getReturnType(), 
-                params, 
-                "call." + mangledName
+                retType, 
+                args, 
+                "call." + addr->getName()
             );
     }
 
+    IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node) {
+        std::vector<IRValue*> params;
+        for (auto argExpr : (*node)[ASTTag::Exprs]->getChildren()) {
+            params.push_back(visitWholeExprNode(argExpr));
+        }
+        return visitCallingOpNode(addr, node, params);
+    }
+
     IRValue* IRGenerator::visitAtomIdentifierNode(NodePtr node) {
-        auto name = (*node)[ASTTag::Identifier]->getToken().content;
-        auto ops = (*node)[ASTTag::Ops]->getChildren();
+        IRValue* currentAddr = nullptr;
 
-        IRValue* resultAddr = nullptr;
-        bool isCall = (!ops.empty() && ops[0]->getTag() == ASTTag::CallingOpNode);
+        if (node->hasNode(ASTTag::Identifier)) {
+            auto name = (*node)[ASTTag::Identifier]->getToken().content;
+            auto ops = (*node)[ASTTag::Ops]->getChildren();
 
-        if (!isCall) {
-            auto symbol = lookup(name, node->getPosInfo());
-            resultAddr = symbol->address;
+            if (!ops.empty() && ops[0]->getTag() == ASTTag::CallingOpNode) {
+                std::vector<IRType*> argTypes;
+                std::vector<IRValue*> argValues;
+                for (auto argExpr : (*ops[0])[ASTTag::Exprs]->getChildren()) {
+                    auto val = visitWholeExprNode(argExpr);
+                    argValues.push_back(val);
+                    argTypes.push_back(val->getType());
+                }
+
+                auto mangledName = mangleFnName(name, argTypes);
+
+                auto symbol = lookup(mangledName, node->getPosInfo());
+                currentAddr = symbol->address;
+                currentAddr = visitCallingOpNode(currentAddr, ops[0], argValues);
+
+                for (size_t i = 1; i < ops.size(); ++i) {
+                    if (ops[i]->getTag() == ASTTag::IndexOpNode)
+                        currentAddr = visitIndexOpNode(currentAddr, ops[i]);
+                    else
+                        currentAddr = visitCallingOpNode(currentAddr, ops[i]);
+                }
+                return currentAddr;
+            } 
+            else {
+                currentAddr = lookup(name, node->getPosInfo())->address;
+            }
+        } 
+        else if (node->hasNode(ASTTag::IdentifierExprNode)) {
+            currentAddr = visitIdentifierExprNode((*node)[ASTTag::IdentifierExprNode]);
         }
 
-        for (auto op: ops) {
-            switch (op->getTag()) {
-                case ASTTag::IndexOpNode:
-                    resultAddr = visitIndexOpNode(resultAddr, name, op);
-                    break;
-                case ASTTag::CallingOpNode:
-                    resultAddr = visitCallingOpNode(resultAddr, name, op);
-                    break;
-                default: break;
+        if (node->hasNode(ASTTag::Ops)) {
+            auto ops = (*node)[ASTTag::Ops]->getChildren();
+            for (auto op : ops) {
+                if (op->getTag() == ASTTag::IndexOpNode) 
+                    currentAddr = visitIndexOpNode(currentAddr, op);
+                else if (op->getTag() == ASTTag::CallingOpNode)
+                    currentAddr = visitCallingOpNode(currentAddr, op);
             }
         }
-        return resultAddr;
+
+        return currentAddr;
     }
 
     IRValue* IRGenerator::visitIdentifierExprNode(NodePtr node) {
@@ -125,11 +163,11 @@ namespace sakuraE::IR {
                 for (auto op: (*chain[i])[ASTTag::Ops]->getChildren()) {
                     switch (op->getTag()) {
                         case ASTTag::IndexOpNode: {
-                            resultAddr = visitIndexOpNode(resultAddr, name, op);
+                            resultAddr = visitIndexOpNode(resultAddr, op);
                             break;
                         }
                         case ASTTag::CallingOpNode: {
-                            resultAddr = visitCallingOpNode(resultAddr, name, op);
+                            resultAddr = visitCallingOpNode(resultAddr, op);
                             break;
                         }
                         default: break;
