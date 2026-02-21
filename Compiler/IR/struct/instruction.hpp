@@ -64,6 +64,25 @@ namespace sakuraE::IR {
                     kind == OpKind::deref;
         }
 
+        bool isRValue() {
+            return kind == OpKind::constant ||
+                    kind == OpKind::create_array ||
+                    kind == OpKind::call ||
+                    kind == OpKind::add ||
+                    kind == OpKind::sub ||
+                    kind == OpKind::mul ||
+                    kind == OpKind::div ||
+                    kind == OpKind::mod ||
+                    kind == OpKind::lgc_eq_ls_than ||
+                    kind == OpKind::lgc_eq_mr_than ||
+                    kind == OpKind::lgc_ls_than ||
+                    kind == OpKind::lgc_mr_than ||
+                    kind == OpKind::lgc_equal ||
+                    kind == OpKind::lgc_not_equal ||
+                    kind == OpKind::lgc_not ||
+                    kind == OpKind::load;
+        }
+
         void setParent(Block* blk) {
             parent = blk;
         }
