@@ -6,6 +6,7 @@
 #include "Compiler/IR/struct/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/type/type_info.hpp"
+#include "Compiler/IR/value/array.hpp"
 #include "Compiler/IR/value/constant.hpp"
 #include "Compiler/IR/value/value.hpp"
 #include "includes/magic_enum.hpp"
@@ -17,9 +18,9 @@ namespace sakuraE::IR {
         return curFunc()
             ->curBlock()
             ->createInstruction(
-                OpKind::constant, 
-                literal->getType(), 
-                {literal}, 
+                OpKind::constant,
+                literal->getType(),
+                {literal},
                 "constant"
             );
     }
@@ -27,9 +28,6 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
         auto indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
         auto ty = addr->getType();
-        if (ty->isPointer()) {
-            ty = ty->unwrapPointer();
-        }
 
         if (ty->isArray()) {
             ty = static_cast<IRArrayType*>(ty)->getElementType();
@@ -63,10 +61,10 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args) {
         IRType* retType = IRType::getVoidTy();
-    
+
         if (auto fn = dynamic_cast<Function*>(addr)) {
             retType = fn->getReturnType();
-        } 
+        }
         else {
             auto ty = addr->getType();
             if (ty->isPointer()) ty = ty->unwrapPointer();
@@ -78,9 +76,9 @@ namespace sakuraE::IR {
         return curFunc()
             ->curBlock()
             ->createInstruction(
-                OpKind::call, 
-                retType, 
-                args, 
+                OpKind::call,
+                retType,
+                args,
                 "call." + addr->getName()
             );
     }
@@ -122,11 +120,11 @@ namespace sakuraE::IR {
                         currentAddr = visitCallingOpNode(currentAddr, ops[i]);
                 }
                 return currentAddr;
-            } 
+            }
             else {
                 currentAddr = lookup(name, node->getPosInfo())->address;
             }
-        } 
+        }
         else if (node->hasNode(ASTTag::IdentifierExprNode)) {
             currentAddr = visitIdentifierExprNode((*node)[ASTTag::IdentifierExprNode]);
         }
@@ -134,7 +132,7 @@ namespace sakuraE::IR {
         if (node->hasNode(ASTTag::Ops)) {
             auto ops = (*node)[ASTTag::Ops]->getChildren();
             for (auto op : ops) {
-                if (op->getTag() == ASTTag::IndexOpNode) 
+                if (op->getTag() == ASTTag::IndexOpNode)
                     currentAddr = visitIndexOpNode(currentAddr, op);
                 else if (op->getTag() == ASTTag::CallingOpNode)
                     currentAddr = visitCallingOpNode(currentAddr, op);
@@ -149,7 +147,6 @@ namespace sakuraE::IR {
         IRValue* resultAddr = visitAtomIdentifierNode(chain[0]);
         for (std::size_t i = 1; i < chain.size(); i ++) {
             auto name = (*chain[i])[ASTTag::Identifier]->getToken().content;
-
             resultAddr = curFunc()
                 ->curBlock()
                 ->createInstruction(
@@ -158,7 +155,7 @@ namespace sakuraE::IR {
                     {resultAddr, Constant::get(name, (*chain[i])[ASTTag::Identifier]->getToken().info)},
                     "gmem." + name
                 );
-            
+
             if (chain[i]->hasNode(ASTTag::Ops)) {
                 for (auto op: (*chain[i])[ASTTag::Ops]->getChildren()) {
                     switch (op->getTag()) {
@@ -175,7 +172,7 @@ namespace sakuraE::IR {
                 }
             }
         }
-        
+
         IRValue* resultValue = resultAddr;
         if (node->hasNode(ASTTag::PreOp)) {
             auto preOp = (*node)[ASTTag::PreOp]->getToken();
@@ -204,7 +201,7 @@ namespace sakuraE::IR {
                             {resultValue, Constant::get(1)},
                             "add"
                         );
-                    
+
                     return createStore(resultAddr, resultValue, preOp.info);
                     break;
                 }
@@ -219,13 +216,13 @@ namespace sakuraE::IR {
                             {resultValue, Constant::get(1)},
                             "sub"
                         );
-                    
+
                     return createStore(resultAddr, resultValue, preOp.info);
                     break;
                 }
                 case TokenType::AND: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
-                        if (inst->isLValue()) 
+                        if (inst->isLValue())
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
@@ -242,7 +239,7 @@ namespace sakuraE::IR {
                 }
                 case TokenType::KEYWORD_REF: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
-                        if (inst->isLValue()) 
+                        if (inst->isLValue())
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
@@ -295,7 +292,7 @@ namespace sakuraE::IR {
                             {resultValue, Constant::get(1)},
                             "add"
                         );
-                    
+
                     createStore(resultAddr, resultValue, op.info);
                     break;
                 }
@@ -527,7 +524,7 @@ namespace sakuraE::IR {
                             ->createCondBr(lhs, mergeBlock, rhsBlock);
 
                         createStore(resultAddr, rhs, opChain[i - 1]->getToken().info);
-                            
+
                         curFunc()
                             ->block(rhsBlockIndex)
                             ->createBr(mergeBlock);
@@ -535,7 +532,7 @@ namespace sakuraE::IR {
                         beforeBlockIndex = rhsBlockIndex;
                         break;
                     }
-                    default: 
+                    default:
                         break;
                 }
             }
@@ -548,12 +545,12 @@ namespace sakuraE::IR {
     }
 
     IRValue* IRGenerator::visitArrayExprNode(NodePtr node) {
-        std::vector<IRValue*> array;
-        
+        std::vector<IRValue*> rawArray;
+
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
 
         IRValue* head = visitWholeExprNode(chain[0]);
-        array.push_back(head);
+        rawArray.push_back(head);
 
         for (std::size_t i = 1; i < chain.size(); i ++) {
             auto element = visitWholeExprNode(chain[i]);
@@ -562,14 +559,17 @@ namespace sakuraE::IR {
                                 "The types of elements in an array literal must be the same.",
                                 node->getPosInfo());
             }
-            array.push_back(element);
+            rawArray.push_back(element);
         }
+
+        IRArray* irArr = createArray(rawArray, node->getPosInfo());
+        Constant* arrConstant = Constant::get(irArr, irArr->getInfo());
 
         return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::create_array,
-                                        IRType::getArrayTy(array[0]->getType(), array.size()),
-                                        array,
+                                        arrConstant->getType(),
+                                        {arrConstant},
                                         "create-array");
     }
 
@@ -697,7 +697,7 @@ namespace sakuraE::IR {
             auto typeInfo = typeInfoConst->getContentValue<TypeInfo*>();
             allocaTy = typeInfo->toIRType();
         }
-        
+
         return createAlloca(identifier.content, allocaTy, initVal, node->getPosInfo());
     }
 
@@ -711,7 +711,7 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitBlockStmtNode(NodePtr node, fzlib::String blockName, long beforeBlock) {
         IRValue* block = curFunc()->buildBlock(blockName);
-        
+
         if (beforeBlock != -1) {
             curFunc()
                 ->block(beforeBlock)
@@ -723,7 +723,7 @@ namespace sakuraE::IR {
 
         curFunc()->fnScope().enter();
         curFunc()->curBlock()->createEnterScope();
-        
+
         curFunc()->moveCursor(curFunc()->cur());
 
         for (auto stmt: (*node)[ASTTag::Stmts]->getChildren()) {
@@ -733,7 +733,7 @@ namespace sakuraE::IR {
         curFunc()->curBlock()->createFree();
         curFunc()->curBlock()->createLeaveScope();
         curFunc()->fnScope().leave();
-        
+
         return block;
     }
 
@@ -773,7 +773,7 @@ namespace sakuraE::IR {
             ->block(thenExitBlockIndex)
             ->createBr(mergeBlock);
         //
-        
+
         // else -> merge
         if (elseBlock) {
             curFunc()
@@ -797,7 +797,7 @@ namespace sakuraE::IR {
         curFunc()
             ->block(beforeBlockIndex)
             ->createBr(prepareBlock);
-        
+
         curFunc()->moveCursor(prepareBlockIndex);
         IRValue* cond = visitBinaryExprNode((*node)[ASTTag::Condition]);
         int prepareExitBlockIndex = curFunc()->cur();
@@ -815,13 +815,13 @@ namespace sakuraE::IR {
         int thenExitBlockIndex = curFunc()->cur();
         //
 
-            
+
         // then -> prep
         curFunc()
             ->block(thenExitBlockIndex)
             ->createBr(prepareBlock);
         //
-        
+
         // prep -> merge or then
         curFunc()
             ->block(prepareExitBlockIndex)
@@ -911,7 +911,7 @@ namespace sakuraE::IR {
                 params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
             }
         }
-        
+
         fnName = mangleFnName(fnName, params);
         IRValue* fn = curModule()->buildFunction(fnName, retType, params, node->getPosInfo());
         long initBlockIndex = curFunc()->cur();
@@ -974,7 +974,7 @@ namespace sakuraE::IR {
             stmt = (*node)[ASTTag::Stmt];
         else
             stmt = node;
-        
+
         if (stmt->getTag() == ASTTag::DeclareStmtNode) {
             return visitDeclareStmtNode(stmt);
         }
@@ -1005,7 +1005,7 @@ namespace sakuraE::IR {
         else if (stmt->getTag() == ASTTag::ContinueStmtNode) {
             return visitContinueStmtNode(stmt);
         }
-        
+
         throw SakuraError(OccurredTerm::IR_GENERATING,
                             "Unknown Statement to generate",
                             node->getPosInfo());
