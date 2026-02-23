@@ -36,7 +36,7 @@ namespace sakuraE::Codegen {
 
             if (source->id() == "__runtime")
                 declareFunction(FunctionType::ExternalLinkage, func->getName(), func->getRawName(), retTy, params, func->getInfo());
-            else 
+            else
                 declareFunction(FunctionType::Definition, func->getName(), retTy, params, func->getInfo());
         }
 
@@ -73,7 +73,7 @@ namespace sakuraE::Codegen {
         auto funcList = sourceModule->getFunctions();
         for (auto fn: funcList) {
             LLVMFunction* curFn = lookup(fn->getName());
-            
+
             if (curFn->type == FunctionType::Definition)
                 curFn->codegen();
         }
@@ -160,7 +160,7 @@ namespace sakuraE::Codegen {
             case IR::OpKind::sub: {
                 llvm::Value* lhs = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* rhs = toLLVMValue(ins->arg(1), curFn);
-                
+
                 instResult = sub(lhs, rhs);
 
                 bind(ins, instResult);
@@ -201,7 +201,7 @@ namespace sakuraE::Codegen {
             case IR::OpKind::lgc_eq_ls_than: {
                 llvm::Value* lhs = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* rhs = toLLVMValue(ins->arg(1), curFn);
-                
+
                 instResult = compare(lhs, rhs, ins->getKind(), curFn);
                 break;
             }
@@ -232,8 +232,8 @@ namespace sakuraE::Codegen {
 
                 if (destAddr && srcVal) {
                     builder->CreateStore(srcVal, destAddr);
-                    bind(ins, srcVal); 
-                } 
+                    bind(ins, srcVal);
+                }
                 else {
                     throw std::runtime_error("Assign failed: Null operand.");
                 }
@@ -254,8 +254,8 @@ namespace sakuraE::Codegen {
                 llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, runtime::ObjectType::Array, "tmparr");
 
                 for (std::size_t i = 0; i < arrayContent.size(); i ++) {
-                    auto ptr = builder->CreateGEP(elementType, 
-                                                            arrayPtr, 
+                    auto ptr = builder->CreateGEP(elementType,
+                                                            arrayPtr,
                                                             {builder->getInt32(i)});
                     builder->CreateStore(arrayContent[i], ptr);
                 }
@@ -273,10 +273,10 @@ namespace sakuraE::Codegen {
                 if (addrIRType->getIRTypeID() == IR::IRTypeID::PointerTyID) {
                     addr = builder->CreateLoad(builder->getPtrTy(), addr, "load_ptr");
                 }
-            
+
                 auto unboxedType = addrIRType;
                 if (unboxedType->isPointer()) unboxedType = unboxedType->unwrapPointer();
-            
+
                 if (unboxedType->isArray()) {
                     elementType = static_cast<IR::IRArrayType*>(unboxedType)->getElementType()->toLLVMType(*context);
                 }
@@ -286,7 +286,7 @@ namespace sakuraE::Codegen {
                 else {
                     elementType = ins->getType()->toLLVMType(*context);
                 }
-            
+
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
 
                 instResult = ptr;
@@ -297,9 +297,9 @@ namespace sakuraE::Codegen {
                 auto insName = ins->getName();
                 auto paramName = insName.split('.')[1];
 
-                llvm::Value* realAddr = curFn->getParamAddress(paramName); 
+                llvm::Value* realAddr = curFn->getParamAddress(paramName);
 
-                bind(ins, realAddr); 
+                bind(ins, realAddr);
                 break;
             }
             case IR::OpKind::gaddr: {
@@ -366,7 +366,7 @@ namespace sakuraE::Codegen {
                     instResult = builder->CreateRetVoid();
 
                     bind(ins, instResult);
-                } 
+                }
                 else {
                     llvm::Value* retVal = toLLVMValue(ins->arg(0), curFn);
                     instResult = builder->CreateRet(retVal);
