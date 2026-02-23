@@ -8,6 +8,7 @@
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/type/type_info.hpp"
 #include "Compiler/IR/value/value.hpp"
+#include "Compiler/Utils/Logger.hpp"
 #include "includes/String.hpp"
 #include "includes/magic_enum.hpp"
 #include "struct/program.hpp"
@@ -35,7 +36,7 @@ namespace sakuraE::IR {
             }
             return result;
         }
-        
+
         IRValue* createLoad(IRValue* addr, PositionInfo info) {
             if (auto inst = dynamic_cast<Instruction*>(addr)) {
                 if (!inst->isLValue()) {
@@ -44,26 +45,10 @@ namespace sakuraE::IR {
                         info);
                 }
 
-                if (addr->getType()->isRef()) {
-                    auto refTy = dynamic_cast<IRRefType*>(addr->getType());
-                    auto tmp = curFunc()
-                        ->curBlock()
-                        ->createInstruction(
-                            OpKind::deref,
-                            IRType::getPointerTo(refTy->getElementType()),
-                            {addr},
-                            "gaddr." + addr->getName()
-                        );
-                    return createLoad(tmp, info);
-                }
-
-                auto pureAddrTy = addr->getType();
-                if (addr->getType()->isPointer()) pureAddrTy = addr->getType()->unwrapPointer();
-
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        pureAddrTy,
+                        addr->getType(),
                         {addr},
                         "load" + addr->getName());
             }
@@ -80,33 +65,17 @@ namespace sakuraE::IR {
                                     info);
                 }
 
-                if (addr->getType()->isRef()) {
-                    auto refTy = dynamic_cast<IRRefType*>(addr->getType());
-                    auto tmp = curFunc()
-                        ->curBlock()
-                        ->createInstruction(
-                            OpKind::deref,
-                            IRType::getPointerTo(refTy->getElementType()),
-                            {addr},
-                            "gaddr." + addr->getName()
-                        );
-                    return createStore(tmp, value, info);
-                }
-
-                auto pureAddrType = addr->getType();
-                if (pureAddrType->isPointer()) pureAddrType = pureAddrType->getStorageType();
-                
-                if (!pureAddrType->isEqual(value->getType())) {
+                if (!addr->getType()->isEqual(value->getType())) {
                     throw SakuraError(OccurredTerm::IR_GENERATING,
-                            "Cannot assign a value of a different type from the original. Expected to assign '" + 
-                                value->getType()->toString() + "' to '" + pureAddrType->toString() +"'",
+                            "Cannot assign a value of a different type from the original. Expected to assign '" +
+                                value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
                             info);
                 }
 
                 return curFunc()
                             ->curBlock()
                             ->createInstruction(OpKind::store,
-                                                pureAddrType,
+                                                addr->getType(),
                                                 {addr, value},
                                                 "store." + addr->getName());
             }
@@ -119,10 +88,6 @@ namespace sakuraE::IR {
 
         IRValue* createParam(fzlib::String name, IRType* ty, PositionInfo info) {
             IRType* finalType = ty;
-
-            if (ty->isComplexType()) {
-                finalType = IRType::getPointerTo(ty);
-            }
 
             auto param = curFunc()
                             ->curBlock()
@@ -144,21 +109,14 @@ namespace sakuraE::IR {
                                 info);
             }
 
-            IRType* finalType = ty;
-
-            if (ty->isComplexType()) {
-                if (ty->isRef()) {}
-                else finalType = IRType::getPointerTo(ty);
-            }
-
             auto addr =  curFunc()
                 ->curBlock()
                 ->createInstruction(OpKind::create_alloca,
-                                    finalType,
-                                    {initVal?initVal:(finalType->isComplexType()?nullptr:Constant::getDefault(finalType, info))},
+                                    ty,
+                                    {initVal?initVal:(ty->isComplexType()?nullptr:Constant::getDefault(ty, info))},
                                     "create_alloca." + n);
 
-            curFunc()->fnScope().declare(n, addr, finalType);
+            curFunc()->fnScope().declare(n, addr, ty);
 
             return addr;
         }
@@ -169,50 +127,50 @@ namespace sakuraE::IR {
             if (node->getTag() == ASTTag::TypeModifierNode) {
                 if (node->hasNode(ASTTag::BasicTypeModifierNode)) {
                     resultTyInfo = getTypeInfoFromNode((*node)[ASTTag::BasicTypeModifierNode]);
-                } 
+                }
                 else if (node->hasNode(ASTTag::ArrayTypeModifierNode)) {
                     resultTyInfo = getTypeInfoFromNode((*node)[ASTTag::ArrayTypeModifierNode]);
                 }
             }
-        
+
             if (node->getTag() == ASTTag::BasicTypeModifierNode) {
                 auto kwNode = (*node)[ASTTag::Keyword];
                 auto token = kwNode->getToken();
 
                 switch (token.type) {
-                    case TokenType::TYPE_I32:    { 
+                    case TokenType::TYPE_I32:    {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Int32);
                         break;
                     }
-                    case TokenType::TYPE_I64:    { 
+                    case TokenType::TYPE_I64:    {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Int64);
                         break;
                     }
-                    case TokenType::TYPE_UI32:   { 
+                    case TokenType::TYPE_UI32:   {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::UInt32);
                         break;
                     }
-                    case TokenType::TYPE_UI64:   { 
+                    case TokenType::TYPE_UI64:   {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::UInt64);
                         break;
                     }
-                    case TokenType::TYPE_F32:    { 
+                    case TokenType::TYPE_F32:    {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Float32);
                         break;
                     }
-                    case TokenType::TYPE_F64:    { 
+                    case TokenType::TYPE_F64:    {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Float64);
                         break;
                     }
-                    case TokenType::TYPE_CHAR:   { 
+                    case TokenType::TYPE_CHAR:   {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Char);
                         break;
                     }
-                    case TokenType::TYPE_BOOL:   { 
+                    case TokenType::TYPE_BOOL:   {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Bool);
                         break;
                     }
-                    case TokenType::TYPE_STRING: { 
+                    case TokenType::TYPE_STRING: {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::String);
                         break;
                     }
@@ -220,7 +178,7 @@ namespace sakuraE::IR {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Custom);
                 }
             }
-        
+
             if (node->getTag() == ASTTag::ArrayTypeModifierNode) {
                 auto headType = getTypeInfoFromNode((*node)[ASTTag::HeadExpr]);
                 auto dims = (*node)[ASTTag::Exprs]->getChildren();
@@ -228,7 +186,7 @@ namespace sakuraE::IR {
                 TypeInfo* currentType = headType;
                 for (auto it = dims.rbegin(); it != dims.rend(); it ++) {
                     std::vector<TypeInfo*> elements;
-                    elements.push_back(currentType); 
+                    elements.push_back(currentType);
                     currentType = TypeInfo::makeArrayTypeID(elements);
                 }
 
@@ -244,10 +202,10 @@ namespace sakuraE::IR {
             else if (node->hasNode(ASTTag::Ops)) {
                 // Is ptr type info
                 auto ptrDepth = (*node)[ASTTag::Ops]->getChildren().size();
-                for (std::size_t i = 0; i < ptrDepth; i ++) 
+                for (std::size_t i = 0; i < ptrDepth; i ++)
                     resultTyInfo = TypeInfo::makePointerTypeID(resultTyInfo);
             }
-        
+
             return resultTyInfo;
         }
 
@@ -271,13 +229,13 @@ namespace sakuraE::IR {
         IRType* handleUnlogicalBinaryCalc(IRValue* lhs, IRValue* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
             auto lTy = lhs->getType();
             auto rTy = rhs->getType();
-            
+
             auto lIt = rankList.find(lTy->getIRTypeID());
             auto rIt = rankList.find(rTy->getIRTypeID());
 
             if (lIt == rankList.end() || rIt == rankList.end()) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                        "Types '" + lTy->toString() + "' and '" + rTy->toString() + 
+                        "Types '" + lTy->toString() + "' and '" + rTy->toString() +
                         "' do not support '+', '-', '*', '%', and '/' operations",
                         info);
             }
@@ -318,7 +276,7 @@ namespace sakuraE::IR {
             fzlib::String raw = program.toString();
             fzlib::String result;
             int indent = 0;
-            
+
             for (std::size_t i = 0; i < raw.len(); i++) {
                 char c = raw[i];
                 if (c == '{') {
