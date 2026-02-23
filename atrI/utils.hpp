@@ -26,6 +26,21 @@ namespace atri {
         return result;
     }
 
+    inline void writeFile(fzlib::String path, fzlib::String content) {
+        std::ofstream file(path.c_str(), std::ios::binary | std::ios::trunc);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("Could not open file for writing: " + std::string(path.c_str()));
+        }
+
+        std::vector<char> buffer(65536);
+        file.rdbuf()->pubsetbuf(buffer.data(), buffer.size());
+
+        file.write(content.c_str(), content.len());
+
+        file.close();
+    }
+
     inline bool contains(std::vector<fzlib::String> arr, fzlib::String target) {
         for (auto e: arr) {
             if (target == e) return true;
