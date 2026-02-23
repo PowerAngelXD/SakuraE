@@ -15,7 +15,7 @@ namespace sakuraE::IR {
 
         Function* parent = nullptr;
     public:
-        Block(fzlib::String id, std::vector<Instruction*> ops): 
+        Block(fzlib::String id, std::vector<Instruction*> ops):
             IRValue(IRType::getBlockTy()), instructions(ops), ID(":" + id) {}
         Block(fzlib::String id):
             IRValue(IRType::getBlockTy()), instructions({}), ID(":" + id) {}
@@ -44,7 +44,7 @@ namespace sakuraE::IR {
 
         IRValue* createInstruction(OpKind k, IRType* t, const fzlib::String& n) {
             if (instructions[instructions.size() - 1]->isTerminal())
-                throw SakuraError(OccurredTerm::IR_GENERATING,  
+                throw SakuraError(OccurredTerm::IR_GENERATING,
                                     "Cannot create any instruction after terminal code!",
                                     {0, 0, "InsideError"});
 
@@ -59,7 +59,7 @@ namespace sakuraE::IR {
         IRValue* createInstruction(OpKind k, IRType* t, std::vector<IRValue*> params, const fzlib::String& n) {
             if (!instructions.empty()) {
                 if (instructions[instructions.size() - 1]->isTerminal())
-                    throw SakuraError(OccurredTerm::IR_GENERATING,  
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
                                         "Cannot create any instruction after terminal code!",
                                         {0, 0, "InsideError"});
             }
@@ -93,7 +93,7 @@ namespace sakuraE::IR {
                                         IRType::getVoidTy(),
                                     {targetBlock},
                                         "br.(" + targetBlock->getName() + ")");
-            
+
             return nullptr;
         }
 
@@ -103,7 +103,7 @@ namespace sakuraE::IR {
                                         IRType::getVoidTy(),
                                         {cond, thenBlock, elseBlock},
                                         "cond_br.(" + thenBlock->getName() + ").(" + elseBlock->getName() + ")");
-            
+
             return nullptr;
         }
 
@@ -113,15 +113,8 @@ namespace sakuraE::IR {
                                         IRType::getVoidTy(),
                                         {value},
                                         "ret");
-            
-            return nullptr;
-        }
 
-        IRValue* createFree() {
-            return insertBeforeTerminal(OpKind::free_cur_heap,
-                                    IRType::getVoidTy(),
-                                    {},
-                                    "free_cur_heap");
+            return nullptr;
         }
 
         IRValue* createEnterScope() {

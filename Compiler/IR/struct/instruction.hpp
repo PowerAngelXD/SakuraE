@@ -7,19 +7,19 @@ namespace sakuraE::IR {
     enum class OpKind {
         empty,
         constant,
-        add, 
-        sub, 
-        mul, 
+        add,
+        sub,
+        mul,
         mod,
         div,
-        lgc_equal, 
+        lgc_equal,
         lgc_not_equal,
-        lgc_mr_than, 
-        lgc_ls_than, 
-        lgc_eq_mr_than, 
+        lgc_mr_than,
+        lgc_ls_than,
+        lgc_eq_mr_than,
         lgc_eq_ls_than,
         lgc_not,
-        create_alloca, 
+        create_alloca,
         store,
         create_array,
         indexing,
@@ -31,7 +31,6 @@ namespace sakuraE::IR {
         param,
         enter_scope,
         leave_scope,
-        free_cur_heap,
         // terminal op
         br,
         cond_br,
@@ -47,7 +46,7 @@ namespace sakuraE::IR {
         Block* parent = nullptr;
     public:
         Instruction(OpKind k, IRType* t): IRValue(t), kind(k) {}
-        Instruction(OpKind k, IRType* t, std::vector<IRValue*> params): 
+        Instruction(OpKind k, IRType* t, std::vector<IRValue*> params):
             IRValue(t), kind(k), args(params) {}
 
         bool isTerminal() {
@@ -114,10 +113,10 @@ namespace sakuraE::IR {
                     result += " <null>";
                     continue;
                 }
-                
+
                 if (auto* constant = dynamic_cast<Constant*>(arg)) {
                     result += " " + constant->getType()->toString() + " " + constant->toString();
-                } 
+                }
                 else {
                     result += " " + arg->getType()->toString() + " %" + arg->getName();
                 }

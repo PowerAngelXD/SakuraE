@@ -20,7 +20,7 @@ namespace sakuraE::IR {
         Scope<IRValue*> funcScope;
 
         PositionInfo createInfo;
-        
+
         std::vector<Block*> blocks;
         // Indicates the current maximum index of blocks
         long cursor = -1;
@@ -35,15 +35,15 @@ namespace sakuraE::IR {
 
         Module* parent;
     public:
-        Function(fzlib::String n, IRType* retType, PositionInfo info): 
+        Function(fzlib::String n, IRType* retType, PositionInfo info):
             IRValue(IRType::getFunctionTy(retType, {}), n), returnType(retType), funcScope(info), createInfo(info) {}
-        
+
         // just for pre-defing
         Function(fzlib::String n, PositionInfo info):
             IRValue(nullptr, n), returnType(nullptr), formalParams({}), funcScope(info), createInfo(info) {}
-        
-        Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info): 
-            IRValue(IRType::getFunctionTy(retType, 
+
+        Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info):
+            IRValue(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {
@@ -51,9 +51,9 @@ namespace sakuraE::IR {
                     }
                     return result;
                 }()), n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
-        
-        Function(fzlib::String n, fzlib::String raw, IRType* retType, FormalParamsDefine params, PositionInfo info): 
-            IRValue(IRType::getFunctionTy(retType, 
+
+        Function(fzlib::String n, fzlib::String raw, IRType* retType, FormalParamsDefine params, PositionInfo info):
+            IRValue(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {
@@ -90,7 +90,7 @@ namespace sakuraE::IR {
             formalParams = params;
             returnType = retType;
 
-            setType(IRType::getFunctionTy(retType, 
+            setType(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {
@@ -187,7 +187,7 @@ namespace sakuraE::IR {
         }
 
         fzlib::String toString() {
-            fzlib::String result = name + "(";
+            fzlib::String result = "func " + name + "(";
             for (std::size_t i = 0; i < formalParams.size(); i ++) {
                 auto arg = formalParams[i];
                 if (i == formalParams.size() - 1)
