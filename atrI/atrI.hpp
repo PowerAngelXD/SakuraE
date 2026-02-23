@@ -51,6 +51,7 @@ namespace atri {
                     std::cerr << e.what() << "\n";
 #ifdef DEBUG
                     sakuraE::IR::TypeInfo::clearAll();
+                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 } 
@@ -58,6 +59,7 @@ namespace atri {
                     std::cerr << e.toString() << "\n";
 #ifdef DEBUG
                     sakuraE::IR::TypeInfo::clearAll();
+                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 } 
@@ -65,6 +67,7 @@ namespace atri {
                     std::cerr << "OtherError: " << e.what() << "\n";
 #ifdef DEBUG
                     sakuraE::IR::TypeInfo::clearAll();
+                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }

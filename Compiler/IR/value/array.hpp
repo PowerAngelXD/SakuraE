@@ -42,7 +42,7 @@ namespace sakuraE::IR {
             return true;
         }
 
-        static std::vector<IRArray*> arrPool;
+        static inline std::vector<IRArray*> arrPool;
         static IRArray* createArray(std::vector<IRValue*> arr, PositionInfo info) {
             for (auto irArr: arrPool) {
                 if (irArr->isEqual(arr)) return irArr;
@@ -52,6 +52,10 @@ namespace sakuraE::IR {
             arrPool.push_back(newArr);
 
             return newArr;
+        }
+
+        static void clearArrayPool() {
+            for (auto arrPtr: arrPool) delete arrPtr;
         }
     };
 }
