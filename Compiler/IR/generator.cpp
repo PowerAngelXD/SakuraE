@@ -21,7 +21,7 @@ namespace sakuraE::IR {
                 OpKind::constant,
                 literal->getType(),
                 {literal},
-                "constant"
+                "const." + literal->toString()
             );
     }
 
@@ -29,6 +29,7 @@ namespace sakuraE::IR {
         auto indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
         auto ty = addr->getType();
 
+        // check is lvalue
         if (ty->isArray()) {
             ty = static_cast<IRArrayType*>(ty)->getElementType();
         }
@@ -48,6 +49,9 @@ namespace sakuraE::IR {
                 node->getPosInfo()
             );
         }
+
+        // check is out of range
+        
 
         return curFunc()
             ->curBlock()
@@ -207,7 +211,6 @@ namespace sakuraE::IR {
                 }
                 case TokenType::SDEC: {
                     resultValue = createLoad(resultAddr, preOp.info);
-
                     resultValue = curFunc()
                         ->curBlock()
                         ->createInstruction(
@@ -337,7 +340,6 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitMulExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
-
         IRValue* lhs = visitPrimExprNode(chain[0]);
 
         if (node->hasNode(ASTTag::Ops)) {
@@ -730,7 +732,7 @@ namespace sakuraE::IR {
             visitStmt(stmt);
         }
 
-        curFunc()->curBlock()->createFree();
+
         curFunc()->curBlock()->createLeaveScope();
         curFunc()->fnScope().leave();
 
