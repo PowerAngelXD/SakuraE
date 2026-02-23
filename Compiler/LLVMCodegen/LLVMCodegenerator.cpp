@@ -3,6 +3,8 @@
 #include "Compiler/IR/struct/instruction.hpp"
 #include "Compiler/IR/struct/module.hpp"
 #include "Compiler/IR/type/type.hpp"
+#include "Compiler/IR/value/array.hpp"
+#include "Compiler/IR/value/constant.hpp"
 #include "Runtime/gc.h"
 #include <cstddef>
 #include <cstdint>
@@ -238,9 +240,12 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::create_array: {
-                auto irArray = ins->getOperands();
+                auto value = ins->arg(0);
+                auto irArrayConst = dynamic_cast<IR::Constant*>(value);
+                auto irArray = irArrayConst->getContentValue<IR::IRArray*>();
+
                 std::vector<llvm::Value*> arrayContent;
-                for (auto element: irArray) {
+                for (auto element: irArray->getArray()) {
                     arrayContent.push_back(toLLVMValue(element, curFn));
                 }
                 auto arrayType = ins->getType()->toLLVMType(*context);
