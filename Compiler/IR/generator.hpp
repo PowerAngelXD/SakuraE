@@ -287,7 +287,8 @@ namespace sakuraE::IR {
                     result += "\n";
                     indent--;
                     for (int j = 0; j < indent * 2; j++) result += ' ';
-                    result += "}";
+                    result += "}\n";
+                    for (int j = 0; j < indent * 2; j++) result += ' ';
                 } else if (c == ';') {
                     result += ";\n";
                     for (int j = 0; j < indent * 2; j++) result += ' ';
