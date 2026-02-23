@@ -1,14 +1,17 @@
 #ifndef SAKURAE_ATRI_COMMANDS_HPP
 #define SAKURAE_ATRI_COMMANDS_HPP
 
+#include <ctime>
 #include <iostream>
 #include <llvm/ExecutionEngine/Orc/CoreContainers.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/Error.h>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include <chrono>
 
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -17,6 +20,7 @@
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/TargetSelect.h>
 #include "Compiler/IR/type/type_info.hpp"
+#include "Compiler/IR/value/array.hpp"
 #include "Runtime/alloc.h"
 #include "Runtime/gc.h"
 #include "Runtime/raw_string.h"
@@ -53,11 +57,13 @@ namespace atri::cmds {
         auto content = readSourceFile(args[0]);
         DebugConfig config;
 
-        if (contains(args, "-ast")) config.displayAST = true; 
-        if (contains(args, "-sakir")) config.displaySakIR = true; 
-        if (contains(args, "-rawllvm")) config.displayRawLLVMIR = true; 
-        if (contains(args, "-llvmir")) config.displayOptimizedLLVMIR = true; 
-        
+        if (contains(args, "-ast")) config.displayAST = true;
+        if (contains(args, "-sakir")) config.displaySakIR = true;
+        if (contains(args, "-rawllvm")) config.displayRawLLVMIR = true;
+        if (contains(args, "-llvmir")) config.displayOptimizedLLVMIR = true;
+
+        std::ostringstream log;
+
         sakuraE::Lexer lexer(content);
         auto r = lexer.tokenize();
 
@@ -69,15 +75,15 @@ namespace atri::cmds {
             if (result.status == sakuraE::ParseStatus::FAILED) {
                 if (result.err == nullptr) {
                     throw std::runtime_error("Error: Parse failed with NULL error object at token: ");
-                }    
+                }
                 throw *(result.err);
             }
 
             auto res = result.val->genResource();
 
             if (config.displayAST) {
-                std::cout << "--------------================:DEBUG: AST DISPLAY:================--------------" << std::endl;
-                std::cout << res->toFormatString() << std::endl;
+                log << "--------------================:DEBUG: AST DISPLAY:================--------------" << std::endl;
+                log << res->toFormatString() << std::endl;
             }
 
             generator.visitStmt(res);
@@ -85,8 +91,8 @@ namespace atri::cmds {
         }
 
         if (config.displaySakIR) {
-            std::cout << "--------------================:DEBUG: SAKIR DISPLAY:================--------------" << std::endl;
-            std::cout << generator.toFormatString() << std::endl;
+            log << "--------------================:DEBUG: SAKIR DISPLAY:================--------------" << std::endl;
+            log << generator.toFormatString() << std::endl;
         }
 
         auto& program = generator.getProgram();
@@ -95,16 +101,19 @@ namespace atri::cmds {
         llvmCodegen.start();
 
         if (config.displayRawLLVMIR) {
-            std::cout << "--------------================:DEBUG: RAW LLVM IR DISPLAY:================--------------" << std::endl;
-            llvmCodegen.print();
+            log << "--------------================:DEBUG: RAW LLVM IR DISPLAY:================--------------" << std::endl;
+            log << llvmCodegen.toString() << std::endl;
         }
 
         llvmCodegen.optimize();
 
         if (config.displayOptimizedLLVMIR) {
-            std::cout << "--------------================:DEBUG: Optimized LLVM IR DISPLAY:================--------------" << std::endl;
-            llvmCodegen.print();
+            log << "--------------================:DEBUG: Optimized LLVM IR DISPLAY:================--------------" << std::endl;
+            log << llvmCodegen.toString() << std::endl;
         }
+
+        auto currentTime = std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::system_clock::now());
+        writeFile("log-" + currentTime + ".txt", log.str());
 
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
@@ -136,7 +145,7 @@ namespace atri::cmds {
         for (auto mod: llvmCodegen.getModules()) {
             if (mod->ID == "__main") {
                 auto module = mod;
-                llvm::Module* rawModule = module->content; 
+                llvm::Module* rawModule = module->content;
                 auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
                 auto TSM = llvm::orc::ThreadSafeModule(
                     std::move(modulePtr),
@@ -155,6 +164,7 @@ namespace atri::cmds {
         //
 
         sakuraE::IR::TypeInfo::clearAll();
+        sakuraE::IR::IRArray::clearArrayPool();
     }
 }
 
