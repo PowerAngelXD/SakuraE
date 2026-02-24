@@ -1,5 +1,5 @@
-#ifndef TREE_SITTER_SAKPARSER_H_
-#define TREE_SITTER_SAKPARSER_H_
+#ifndef TREE_SITTER_sakurae_H_
+#define TREE_SITTER_sakurae_H_
 
 typedef struct TSLanguage TSLanguage;
 
@@ -7,10 +7,10 @@ typedef struct TSLanguage TSLanguage;
 extern "C" {
 #endif
 
-const TSLanguage *tree_sitter_sakparser(void);
+const TSLanguage *tree_sitter_sakurae(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // TREE_SITTER_SAKPARSER_H_
+#endif // TREE_SITTER_sakurae_H_

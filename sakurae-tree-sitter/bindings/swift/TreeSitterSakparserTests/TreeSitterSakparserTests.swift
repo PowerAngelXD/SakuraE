@@ -1,12 +1,12 @@
 import XCTest
 import SwiftTreeSitter
-import TreeSitterSakparser
+import TreeSittersakurae
 
-final class TreeSitterSakparserTests: XCTestCase {
+final class TreeSittersakuraeTests: XCTestCase {
     func testCanLoadGrammar() throws {
         let parser = Parser()
-        let language = Language(language: tree_sitter_sakparser())
+        let language = Language(language: tree_sitter_sakurae())
         XCTAssertNoThrow(try parser.setLanguage(language),
-                         "Error loading Sakparser grammar")
+                         "Error loading sakurae grammar")
     }
 }

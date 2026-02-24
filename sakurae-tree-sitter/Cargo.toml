@@ -1,11 +1,11 @@
 [package]
-name = "tree-sitter-sakparser"
+name = "tree-sitter-sakurae"
 description = "parser for SakuraE"
 version = "0.1.0"
 authors = ["FZSGBall <fzsgball@qq.com>"]
 license = "MIT"
 readme = "README.md"
-keywords = ["incremental", "parsing", "tree-sitter", "sakparser"]
+keywords = ["incremental", "parsing", "tree-sitter", "sakurae"]
 categories = ["parser-implementations", "parsing", "text-editors"]
 repository = "https://github.com/powerangelxd/sakurae/tree/master/sakurae-tree-sitter"
 edition = "2021"

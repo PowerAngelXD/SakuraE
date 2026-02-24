@@ -25,10 +25,10 @@ type NodeInfo =
  *
  * @example
  * import Parser from "tree-sitter";
- * import Sakparser from "tree-sitter-sakparser";
+ * import sakurae from "tree-sitter-sakurae";
  *
  * const parser = new Parser();
- * parser.setLanguage(Sakparser);
+ * parser.setLanguage(sakurae);
  */
 declare const binding: {
   /**

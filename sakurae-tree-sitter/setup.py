@@ -11,7 +11,7 @@ from wheel.bdist_wheel import bdist_wheel
 class Build(build):
     def run(self):
         if path.isdir("queries"):
-            dest = path.join(self.build_lib, "tree_sitter_sakparser", "queries")
+            dest = path.join(self.build_lib, "tree_sitter_sakurae", "queries")
             self.copy_tree("queries", dest)
         super().run()
 
@@ -48,15 +48,15 @@ setup(
     packages=find_packages("bindings/python"),
     package_dir={"": "bindings/python"},
     package_data={
-        "tree_sitter_sakparser": ["*.pyi", "py.typed"],
-        "tree_sitter_sakparser.queries": ["*.scm"],
+        "tree_sitter_sakurae": ["*.pyi", "py.typed"],
+        "tree_sitter_sakurae.queries": ["*.scm"],
     },
-    ext_package="tree_sitter_sakparser",
+    ext_package="tree_sitter_sakurae",
     ext_modules=[
         Extension(
             name="_binding",
             sources=[
-                "bindings/python/tree_sitter_sakparser/binding.c",
+                "bindings/python/tree_sitter_sakurae/binding.c",
                 "src/parser.c",
             ],
             define_macros=[
@@ -73,5 +73,5 @@ setup(
         "bdist_wheel": BdistWheel,
         "egg_info": EggInfo,
     },
-    zip_safe=False
+    zip_safe=False,
 )
