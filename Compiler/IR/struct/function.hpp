@@ -191,9 +191,9 @@ namespace sakuraE::IR {
             for (std::size_t i = 0; i < formalParams.size(); i ++) {
                 auto arg = formalParams[i];
                 if (i == formalParams.size() - 1)
-                    result += arg.first + arg.second->toString();
+                    result += arg.first + ": " + arg.second->toString();
                 else
-                    result += arg.first + arg.second->toString() + ", ";
+                    result += arg.first + ": " + arg.second->toString() + ", ";
             }
             result += ") -> " + returnType->toString() + " {";
 

@@ -107,7 +107,7 @@ namespace sakuraE::IR {
         Function* func(fzlib::String name, FormalParamsDefine params) {
             std::vector<Function*> basic_results;
             for (auto fn: fnList) {
-                if (fn->getName() == name) 
+                if (fn->getName() == name)
                     basic_results.push_back(fn);
             }
 
@@ -178,7 +178,7 @@ namespace sakuraE::IR {
         }
 
         fzlib::String toString() {
-            fzlib::String result = ID + " {";
+            fzlib::String result = "module " + ID + " {";
             for (auto fn: fnList) {
                 result += fn->toString();
             }
