@@ -78,22 +78,22 @@ namespace sakuraE::Codegen {
             std::stack<uint32_t> gcRootCountStack;
             // SAK IR Function
             IR::Function* sourceFn;
-            
+
             LLVMFunction(FunctionType ty,
-                        fzlib::String n, 
-                        llvm::Type* retT, 
-                        std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, 
-                        LLVMModule* p, 
+                        fzlib::String n,
+                        llvm::Type* retT,
+                        std::vector<std::pair<fzlib::String, llvm::Type*>> formalP,
+                        LLVMModule* p,
                         LLVMCodeGenerator& codegen,
                         PositionInfo info):
                 type(ty), linkageName(n), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
-            
+
             LLVMFunction(FunctionType ty,
-                        fzlib::String n, 
+                        fzlib::String n,
                         fzlib::String lkn,
-                        llvm::Type* retT, 
-                        std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, 
-                        LLVMModule* p, 
+                        llvm::Type* retT,
+                        std::vector<std::pair<fzlib::String, llvm::Type*>> formalP,
+                        LLVMModule* p,
                         LLVMCodeGenerator& codegen,
                         PositionInfo info):
                 type(ty), linkageName(lkn), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
@@ -168,6 +168,7 @@ namespace sakuraE::Codegen {
             }
 
             llvm::Value* createHeapAlloc(llvm::Type* t, runtime::ObjectType objTy, fzlib::String n) {
+                if (t->isPointerTy()) std::cout << "YES" << std::endl;
                 size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
                 llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
 
@@ -200,7 +201,7 @@ namespace sakuraE::Codegen {
 
             std::vector<LLVMModule*> useList;
             IR::Module* sourceModule;
-            
+
 
             LLVMModule(fzlib::String id, llvm::LLVMContext& ctx, LLVMCodeGenerator& codegen):
                 ID(id), content(nullptr), codegenContext(codegen) {}
@@ -298,13 +299,14 @@ namespace sakuraE::Codegen {
             if (builder) delete builder;
 
             for (auto mod: modules) delete mod;
-        }   
+        }
 
         void start();
         std::vector<LLVMModule*> getModules() {
             return modules;
         }
         void print();
+        fzlib::String toString();
 
         std::unique_ptr<llvm::LLVMContext> releaseContext() {
             if (!context) return nullptr;
@@ -320,13 +322,13 @@ namespace sakuraE::Codegen {
         // Tool Methods =========================================================
         llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
             switch (constant->getType()->getIRTypeID()){
-                case IR::IRTypeID::Integer32TyID: 
+                case IR::IRTypeID::Integer32TyID:
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<int>());
-                case IR::IRTypeID::Integer64TyID: 
+                case IR::IRTypeID::Integer64TyID:
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<long long>());
-                case IR::IRTypeID::UInteger32TyID: 
+                case IR::IRTypeID::UInteger32TyID:
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<unsigned int>());
-                case IR::IRTypeID::UInteger64TyID: 
+                case IR::IRTypeID::UInteger64TyID:
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<unsigned long long>());
                 case IR::IRTypeID::Float32TyID:
                     return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<float>());
@@ -394,9 +396,9 @@ namespace sakuraE::Codegen {
             if (lTy == rTy) return lTy;
 
             if (lTy->isFloatingPointTy() || rTy->isFloatingPointTy()) {
-                llvm::Type* targetTy = (lTy->isDoubleTy() || rTy->isDoubleTy()) ? 
+                llvm::Type* targetTy = (lTy->isDoubleTy() || rTy->isDoubleTy()) ?
                                         builder->getDoubleTy() : builder->getFloatTy();
-                
+
                 if (lTy->isIntegerTy()) lhs = builder->CreateSIToFP(lhs, targetTy, "lhs.fpromoted");
                 else if (lTy != targetTy) lhs = builder->CreateFPExt(lhs, targetTy, "lhs.fpromoted");
 
@@ -424,41 +426,41 @@ namespace sakuraE::Codegen {
         llvm::Value* add(llvm::Value* lhs, llvm::Value* rhs) {
             auto targetTy = promote(lhs, rhs);
             if (!targetTy) return nullptr;
-            return targetTy->isFloatingPointTy() ? 
+            return targetTy->isFloatingPointTy() ?
                 builder->CreateFAdd(lhs, rhs, "addftmp") : builder->CreateAdd(lhs, rhs, "addtmp");
         }
 
         llvm::Value* sub(llvm::Value* lhs, llvm::Value* rhs) {
             auto targetTy = promote(lhs, rhs);
             if (!targetTy) return nullptr;
-            return targetTy->isFloatingPointTy() ? 
+            return targetTy->isFloatingPointTy() ?
                 builder->CreateFSub(lhs, rhs, "subftmp") : builder->CreateSub(lhs, rhs, "subtmp");
         }
 
         llvm::Value* mul(llvm::Value* lhs, llvm::Value* rhs) {
             auto targetTy = promote(lhs, rhs);
             if (!targetTy) return nullptr;
-            return targetTy->isFloatingPointTy() ? 
+            return targetTy->isFloatingPointTy() ?
                 builder->CreateFMul(lhs, rhs, "mulftmp") : builder->CreateMul(lhs, rhs, "multmp");
         }
 
         llvm::Value* div(llvm::Value* lhs, llvm::Value* rhs) {
             auto targetTy = promote(lhs, rhs);
             if (!targetTy) return nullptr;
-            return targetTy->isFloatingPointTy() ? 
+            return targetTy->isFloatingPointTy() ?
                 builder->CreateFDiv(lhs, rhs, "divftmp") : builder->CreateSDiv(lhs, rhs, "divtmp");
         }
 
         llvm::Value* mod(llvm::Value* lhs, llvm::Value* rhs) {
             auto targetTy = promote(lhs, rhs);
             if (!targetTy) return nullptr;
-            return targetTy->isFloatingPointTy() ? 
+            return targetTy->isFloatingPointTy() ?
                 builder->CreateFRem(lhs, rhs, "remftmp") : builder->CreateSRem(lhs, rhs, "remtmp");
         }
 
         llvm::Value* compare(llvm::Value* lhs, llvm::Value* rhs, IR::OpKind kind, LLVMFunction* curFn) {
             auto targetTy = promote(lhs, rhs);
-            
+
             if (targetTy && targetTy->isFloatingPointTy()) {
                 llvm::FCmpInst::Predicate pred;
                 switch (kind) {
@@ -522,7 +524,7 @@ namespace sakuraE::Codegen {
             PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
             llvm::FunctionPassManager FPM;
-            FPM.addPass(llvm::PromotePass()); 
+            FPM.addPass(llvm::PromotePass());
 
             for (auto &F : *mod) {
                 if (!F.isDeclaration()) {
