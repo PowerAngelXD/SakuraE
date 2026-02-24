@@ -5,7 +5,9 @@
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/value/array.hpp"
 #include "Compiler/IR/value/constant.hpp"
+#include "Compiler/Utils/Logger.hpp"
 #include "Runtime/gc.h"
+#include "includes/String.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <llvm/IR/BasicBlock.h>
@@ -209,7 +211,12 @@ namespace sakuraE::Codegen {
                 auto insName = ins->getName();
                 auto identifierName = insName.split('.')[1];
 
-                auto identifierType = ins->getType()->toLLVMType(*context);
+                auto idIRType = ins->getType();
+                if (idIRType->isComplexType()) {
+                    idIRType = IR::IRType::getPointerTo(idIRType);
+                }
+
+                auto identifierType = idIRType->toLLVMType(*context);
 
                 llvm::AllocaInst* alloca = curFn->createAlloca(identifierType, nullptr, identifierName);
 
@@ -270,21 +277,13 @@ namespace sakuraE::Codegen {
                 auto addrIRType = ins->arg(0)->getType();
                 llvm::Type* elementType = nullptr;
 
-                if (addrIRType->getIRTypeID() == IR::IRTypeID::PointerTyID) {
-                    addr = builder->CreateLoad(builder->getPtrTy(), addr, "load_ptr");
+                if (addrIRType->isArray()) {
+                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
+                    elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
                 }
-
-                auto unboxedType = addrIRType;
-                if (unboxedType->isPointer()) unboxedType = unboxedType->unwrapPointer();
-
-                if (unboxedType->isArray()) {
-                    elementType = static_cast<IR::IRArrayType*>(unboxedType)->getElementType()->toLLVMType(*context);
-                }
-                else if (unboxedType->isPointer()) {
-                    elementType = static_cast<IR::IRPointerType*>(unboxedType)->getElementType()->toLLVMType(*context);
-                }
-                else {
-                    elementType = ins->getType()->toLLVMType(*context);
+                else if (addrIRType->isPointer()) {
+                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
+                    elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
                 }
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
@@ -320,6 +319,8 @@ namespace sakuraE::Codegen {
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Type* type = ins->getType()->toLLVMType(*context);
+
+                sutils::println("try to load:" + ins->getType()->toString() + ", Name: " + ins->getName());
 
                 instResult = builder->CreateLoad(type, addr, "load.tmp");
 
@@ -434,5 +435,15 @@ namespace sakuraE::Codegen {
         for (auto mod: modules) {
             mod->content->print(llvm::outs(), nullptr);
         }
+    }
+
+    fzlib::String LLVMCodeGenerator::toString() {
+        std::string stdstr;
+        llvm::raw_string_ostream rstrs(stdstr);
+        for (auto mod: modules) {
+            mod->content->print(rstrs, nullptr);
+        }
+        rstrs.flush();
+        return fzlib::String(stdstr);
     }
 }
