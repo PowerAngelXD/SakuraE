@@ -1,22 +1,33 @@
-["func" "let" "if" "else" "while" "for" "return" "break" "continue"] @keyword
+[
+  "if" "else" "for" "while"
+  "return" "break" "continue"
+  "let" "func"
+] @keyword
 
-["=" "+=" "-=" "*=" "/=" "==" "!=" ">" "<" ">=" "<=" "||" "&&" "+" "-" "*" "/" "!" "++" "--" "->" "&"] @operator
+(number) @constant.numeric
+(string) @string
+(char) @string.special
+(boolean) @constant.builtin.boolean
 
-(type_modifier) @type
-
-(func_define_stmt
-  (identifier) @function)
+(func_define_stmt (identifier) @function)
 
 (calling_op) @function.call
-
-(number) @number
-(string) @string
-(boolean) @constant.builtin
-(char) @string.special
-
-["(" ")" "[" "]" "{" "}" ":" ";"] @punctuation.bracket
-"," @punctuation.delimiter
+(identifier_expr (identifier) @function.call)
 
 (identifier) @variable
+
+(type_modifier) @type
+["i32" "i64" "ui32" "ui64" "f32" "f64" "bool" "char" "string"] @type
+
+[
+  "==" "!=" ">" "<" "<=" ">="
+  "||" "&&" "!"
+  "+" "-" "*" "/"
+  "=" "+=" "-=" "/=" "*="
+  "->" "&" "++" "--"
+] @operator
+
+[ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
+[ ";" "," ":" "." ] @punctuation.delimiter
 
 (comment) @comment
