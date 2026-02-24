@@ -1,0 +1,40 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "sakurae",
+      "camelcase": "Sakurae",
+      "title": "SakuraE",
+      "scope": "source.sakurae",
+      "file-types": ["sak", "sakurae"],
+      "injection-regex": "^sakurae$",
+      "class-name": "TreeSitterSakurae"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "parser for SakuraE",
+    "authors": [
+      {
+        "name": "FZSGBall",
+        "email": "fzsgball@qq.com",
+        "url": "https://github.com/PowerAngelXD"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/PowerAngelXD/SakuraE/tree/master/sakurae-tree-sitter",
+      "funding": ""
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "java": false,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true,
+    "zig": false
+  }
+}
