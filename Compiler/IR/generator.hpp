@@ -45,10 +45,12 @@ namespace sakuraE::IR {
                         info);
                 }
 
+                IRType* resultType = addr->getType();
+
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        addr->getType(),
+                        resultType,
                         {addr},
                         "load" + addr->getName());
             }
@@ -283,22 +285,26 @@ namespace sakuraE::IR {
                     result += " {\n";
                     indent++;
                     for (int j = 0; j < indent * 2; j++) result += ' ';
-                } else if (c == '}') {
+                }
+                else if (c == '}') {
                     result += "\n";
                     indent--;
                     for (int j = 0; j < indent * 2; j++) result += ' ';
                     result += "}\n";
                     for (int j = 0; j < indent * 2; j++) result += ' ';
-                } else if (c == ';') {
+                }
+                else if (c == ';') {
                     result += ";\n";
                     for (int j = 0; j < indent * 2; j++) result += ' ';
-                } else if (c == ':') {
+                }
+                else if (c == '@') {
                     if (result.len() > 0 && result[result.len() - 1] != ' ') {
                         result += "\n";
                         for (int j = 0; j < indent * 2; j++) result += ' ';
                     }
                     result += c;
-                } else {
+                }
+                else {
                     result += c;
                 }
             }

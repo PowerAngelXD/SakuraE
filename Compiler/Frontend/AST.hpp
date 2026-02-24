@@ -20,18 +20,18 @@ namespace sakuraE {
         // Expr Header
         LiteralNode, IndexOpNode, CallingOpNode, AtomIdentifierNode,
         IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
-        LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode, 
+        LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode,
         BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
         AssignExprNode, RangeExprNode,
         // Stmt Header
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
-        ReturnStmtNode, BreakStmtNode, ContinueStmtNode, Stmt, 
+        ReturnStmtNode, BreakStmtNode, ContinueStmtNode, Stmt,
         // Token
         Literal, Identifier, Symbol, Keyword,
         // Branches
         HeadExpr, Exprs, Op, Ops, PreOp,
-        Types, Args, Type, AssignTerm, 
+        Types, Args, Type, AssignTerm,
         Condition, Block, Stmts
     };
 
@@ -133,8 +133,8 @@ namespace sakuraE {
 
         fzlib::String toFormatString(int depth = 0) {
             std::ostringstream oss;
-            
-            fzlib::String indent(depth * 2, ' '); 
+
+            fzlib::String indent(depth * 2, ' ');
             fzlib::String child_indent((depth + 1) * 2, ' ');
 
             oss << magic_enum::enum_name(tag);
@@ -146,7 +146,7 @@ namespace sakuraE {
                 oss << ": [\n";
                 for (std::size_t i = 0; i < children.size(); i++) {
                     oss << child_indent;
-                    
+
                     oss << children.at(i).second->toFormatString(depth + 1);
 
                     if (i < children.size() - 1) {
@@ -156,7 +156,7 @@ namespace sakuraE {
                 }
                 oss << indent << "]";
             }
-            
+
             return oss.str();
         }
     };
