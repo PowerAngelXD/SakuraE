@@ -29,9 +29,10 @@ extern "C" char* concat_string(const char* s1, const char* s2) {
     if (!s1) s1 = "";
     if (!s2) s2 = "";
 
+
     size_t len1 = strlen(s1);
     size_t len2 = strlen(s2);
-        
+
     char* result = (char*)__gc_alloc(len1 + len2 + 1, ObjectType::String);
     if (!result) exit(1);
 

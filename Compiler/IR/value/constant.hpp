@@ -19,16 +19,16 @@ namespace sakuraE::IR {
     class Constant : public IRValue {
     private:
         std::variant<
-            std::monostate, 
-            int, 
+            std::monostate,
+            int,
             long long,
             unsigned int,
             unsigned long long,
             double,
-            float, 
-            fzlib::String, 
-            char, 
-            bool, 
+            float,
+            fzlib::String,
+            char,
+            bool,
             TypeInfo*,
             IRArray*
         > content;
@@ -77,7 +77,7 @@ namespace sakuraE::IR {
             if (std::holds_alternative<T>(content)) {
                 return std::get<T>(content);
             }
-            throw SakuraError(OccurredTerm::IR_GENERATING, 
+            throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Invalid type requested for constant value",
                                 createInfo);
         }
@@ -91,35 +91,35 @@ namespace sakuraE::IR {
                 using T = std::decay_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, std::monostate>) {
                     return "null";
-                } 
+                }
                 else if constexpr (std::is_same_v<T, int>) {
                     return std::to_string(arg);
-                } 
+                }
                 else if constexpr (std::is_same_v<T, float>) {
                     return std::to_string(arg);
-                } 
+                }
                 else if constexpr (std::is_same_v<T, fzlib::String>) {
                     return arg;
-                } 
+                }
                 else if constexpr (std::is_same_v<T, char>) {
                     char buf[4] = {'\'', arg, '\'', '\0'};
                     return fzlib::String(buf);
-                } 
+                }
                 else if constexpr (std::is_same_v<T, bool>) {
                     return arg ? "true" : "false";
-                } 
+                }
                 else if constexpr (std::is_same_v<T, TypeInfo*>) {
                     return "<TypeInfo>";
-                } 
+                }
                 else if constexpr (std::is_same_v<T, IRValue*>) {
                     return arg ? arg->getName() : "null";
                 }
                 else if constexpr (std::is_same_v<T, IRArray*>) {
                     fzlib::String result = "[";
                     for (std::size_t i = 0; i < arg->getSize(); i ++) {
-                        if (i == arg->getSize() - 1) 
+                        if (i == arg->getSize() - 1)
                             result += arg->getArray()[i]->getName() + "]";
-                        else 
+                        else
                             result += arg->getArray()[i]->getName() + ", ";
                     }
                     return result;
