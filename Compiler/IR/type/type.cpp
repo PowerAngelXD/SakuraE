@@ -114,7 +114,7 @@ namespace sakuraE::IR {
         static IRIntegerType i64Single(64);
         return &i64Single;
     }
-    
+
     IRType* IRType::getIntNTy(unsigned bitWidth) {
         auto it = IRIntegerTypes.find(bitWidth);
         if (it != IRIntegerTypes.end()) {
@@ -150,7 +150,7 @@ namespace sakuraE::IR {
         static IRFloatType float32Single(32);
         return &float32Single;
     }
-    
+
     IRType* IRType::getFloat64Ty() {
         static IRFloatType float64Single(64);
         return &float64Single;
@@ -245,7 +245,7 @@ namespace sakuraE::IR {
 
     llvm::Type* IRTypeInfoType::toLLVMType(llvm::LLVMContext& ctx) {
         llvm::StructType* structTy = llvm::StructType::getTypeByName(ctx, "sakuraE.TypeInfo");
-    
+
         if (!structTy) {
             structTy = llvm::StructType::create(ctx, "sakuraE.TypeInfo");
             structTy->setBody({
@@ -253,7 +253,7 @@ namespace sakuraE::IR {
                 llvm::PointerType::getUnqual(ctx)
             });
         }
-    
+
         return llvm::PointerType::getUnqual(ctx);
     }
 
@@ -278,11 +278,11 @@ namespace sakuraE::IR {
     }
 
     fzlib::String IRPointerType::toString() {
-        return "ptr@" + elementType->toString();
+        return "ptr->" + elementType->toString();
     }
 
     fzlib::String IRRefType::toString() {
-        return "ref@" + elementType->toString();
+        return "ref>>" + elementType->toString();
     }
 
     fzlib::String IRArrayType::toString() {
