@@ -41,12 +41,12 @@ namespace atri {
                     }
 
                     parseCommand(list[0], args);
-#else               
+#else
                     std::cout << "RUNNING DEBUG MODE, TEST PROGRAM: " << std::endl;
-                    parseCommand("run", {"test3.sak", "-ast", "-sakir", "-llvmir"});
+                    parseCommand("run", {"test3.sak", "-sakir", "-llvmir"});
                     parseCommand("exit", {});
 #endif
-                } 
+                }
                 catch (const std::runtime_error& e) {
                     std::cerr << e.what() << "\n";
 #ifdef DEBUG
@@ -54,7 +54,7 @@ namespace atri {
                     sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
-                } 
+                }
                 catch (sakuraE::SakuraError& e) {
                     std::cerr << e.toString() << "\n";
 #ifdef DEBUG
@@ -62,7 +62,7 @@ namespace atri {
                     sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
-                } 
+                }
                 catch (const std::exception& e) {
                     std::cerr << "OtherError: " << e.what() << "\n";
 #ifdef DEBUG
