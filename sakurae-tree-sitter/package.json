@@ -1,0 +1,18 @@
+{
+  "name": "sakurae-tree-sitter",
+  "version": "1.0.0",
+  "description": "Tree sitter for SakuraE",
+  "keywords": [
+    "sakurae-tree-sitter"
+  ],
+  "license": "MIT",
+  "author": "FZSGBall",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "nan": "^2.25.0"
+  }
+}
