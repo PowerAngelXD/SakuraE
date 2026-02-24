@@ -1,0 +1,9 @@
+[grammar]
+name = "sakurae"
+source = { git = "https://github.com/PowerAngelXD/SakuraE", rev = "master", subpath = "sakurae-tree-sitter" }
+
+[[language]]
+name = "SakuraE"
+grammar = "sakurae"
+path_suffixes = ["sak"]
+line_comments = ["// "]

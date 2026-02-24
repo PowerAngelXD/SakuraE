@@ -1,0 +1,7 @@
+id = "sakurae"
+name = "SakuraE"
+version = "0.1.0"
+schema_version = 1
+authors = ["FZSGBall"]
+description = "SakuraE language support for Zed."
+repository = "https://github.com/PowerAngelXD/SakuraE"
