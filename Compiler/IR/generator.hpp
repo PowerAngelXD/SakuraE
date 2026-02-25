@@ -46,13 +46,21 @@ namespace sakuraE::IR {
                 }
 
                 IRType* resultType = addr->getType();
+                sutils::println("In IR: Try load: " + addr->getName() + ", Type: " + addr->getType()->toString());
+                if (resultType->isPointer()) {
+                    auto element = static_cast<IRPointerType*>(resultType)->getElementType();
+                    if (element->getIRTypeID() != CharTyID) {
+                        resultType = element;
+                    }
+                }
+                sutils::println("In IR: After load: " + addr->getName() + ", Type: " + resultType->toString());
 
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
                         resultType,
                         {addr},
-                        "load" + addr->getName());
+                        "load." + addr->getName());
             }
             throw SakuraError(OccurredTerm::IR_GENERATING,
                 "An L-value is required as the left operand of an assignment.",
