@@ -15,6 +15,7 @@
 #include "Compiler/Frontend/AST.hpp"
 #include "Compiler/IR/value/constant.hpp"
 #include "Compiler/Frontend/lexer.h"
+
 #include <algorithm>
 
 
@@ -44,21 +45,11 @@ namespace sakuraE::IR {
                         "An L-value is required as the left operand of an assignment.",
                         info);
                 }
-
-                IRType* resultType = addr->getType();
-                sutils::println("In IR: Try load: " + addr->getName() + ", Type: " + addr->getType()->toString());
-                if (resultType->isPointer()) {
-                    auto element = static_cast<IRPointerType*>(resultType)->getElementType();
-                    if (element->getIRTypeID() != CharTyID) {
-                        resultType = element;
-                    }
-                }
-                sutils::println("In IR: After load: " + addr->getName() + ", Type: " + resultType->toString());
-
+                // 这里不该进行对Pointer类型的Unwrap，否则会导致LLVM-IR生成store i32 i32的问题，导致非法赋值
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        resultType,
+                        addr->getType(),
                         {addr},
                         "load." + addr->getName());
             }
@@ -75,11 +66,22 @@ namespace sakuraE::IR {
                                     info);
                 }
 
-                if (!addr->getType()->isEqual(value->getType())) {
-                    throw SakuraError(OccurredTerm::IR_GENERATING,
-                            "Cannot assign a value of a different type from the original. Expected to assign '" +
-                                value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
-                            info);
+                if (inst->getKind() == OpKind::deref) {
+                    auto tmpTy = static_cast<IRPointerType*>(addr->getType())->getElementType();
+                    if (!tmpTy->isEqual(value->getType())) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                "Cannot assign a value of a different type from the original. Expected to assign '" +
+                                    value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
+                                info);
+                    }
+                }
+                else {
+                    if (!addr->getType()->isEqual(value->getType())) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                "Cannot assign a value of a different type from the original. Expected to assign '" +
+                                    value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
+                                info);
+                    }
                 }
 
                 return curFunc()
