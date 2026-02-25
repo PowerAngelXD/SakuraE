@@ -158,7 +158,7 @@ namespace sakuraE::Codegen {
                 llvm::BasicBlock* currentBlock = codegenContext.builder->GetInsertBlock();
                 llvm::BasicBlock::iterator currentPoint = codegenContext.builder->GetInsertPoint();
 
-                codegenContext.builder->SetInsertPoint(entryBlock, entryBlock->getFirstInsertionPt());
+                codegenContext.builder->SetInsertPoint(entryBlock, ++ entryBlock->getFirstInsertionPt());
                 llvm::AllocaInst* alloca = codegenContext.builder->CreateAlloca(ty, arraySize, n.c_str());
 
                 if (ty->isPointerTy()) gcRegisterRoot(alloca);
