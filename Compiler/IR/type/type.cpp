@@ -278,11 +278,11 @@ namespace sakuraE::IR {
     }
 
     fzlib::String IRPointerType::toString() {
-        return "ptr->" + elementType->toString();
+        return elementType->toString() + "*";
     }
 
     fzlib::String IRRefType::toString() {
-        return "ref>>" + elementType->toString();
+        return elementType->toString() + "&";
     }
 
     fzlib::String IRArrayType::toString() {
