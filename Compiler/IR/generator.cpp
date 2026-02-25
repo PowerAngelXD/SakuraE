@@ -51,7 +51,6 @@ namespace sakuraE::IR {
         }
 
         // check is out of range
-        
 
         return curFunc()
             ->curBlock()
