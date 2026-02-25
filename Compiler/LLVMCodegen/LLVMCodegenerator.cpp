@@ -78,6 +78,14 @@ namespace sakuraE::Codegen {
 
             if (curFn->type == FunctionType::Definition)
                 curFn->codegen();
+
+            std::string stdstr;
+            llvm::raw_string_ostream rstrs(stdstr);
+            if (llvm::verifyFunction(*curFn->content, &rstrs)) {
+                rstrs.flush();
+                throw std::runtime_error((fzlib::String("LLVM Verification Failed for module " +
+                    curFn->content->getName().str() + ":\n" + stdstr + "\n Error IR: \n") + this->codegenContext.toString()).c_str());
+            }
         }
     }
 
@@ -107,8 +115,8 @@ namespace sakuraE::Codegen {
         }
 
         codegenContext.builder->SetInsertPoint(entryBlock);
-
         if (name == "main") gcCreateThread();
+
         gcRootCountStack.push(0);
         gcInsertSafepoint();
 
@@ -393,7 +401,10 @@ namespace sakuraE::Codegen {
                     llvmArguments.push_back(argVal);
                 }
 
-                instResult = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
+                if (fn->getReturnType()->isVoidTy())
+                    instResult = builder->CreateCall(fn, llvmArguments);
+                else
+                    instResult = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
 
                 bind(ins, instResult);
                 break;
@@ -427,6 +438,13 @@ namespace sakuraE::Codegen {
 
         for (auto mod: modules) {
             mod->codegen();
+            std::string stdstr;
+            llvm::raw_string_ostream rstrs(stdstr);
+            if (llvm::verifyModule(*mod->content, &rstrs)) {
+                rstrs.flush();
+                throw std::runtime_error((fzlib::String("LLVM Verification Failed for module " +
+                    mod->content->getName().str() + ":\n" + stdstr + "\n Error IR: \n") + this->toString()).c_str());
+            }
         }
     }
 
