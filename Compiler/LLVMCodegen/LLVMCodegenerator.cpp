@@ -242,7 +242,8 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::store: {
-                llvm::Value* destAddr = toLLVMValue(ins->arg(0), curFn);
+                IR::IRValue* irAddr = ins->arg(0);
+                llvm::Value* destAddr = toLLVMValue(irAddr, curFn);
                 llvm::Value* srcVal = toLLVMValue(ins->arg(1), curFn);
 
                 if (destAddr && srcVal) {
@@ -283,6 +284,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* indexVal = toLLVMValue(ins->arg(1), curFn);
 
                 auto addrIRType = ins->arg(0)->getType();
+                sutils::println("addr IR type: " + addrIRType->toString());
                 llvm::Type* elementType = nullptr;
 
                 if (addrIRType->isArray()) {
@@ -291,7 +293,11 @@ namespace sakuraE::Codegen {
                 }
                 else if (addrIRType->isPointer()) {
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
-                    elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
+                    elementType = static_cast<IR::IRPointerType*>(addrIRType)->getElementType()->toLLVMType(*context);
+                }
+                else if (addrIRType->isRef()) {
+                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
+                    elementType = static_cast<IR::IRRefType*>(addrIRType)->getElementType()->toLLVMType(*context);
                 }
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
@@ -327,8 +333,6 @@ namespace sakuraE::Codegen {
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Type* type = ins->getType()->toLLVMType(*context);
-
-                sutils::println("try to load:" + ins->getType()->toString() + ", Name: " + ins->getName());
 
                 instResult = builder->CreateLoad(type, addr, "load.tmp");
 
