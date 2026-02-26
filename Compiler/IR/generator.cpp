@@ -41,6 +41,13 @@ namespace sakuraE::IR {
             }
             else goto error_indexing;
         }
+        else if (ty->isRef()) {
+            ty = static_cast<IRRefType*>(ty)->getElementType();
+            if (ty->isArray()) {
+                ty = static_cast<IRArrayType*>(ty)->getElementType();
+            }
+            else goto error_indexing;
+        }
         else {
             error_indexing:
             throw SakuraError(
