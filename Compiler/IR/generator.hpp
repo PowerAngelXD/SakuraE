@@ -46,11 +46,14 @@ namespace sakuraE::IR {
                         info);
                 }
                 // 这里不该进行对Pointer类型的Unwrap，否则会导致LLVM-IR生成store i32 i32的问题，导致非法赋值
+
+                auto resultAddr = addr;
+
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        addr->getType(),
-                        {addr},
+                        resultAddr->getType(),
+                        {resultAddr},
                         "load." + addr->getName());
             }
             throw SakuraError(OccurredTerm::IR_GENERATING,
@@ -66,29 +69,49 @@ namespace sakuraE::IR {
                                     info);
                 }
 
-                if (inst->getKind() == OpKind::deref) {
-                    auto tmpTy = static_cast<IRPointerType*>(addr->getType())->getElementType();
+                auto resultType = addr->getType();
+                auto resultAddr = addr;
+
+                // 优先判断是否为引用，如果是引用需要自动解引用
+                if (addr->getType()->isRef()) {
+                    auto tmpTy = static_cast<IRRefType*>(resultType)->getElementType();
                     if (!tmpTy->isEqual(value->getType())) {
                         throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Cannot assign a value of a different type from the original. Expected to assign '" +
                                     value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
                                 info);
                     }
+
+                    resultAddr = createLoad(addr, info);
                 }
                 else {
-                    if (!addr->getType()->isEqual(value->getType())) {
-                        throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Cannot assign a value of a different type from the original. Expected to assign '" +
-                                    value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
-                                info);
+                    // 对于deref过的类型，需要进行特判
+                    if (inst->getKind() == OpKind::deref) {
+                        if (resultType->isPointer()) {
+                            auto tmpTy = static_cast<IRPointerType*>(resultType)->getElementType();
+                            if (!tmpTy->isEqual(value->getType())) {
+                                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                        "Cannot assign a value of a different type from the original. Expected to assign '" +
+                                            value->getType()->toString() + "' to '" + resultType->toString() +"'",
+                                        info);
+                            }
+                        }
+                    }
+                    else {
+                        if (!resultType->isEqual(value->getType())) {
+                            throw SakuraError(OccurredTerm::IR_GENERATING,
+                                    "Cannot assign a value of a different type from the original. Expected to assign '" +
+                                        value->getType()->toString() + "' to '" + resultType->toString() +"'",
+                                    info);
+                        }
                     }
                 }
 
                 return curFunc()
                             ->curBlock()
                             ->createInstruction(OpKind::store,
-                                                addr->getType(),
-                                                {addr, value},
+                                                resultType,
+                                                {resultAddr, value},
                                                 "store." + addr->getName());
             }
             else {
