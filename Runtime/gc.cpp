@@ -64,10 +64,11 @@ namespace sakuraE::runtime {
             work_stack.pop();
 
             ObjectHeader* header = (ObjectHeader*)_ptr - 1;
-        
+
             GCMark expected = Unscanned;
             if (header->obj_status.compare_exchange_strong(expected, Uncomplete)) {
-                if (header->obj_type != ObjectType::String) {
+                if (header->obj_type == ObjectType::Array ||
+                    header->obj_type == ObjectType::Struct) {
                     void** data = (void**)_ptr;
                     size_t element_size = header->obj_size / sizeof(void*);
 
