@@ -29,10 +29,6 @@ namespace sakuraE::runtime {
         String, Array, Struct
     };
 
-    struct ObjectTypeInfo {
-
-    };
-
     enum GCMark: uint32_t {
         Unscanned,
         Uncomplete,
