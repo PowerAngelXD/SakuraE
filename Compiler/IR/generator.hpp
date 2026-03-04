@@ -69,8 +69,7 @@ namespace sakuraE::IR {
                 }
 
                 if (inst->getKind() == OpKind::deref) {
-                    auto tmpTy = static_cast<IRPointerType*>(addr->getType())->getElementType();
-                    if (!tmpTy->isEqual(value->getType())) {
+                    if (!addr->getType()->isEqual(value->getType())) {
                         throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Cannot assign a value of a different type from the original. Expected to assign '" +
                                     value->getType()->toString() + "' to '" + addr->getType()->toString() +"'",
