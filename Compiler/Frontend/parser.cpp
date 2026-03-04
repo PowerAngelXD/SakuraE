@@ -66,7 +66,7 @@ sakuraE::NodePtr sakuraE::AtomIdentifierExprParser::genResource() {
             (*root)[ASTTag::IdentifierExprNode] = std::get<1>(var->getTuple())->genResource();
         }
     }, std::get<0>(getTuple())->option());
-    
+
     auto closure = std::get<1>(getTuple());
     if (closure->isEmpty()) return root; // No operator existing, return
     else {
@@ -85,11 +85,11 @@ sakuraE::NodePtr sakuraE::AtomIdentifierExprParser::genResource() {
 sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::IdentifierExprNode);
     auto not_op = std::get<0>(getTuple());
-    
+
     // pre op
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
-        
+
         if constexpr (!std::is_same_v<VarType, std::shared_ptr<NullParser>>) {
             std::shared_ptr<Token> tok = var->token;
 
@@ -110,7 +110,7 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     // after op
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
-        
+
         if constexpr (!std::is_same_v<VarType, std::shared_ptr<NullParser>>) {
             if (root->hasNode(ASTTag::Op))
                 throw SakuraError(OccurredTerm::PARSER,
@@ -127,7 +127,7 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
 
 sakuraE::NodePtr sakuraE::PrimExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::PrimExprNode);
-    
+
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
 
@@ -254,7 +254,7 @@ sakuraE::NodePtr sakuraE::AssignExprParser::genResource() {
     root->setInfo(id->getPosInfo());
 
     (*root)[ASTTag::Identifier] = id;
-    
+
     std::visit([&](auto& var) {
         (*root)[ASTTag::Op] = std::make_shared<Node>(var->token);
     }, std::get<1>(getTuple())->option());
@@ -314,7 +314,7 @@ sakuraE::NodePtr sakuraE::ArrayTypeModifierParser::genResource() {
     for (auto dimension: std::get<1>(getTuple())->getClosure()) {
         (*root)[ASTTag::Exprs]->addChild(std::get<1>(dimension->getTuple())->genResource());
     }
-    
+
     (*root)[ASTTag::HeadExpr] = head;
 
     return root;
@@ -388,7 +388,7 @@ sakuraE::NodePtr sakuraE::DeclareStmtParser::genResource() {
 
     if (std::get<3>(getTuple())->isEmpty() && !hasTypeStriction) {
         auto info = (*root)[ASTTag::Identifier]->getToken().info;
-        sutils::reportError(OccurredTerm::PARSER, 
+        sutils::reportError(OccurredTerm::PARSER,
                             "A DeclareStatement must have an initialization declaration if no type constraint is specified.",
                             info);
     }
@@ -407,7 +407,7 @@ sakuraE::NodePtr sakuraE::ExprStmtParser::genResource() {
         using VarType = std::decay_t<decltype(var)>;
         auto res = var->genResource();
         root->setInfo(res->getPosInfo());
-        
+
         if constexpr (std::is_same_v<VarType, std::shared_ptr<IdentifierExprParser>>) {
             (*root)[ASTTag::IdentifierExprNode] = res;
         }
@@ -428,7 +428,7 @@ sakuraE::NodePtr sakuraE::IfStmtParser::genResource() {
 
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
-        
+
         if constexpr (std::is_same_v<VarType, std::shared_ptr<ElseStmtParser>>) {
             (*root)[ASTTag::ElseStmtNode] = var->genResource();
         }
@@ -453,6 +453,16 @@ sakuraE::NodePtr sakuraE::WhileStmtParser::genResource() {
     (*root)[ASTTag::Condition] = std::get<2>(getTuple())->genResource();
     (*root)[ASTTag::Block] = std::get<4>(getTuple())->genResource();
 
+    return root;
+}
+
+sakuraE::NodePtr sakuraE::RepeatStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::RepeatStmtNode);
+    root->setInfo(std::get<0>(getTuple())->token->info);
+    
+    (*root)[ASTTag::HeadExpr] = std::get<2>(getTuple())->genResource();
+    (*root)[ASTTag::Block] = std::get<4>(getTuple())->genResource();
+    
     return root;
 }
 
