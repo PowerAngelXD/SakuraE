@@ -293,6 +293,11 @@ namespace sakuraE::Codegen {
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
                 }
+                else if (addrIRType->isRef()) {
+                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
+                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
+                    elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
+                }
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
 
@@ -327,8 +332,6 @@ namespace sakuraE::Codegen {
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Type* type = ins->getType()->toLLVMType(*context);
-
-                sutils::println("try to load:" + ins->getType()->toString() + ", Name: " + ins->getName());
 
                 instResult = builder->CreateLoad(type, addr, "load.tmp");
 
