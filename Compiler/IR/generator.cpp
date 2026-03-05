@@ -11,6 +11,7 @@
 #include "Compiler/IR/value/value.hpp"
 #include "Compiler/Utils/Logger.hpp"
 #include "includes/magic_enum.hpp"
+#include <string>
 
 namespace sakuraE::IR {
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
@@ -910,7 +911,85 @@ namespace sakuraE::IR {
     }
 
     IRValue* IRGenerator::visitRepeatStmtNode(NodePtr node) {
+        curFunc()->fnScope().enter();
 
+        // repeat.prepare
+        curFunc()->buildBlock("repeat.prepare");
+        static int repeat_counter = 1;
+        IRValue* counter = createAlloca(
+            "$repeat_counter." + std::to_string(repeat_counter),
+            IRType::getInt32Ty(),
+            Constant::get((int)0), node->getPosInfo()
+        );
+        IRValue* limitValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
+        int prepareBlockExitIndex = curFunc()->cur();
+        //
+
+        // repeat.cond
+        IRValue* condBlock = curFunc()->buildBlock("repeat.cond");
+        IRValue* counterLoadVal = createLoad(counter, node->getPosInfo());
+        IRValue* condResult = curFunc()
+            ->curBlock()
+            ->createInstruction(
+                OpKind::lgc_ls_than,
+                IRType::getBoolTy(),
+                {counterLoadVal, limitValue},
+                "lgc_ls_than"
+            );
+        int condBlockExitIndex = curFunc()->cur();
+        //
+
+        // repeat.then
+        IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.then");
+        int thenBlockExitIndex = curFunc()->cur();
+        //
+
+        // repeat.merge
+        IRValue* mergeBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.merge");
+        int mergeBlockIndex = curFunc()->cur();
+        //
+
+        // repeat.step
+        IRValue* stepBlock = curFunc()->buildBlock("repeat.step");
+        IRValue* stepValue = curFunc()
+            ->curBlock()
+            ->createInstruction(
+                OpKind::add,
+                IRType::getInt32Ty(),
+                {counterLoadVal, Constant::get((int)1)},
+                "add"
+            );
+        createStore(counter, stepValue, node->getPosInfo());
+        curFunc()
+            ->curBlock()
+            ->createBr(condBlock);
+        //
+
+        curFunc()->enterLoop(condBlock, mergeBlock);
+
+        // cond -> then or merge
+        curFunc()
+            ->block(condBlockExitIndex)
+            ->createCondBr(condResult, thenBlock, mergeBlock);
+        //
+
+        // then -> step
+        curFunc()
+            ->block(thenBlockExitIndex)
+            ->createBr(stepBlock);
+        //
+
+        // prepare -> cond
+        curFunc()
+            ->block(prepareBlockExitIndex)
+            ->createBr(condBlock);
+        //
+        
+        curFunc()->leaveLoop();
+        curFunc()->fnScope().leave();
+        curFunc()->moveCursor(mergeBlockIndex);
+
+        return mergeBlock;
     }
 
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
@@ -1019,6 +1098,9 @@ namespace sakuraE::IR {
         }
         else if (stmt->getTag() == ASTTag::BreakStmtNode) {
             return visitBreakStmtNode(stmt);
+        }
+        else if (stmt->getTag() == ASTTag::RepeatStmtNode) {
+            return visitRepeatStmtNode(stmt);
         }
         else if (stmt->getTag() == ASTTag::ContinueStmtNode) {
             return visitContinueStmtNode(stmt);
