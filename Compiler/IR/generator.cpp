@@ -909,6 +909,10 @@ namespace sakuraE::IR {
         return mergeBlock;
     }
 
+    IRValue* IRGenerator::visitRepeatStmtNode(NodePtr node) {
+
+    }
+
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
         IRType* retType = IRType::getVoidTy();
