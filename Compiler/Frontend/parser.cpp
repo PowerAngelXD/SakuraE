@@ -1,4 +1,7 @@
 #include "parser.hpp"
+#include "Compiler/Frontend/AST.hpp"
+#include "Compiler/Frontend/lexer.h"
+#include "Compiler/Frontend/parser_base.hpp"
 #include <memory>
 #include <type_traits>
 #include <variant>
@@ -463,6 +466,35 @@ sakuraE::NodePtr sakuraE::RepeatStmtParser::genResource() {
     (*root)[ASTTag::HeadExpr] = std::get<2>(getTuple())->genResource();
     (*root)[ASTTag::Block] = std::get<4>(getTuple())->genResource();
     
+    return root;
+}
+
+sakuraE::NodePtr sakuraE::MatchStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::MatchStmtNode);
+    root->setInfo(std::get<0>(getTuple())->token->info);
+
+    (*root)[ASTTag::Identifier] = std::get<2>(getTuple())->genResource();
+
+    auto cases = std::get<5>(getTuple())->getClosure();
+    for (auto cs: cases) {
+        NodePtr _case = std::make_shared<Node>(ASTTag::Case);
+
+        std::visit([&](auto& var) {
+            using VarType = std::decay_t<decltype(var)>;
+
+            if constexpr (std::is_same_v<VarType, std::shared_ptr<WholeExprParser>>) {
+                (*_case)[ASTTag::HeadExpr] = var->genResource();
+            }
+            else if constexpr (std::is_same_v<VarType, std::shared_ptr<TokenParser<TokenType::KEYWORD_DEFAULT>>>) {
+                (*_case)[ASTTag::Default];
+            }
+        }, std::get<0>(cs->getTuple())->option());
+
+        (*_case)[ASTTag::Block] = std::get<2>(cs->getTuple())->genResource();
+
+        (*root)[ASTTag::Cases]->addChild(_case);
+    }
+
     return root;
 }
 
