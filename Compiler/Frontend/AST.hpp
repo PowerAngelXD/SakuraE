@@ -33,7 +33,7 @@ namespace sakuraE {
         // Branches
         HeadExpr, Exprs, Op, Ops, PreOp,
         Types, Args, Type, AssignTerm,
-        Condition, Block, Stmts
+        Condition, Block, Default, Cases, Case, Stmts
     };
 
     using NodePtr = std::shared_ptr<Node>;
