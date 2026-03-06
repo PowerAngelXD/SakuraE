@@ -913,8 +913,10 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitRepeatStmtNode(NodePtr node) {
         curFunc()->fnScope().enter();
 
+        int beforeBlockIndex = curFunc()->cur();
+
         // repeat.prepare
-        curFunc()->buildBlock("repeat.prepare");
+        IRValue* prepareBlock = curFunc()->buildBlock("repeat.prepare");
         static int repeat_counter = 1;
         IRValue* counter = createAlloca(
             "$repeat_counter." + std::to_string(repeat_counter),
@@ -944,11 +946,6 @@ namespace sakuraE::IR {
         int thenBlockExitIndex = curFunc()->cur();
         //
 
-        // repeat.merge
-        IRValue* mergeBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.merge");
-        int mergeBlockIndex = curFunc()->cur();
-        //
-
         // repeat.step
         IRValue* stepBlock = curFunc()->buildBlock("repeat.step");
         IRValue* stepValue = curFunc()
@@ -965,7 +962,18 @@ namespace sakuraE::IR {
             ->createBr(condBlock);
         //
 
+        // repeat.merge
+        IRValue* mergeBlock = curFunc()->buildBlock("repeat.merge");
+        int mergeBlockIndex = curFunc()->cur();
+        //
+
         curFunc()->enterLoop(condBlock, mergeBlock);
+
+        // before -> prepare
+        curFunc()
+            ->block(beforeBlockIndex)
+            ->createBr(prepareBlock);
+        //
 
         // cond -> then or merge
         curFunc()
