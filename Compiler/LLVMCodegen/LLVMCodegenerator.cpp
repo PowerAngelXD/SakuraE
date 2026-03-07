@@ -291,12 +291,16 @@ namespace sakuraE::Codegen {
                 }
                 else if (addrIRType->isPointer()) {
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
-                    elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
+                    auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
+                    auto* arrayTy = static_cast<IR::IRArrayType*>(ptrTy->getElementType());
+                    elementType = arrayTy->getElementType()->toLLVMType(*context);
                 }
                 else if (addrIRType->isRef()) {
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
-                    elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
+                    auto* refTy = static_cast<IR::IRRefType*>(addrIRType);
+                    auto* arrayTy = static_cast<IR::IRArrayType*>(refTy->getElementType());
+                    elementType = arrayTy->getElementType()->toLLVMType(*context);
                 }
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
