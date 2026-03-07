@@ -335,6 +335,11 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
                 content = "==";
                 next(); next();
             }
+            if (peek(1) == '>') {
+                type = TokenType::BIG_ARROW;
+                content = "=>";
+                next(); next();
+            }
             else {
                 type = TokenType::ASSIGN_OP;
                 content = "=";
