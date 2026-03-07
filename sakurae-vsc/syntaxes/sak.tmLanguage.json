@@ -57,7 +57,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.sak",
-					"match": "\\b(if|else|for|while|return|break|continue|repeat|match)\\b"
+					"match": "\\b(if|else|for|while|return|break|continue|repeat|match|default)\\b"
 				},
 				{
 					"name": "keyword.other.declaration.sak",
