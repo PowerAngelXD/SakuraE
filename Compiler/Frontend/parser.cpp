@@ -491,7 +491,8 @@ sakuraE::NodePtr sakuraE::MatchStmtParser::genResource() {
         }, std::get<0>(cs->getTuple())->option());
 
         (*_case)[ASTTag::Block] = std::get<2>(cs->getTuple())->genResource();
-
+        _case->setInfo(std::get<0>(std::get<2>(cs->getTuple())->getTuple())->token->info);
+        
         (*root)[ASTTag::Cases]->addChild(_case);
     }
 
