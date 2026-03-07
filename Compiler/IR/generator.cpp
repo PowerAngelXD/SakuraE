@@ -1000,6 +1000,88 @@ namespace sakuraE::IR {
         return mergeBlock;
     }
 
+    IRValue* IRGenerator::visitMatchStmtNode(NodePtr node) {
+        IRValue* identifier = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
+        IRValue* idenValue = createLoad(identifier, node->getPosInfo());
+        
+        std::vector<IRValue*> caseBlocks;
+        std::vector<std::tuple<int, IRValue*, IRValue*>> caseBlockPairs;
+        IRValue* defaultThenBlock = nullptr;
+
+        std::vector<NodePtr> cases = (*node)[ASTTag::Cases]->getChildren();
+
+        int beforeBlockIndex = curFunc()->cur();
+
+        IRValue* mergeBlock = curFunc()->buildBlock("match.merge");
+        int mergeBlockExitIndex = curFunc()->cur();
+
+        for (std::size_t i = 0; i < cases.size(); i ++) {
+            static int matchCaseIndex = 0;
+            
+            auto cs = cases[i];
+            if (cs->hasNode(ASTTag::Default)) {
+                if (i != cases.size() - 1) {
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "Cannot put default block to the middle of the cases.",
+                        cs->getPosInfo()
+                    );
+                }
+                defaultThenBlock = visitBlockStmtNode((*cs)[ASTTag::Block], "match.default");
+                curFunc()
+                    ->curBlock()
+                    ->createBr(mergeBlock);
+            }
+            else if (cs->hasNode(ASTTag::HeadExpr)) {
+                IRValue* caseBlock = curFunc()->buildBlock("match.case." + std::to_string(matchCaseIndex));
+                IRValue* targetValue = visitWholeExprNode((*cs)[ASTTag::HeadExpr]);
+                IRValue* condResult = curFunc()
+                    ->curBlock()
+                    ->createInstruction(
+                        OpKind::lgc_equal,
+                        IRType::getBoolTy(),
+                        {idenValue, targetValue},
+                        "lgc_equal"
+                    );
+                int caseBlockExitIndex = curFunc()->cur();
+                caseBlocks.push_back(caseBlock);
+
+                IRValue* thenBlock = visitBlockStmtNode((*cs)[ASTTag::Block], "match.then." + std::to_string(matchCaseIndex));
+                int thenBlockExitIndex = curFunc()->cur();
+                
+                caseBlockPairs.emplace_back(caseBlockExitIndex, condResult, thenBlock);
+                    
+                curFunc()
+                    ->block(thenBlockExitIndex)
+                    ->createBr(mergeBlock);
+            }
+            matchCaseIndex ++;
+        }
+
+        for (std::size_t i = 0; i < caseBlockPairs.size(); i ++) {
+            int caseBlockExitIndex = std::get<0>(caseBlockPairs[i]);
+            IRValue* condResult = std::get<1>(caseBlockPairs[i]);
+            IRValue* thenBlock = std::get<2>(caseBlockPairs[i]);
+
+            if (i != cases.size() - 2)
+                curFunc()
+                    ->block(caseBlockExitIndex)
+                    ->createCondBr(condResult, thenBlock, caseBlocks[i + 1]);
+            else
+                curFunc()
+                    ->block(caseBlockExitIndex)
+                    ->createCondBr(condResult, thenBlock, defaultThenBlock);
+        }
+
+        curFunc()
+            ->block(beforeBlockIndex)
+            ->createBr(caseBlocks[0]);
+
+        curFunc()->moveCursor(mergeBlockExitIndex);
+        
+        return mergeBlock;
+    }
+
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
         IRType* retType = IRType::getVoidTy();
@@ -1109,6 +1191,9 @@ namespace sakuraE::IR {
         }
         else if (stmt->getTag() == ASTTag::RepeatStmtNode) {
             return visitRepeatStmtNode(stmt);
+        }
+        else if (stmt->getTag() == ASTTag::MatchStmtNode) {
+            return visitMatchStmtNode(stmt);
         }
         else if (stmt->getTag() == ASTTag::ContinueStmtNode) {
             return visitContinueStmtNode(stmt);
