@@ -87,7 +87,7 @@ namespace sakuraE {
             "if", "else", "while", "for", "func",
             "return", "let", "const", "range", "true",
             "false", "break", "continue", "match", "repeat",
-            "struct", "impl", "is", "typeof", "ref"
+            "struct", "impl", "is", "typeof", "ref", "default"
         };
 
         const std::vector<fzlib::String> typeFields = {
