@@ -52,7 +52,7 @@ namespace sakuraE::Codegen {
         };
 
         struct LLVMModule;
-        // Represent LLVM Function Instantce
+        // Represent LLVM Function Instance
         struct LLVMFunction {
             // Function Type
             FunctionType type;
