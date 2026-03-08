@@ -25,20 +25,46 @@
 #include <stack>
 
 namespace sakuraE::runtime {
-    enum ObjectType: uint32_t {
-        String, Array, Struct
-    };
-
     enum GCMark: uint32_t {
         Unscanned,
         Uncomplete,
         Marked
     };
 
+    enum class GCObjectKind: uint8_t {
+        Atomic,
+        Struct,
+        Array,
+        Object
+    };
+    
+    struct ObjectHeader;
+    struct GCTypeInfo;
+
+    struct GCStructLayout {
+        uint32_t ptr_count;
+        const uint32_t* ptr_offsets;
+    };
+
+    struct GCArrayLayout {
+        uint32_t member_size;
+        bool is_ptr;
+        const GCTypeInfo* member_type;
+    };
+
+    struct GCTypeInfo {
+        const char* name;
+        GCObjectKind kind;
+        bool contains_refs;
+        const GCStructLayout* struct_layout;
+        const GCArrayLayout* array_layout;
+    };
+
     struct ObjectHeader {
-        ObjectType obj_type;
+        const GCTypeInfo* type_info;
         std::atomic<GCMark> obj_status;
         uint64_t obj_size;
+        uint64_t elem_count;
     };
 
     // status
@@ -58,7 +84,7 @@ namespace sakuraE::runtime {
 
     extern "C" void   __gc_create_thread();
     extern "C" void   __gc_safe_point();
-    extern "C" void*  __gc_alloc(size_t size, ObjectType ty);
+    extern "C" void*  __gc_alloc(size_t size, GCTypeInfo* ty, uint64_t member_count = 0);
     extern "C" void   __gc_register(void** addr);
     extern "C" void   __gc_pop(uint32_t times);
     extern "C" void   __gc_scan(void* ptr);
