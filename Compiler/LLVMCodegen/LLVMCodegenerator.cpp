@@ -264,8 +264,9 @@ namespace sakuraE::Codegen {
                     arrayContent.push_back(toLLVMValue(element, curFn));
                 }
                 auto arrayType = ins->getType()->toLLVMType(*context);
-                auto elementType = arrayType->getArrayElementType();
+                auto elementType = arrayType->getArrayElementType();  
 
+                // TODO: 不安全的处理
                 llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, curFn->parent->getAtomicGCType(), "tmparr");
 
                 for (std::size_t i = 0; i < arrayContent.size(); i ++) {
