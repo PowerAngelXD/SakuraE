@@ -1,5 +1,4 @@
 #include "gc.h"
-#include <atomic>
 
 namespace sakuraE::runtime {
     // status
@@ -34,12 +33,37 @@ namespace sakuraE::runtime {
         nullptr
     };
 
+    std::map<fzlib::String, GCTypeInfo*> complexGCTypePool;
+
+    extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty) {
+        fzlib::String id = std::to_string(is_ptr) + std::to_string(size) + mem_ty->name;
+        if (complexGCTypePool.contains(id)) return complexGCTypePool[id];
+        else {
+            complexGCTypePool[id] = new GCTypeInfo {
+                id.c_str(),
+                GCObjectKind::Array,
+                is_ptr,
+                nullptr,
+                new GCArrayLayout {
+                    size,
+                    is_ptr,
+                    mem_ty
+                }
+            };
+            return complexGCTypePool[id];
+        }
+    }
+
     extern "C" GCTypeInfo* __gc_get_atomic_type() {
         return &GC_ATOMIC_TYPE;
     }
 
     extern "C" GCTypeInfo* __gc_get_string_type() {
-        return &GC_STRING_TYPE;
+        return &GC_ATOMIC_TYPE;
+    }
+
+    extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty) {
+        
     }
 
     extern "C" ObjectHeader* __gc_get_unlocked(void* payload) {
@@ -83,8 +107,11 @@ namespace sakuraE::runtime {
             case GCObjectKind::Struct:
                 __gc_scan_struct(mem, ty->struct_layout, visit, ctx);
                 return;
-            case GCObjectKind::Array:
+            case GCObjectKind::Array: {
+                ObjectHeader* header = (ObjectHeader*)mem;
+                __gc_scan_array(mem, header, header->type_info->array_layout, visit, ctx);
                 return;
+            }
         }
     }
 
