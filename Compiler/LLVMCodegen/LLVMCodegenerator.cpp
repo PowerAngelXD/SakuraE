@@ -267,7 +267,16 @@ namespace sakuraE::Codegen {
                 auto elementType = arrayType->getArrayElementType();  
 
                 // TODO: 不安全的处理
-                llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, curFn->parent->getAtomicGCType(), "tmparr");
+                llvm::Value* gcType = nullptr;
+
+                if (!irArray->getHead()->getType()->isArray()) {
+                    gcType = curFn->parent->getAtomicGCType();
+                }
+                else if (irArray->getHead()->getType()->isArray()) {
+
+                }
+
+                llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, "tmparr");
 
                 for (std::size_t i = 0; i < arrayContent.size(); i ++) {
                     auto ptr = builder->CreateGEP(elementType,
@@ -433,7 +442,7 @@ namespace sakuraE::Codegen {
         return instResult;
     }
 
-    // LLVMCodegeneration start
+    // LLVMCodegen start
     void LLVMCodeGenerator::start() {
         auto irModList = program->getMods();
         for (auto mod: irModList) {
