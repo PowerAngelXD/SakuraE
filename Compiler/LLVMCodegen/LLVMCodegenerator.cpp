@@ -273,7 +273,7 @@ namespace sakuraE::Codegen {
                     gcType = curFn->parent->getAtomicGCType();
                 }
                 else if (irArray->getHead()->getType()->isArray()) {
-
+                    
                 }
 
                 llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, "tmparr");
