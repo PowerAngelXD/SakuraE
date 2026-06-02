@@ -462,10 +462,10 @@ sakuraE::NodePtr sakuraE::WhileStmtParser::genResource() {
 sakuraE::NodePtr sakuraE::RepeatStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::RepeatStmtNode);
     root->setInfo(std::get<0>(getTuple())->token->info);
-    
+
     (*root)[ASTTag::HeadExpr] = std::get<2>(getTuple())->genResource();
     (*root)[ASTTag::Block] = std::get<4>(getTuple())->genResource();
-    
+
     return root;
 }
 
@@ -492,7 +492,7 @@ sakuraE::NodePtr sakuraE::MatchStmtParser::genResource() {
 
         (*_case)[ASTTag::Block] = std::get<2>(cs->getTuple())->genResource();
         _case->setInfo(std::get<0>(std::get<2>(cs->getTuple())->getTuple())->token->info);
-        
+
         (*root)[ASTTag::Cases]->addChild(_case);
     }
 
