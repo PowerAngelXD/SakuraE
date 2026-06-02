@@ -260,6 +260,31 @@ namespace sakuraE::Codegen {
                 );
             }
 
+            llvm::Value* llvmTy2GCType(llvm::Type* ty) {
+                if (!ty) {
+                    return getAtomicGCType();
+                }
+                
+                if (ty->isArrayTy()) {
+                    auto* arrTy = llvm::cast<llvm::ArrayType>(ty);
+                    llvm::Type* elemTy = arrTy->getElementType();
+                    bool elemIsPtr = elemTy->isPointerTy();
+                    uint32_t elemSize = static_cast<uint32_t>(
+                        content->getDataLayout().getTypeAllocSize(elemTy)
+                    );
+                    llvm::Value* elemGcTy = elemIsPtr ? getAtomicGCType() : llvmTy2GCType(elemTy);
+                
+                    return getArrayGCType(elemIsPtr, elemSize, elemGcTy);
+                }
+            
+                if (ty->isPointerTy()) {
+                    uint32_t ptrSize = static_cast<uint32_t>(content->getDataLayout().getPointerSize());
+                    return getArrayGCType(true, ptrSize, getAtomicGCType());
+                }
+            
+                return getAtomicGCType();
+            }
+
             void declareFunction(FunctionType ty, fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
                 if (fnMap.find(n) != fnMap.end()) return;
                 else {
@@ -364,7 +389,6 @@ namespace sakuraE::Codegen {
             return ptr;
         }
     private:
-        llvm::Value* compare(IR::Instruction* ins, LLVMFunction* curFn);
         llvm::Value* instgen(IR::Instruction* ins, LLVMFunction* curFn);
 
         // Tool Methods =========================================================
