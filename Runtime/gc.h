@@ -89,9 +89,15 @@ namespace sakuraE::runtime {
     // 分配与根集合
     extern std::atomic<size_t> allocated_bytes;
     extern size_t limit;
-    extern thread_local std::vector<void**> own_stack;
+
+    struct GCThreadState {
+        std::vector<void**> roots;
+        std::vector<size_t> scope_markers;
+    };
+
+    extern thread_local GCThreadState gc_tls;
     extern thread_local bool is_registered;
-    extern std::vector<std::vector<void**>*> global_stacks;
+    extern std::vector<GCThreadState*> global_threads;
     extern std::vector<ObjectHeader*> global_heap;
     extern std::mutex gc_mutex;
 
@@ -113,6 +119,8 @@ namespace sakuraE::runtime {
     // 线程与分配接口
     extern "C" void   __gc_create_thread();
     extern "C" void   __gc_destroy_thread();
+    extern "C" void   __gc_enter_scope();
+    extern "C" void   __gc_leave_scope();
     extern "C" void   __gc_safe_point();
     extern "C" void*  __gc_alloc(size_t size, GCTypeInfo* ty, uint64_t member_count = 0);
     extern "C" void   __gc_register(void** addr);

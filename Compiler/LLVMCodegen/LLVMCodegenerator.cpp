@@ -117,7 +117,7 @@ namespace sakuraE::Codegen {
         codegenContext.builder->SetInsertPoint(entryBlock);
         if (name == "main") gcCreateThread();
 
-        gcRootCountStack.push(0);
+        gcEnterScope();
         gcInsertSafepoint();
 
         std::size_t i = 0;
@@ -236,6 +236,10 @@ namespace sakuraE::Codegen {
                     builder->CreateStore(llvm::Constant::getNullValue(identifierType), alloca);
                 }
 
+                if (identifierType->isPointerTy()) {
+                    curFn->gcRegisterRoot(alloca);
+                }
+
                 bind(ins, alloca);
                 curFn->scope.declare(identifierName, alloca, nullptr);
 
@@ -267,16 +271,9 @@ namespace sakuraE::Codegen {
                 auto elementType = arrayType->getArrayElementType();  
 
                 // TODO: 不安全的处理
-                llvm::Value* gcType = nullptr;
-
-                if (!irArray->getHead()->getType()->isArray()) {
-                    gcType = curFn->parent->getAtomicGCType();
-                }
-                else if (irArray->getHead()->getType()->isArray()) {
-                    
-                }
-
-                llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, "tmparr");
+                llvm::Value* gcType = curFn->parent->llvmTy2GCType(arrayType);
+                llvm::Value* elemCount = builder->getInt64(irArray->getSize());
+                llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, elemCount);
 
                 for (std::size_t i = 0; i < arrayContent.size(); i ++) {
                     auto ptr = builder->CreateGEP(elementType,
@@ -379,14 +376,7 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::ret: {
-                auto tempStack = curFn->gcRootCountStack;
-                while (!tempStack.empty()) {
-                    uint32_t count = tempStack.top();
-                    if (count > 0) {
-                        curFn->gcPop(count);
-                    }
-                    tempStack.pop();
-                }
+                curFn->gcLeaveAllScopes();
 
                 if (ins->getOperands().empty()) {
                     instResult = builder->CreateRetVoid();
@@ -427,11 +417,11 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::enter_scope: {
-                curFn->enterNewHeapScope();
+                curFn->gcEnterScope();
                 break;
             }
             case IR::OpKind::leave_scope: {
-                curFn->leaveHeapScope();
+                curFn->gcLeaveScope();
                 break;
             }
             default:

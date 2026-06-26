@@ -14,9 +14,9 @@ namespace sakuraE::runtime {
     // 内存分配与根集合
     std::atomic<size_t> allocated_bytes {0};
     size_t limit = 1024 * 1024;
-    thread_local std::vector<void**> own_stack;
+    thread_local GCThreadState gc_tls;
     thread_local bool is_registered = false;
-    std::vector<std::vector<void**>*> global_stacks;
+    std::vector<GCThreadState*> global_threads;
     std::vector<ObjectHeader*> global_heap;
     std::mutex gc_mutex;
 
@@ -47,10 +47,12 @@ namespace sakuraE::runtime {
         type_name_pool.push_back(id);
         const char* name = type_name_pool.back().c_str();
 
+        bool contains_refs = is_ptr || (mem_ty && mem_ty->contains_refs);
+
         complexGCTypePool[id] = new GCTypeInfo {
             name,
             GCObjectKind::Array,
-            is_ptr,
+            contains_refs,
             nullptr,
             new GCArrayLayout {
                 size,
@@ -188,9 +190,9 @@ namespace sakuraE::runtime {
     // 注册当前线程的根集合
     extern "C" void   __gc_create_thread() {
         std::lock_guard<std::mutex> lock(gc_mutex);
-        
+
         if (!is_registered) {
-            global_stacks.push_back(&own_stack);
+            global_threads.push_back(&gc_tls);
             is_registered = true;
             total_active.fetch_add(1, std::memory_order_relaxed);
         }
@@ -202,13 +204,27 @@ namespace sakuraE::runtime {
 
         if (!is_registered) return;
 
-        auto it = std::find(global_stacks.begin(), global_stacks.end(), &own_stack);
-        if (it != global_stacks.end()) {
-            global_stacks.erase(it);
+        auto it = std::find(global_threads.begin(), global_threads.end(), &gc_tls);
+        if (it != global_threads.end()) {
+            global_threads.erase(it);
         }
-        own_stack.clear();
+        gc_tls.roots.clear();
+        gc_tls.scope_markers.clear();
         is_registered = false;
         total_active.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    extern "C" void   __gc_enter_scope() {
+        if (!is_registered) __gc_create_thread();
+        gc_tls.scope_markers.push_back(gc_tls.roots.size());
+    }
+
+    extern "C" void   __gc_leave_scope() {
+        if (gc_tls.scope_markers.empty()) return;
+
+        size_t marker = gc_tls.scope_markers.back();
+        gc_tls.scope_markers.pop_back();
+        gc_tls.roots.resize(marker);
     }
 
     // 到达安全点等待 GC
@@ -256,13 +272,14 @@ namespace sakuraE::runtime {
 
     // 注册根变量地址
     extern "C" void   __gc_register(void** addr) {
-        own_stack.push_back(addr);
+        if (!is_registered) __gc_create_thread();
+        gc_tls.roots.push_back(addr);
     }
 
     // 弹出指定数量的根
     extern "C" void   __gc_pop(uint32_t times) {
         for (uint32_t i = 0; i < times; i ++) {
-            if (!own_stack.empty()) own_stack.pop_back();
+            if (!gc_tls.roots.empty()) gc_tls.roots.pop_back();
         }
     }
 
@@ -282,8 +299,8 @@ namespace sakuraE::runtime {
             });
         }
 
-        for (auto* stk: global_stacks) {
-            for (void** addr: *stk) {
+        for (auto* thread: global_threads) {
+            for (void** addr: thread->roots) {
                 if (addr && *addr) __gc_scan_unlocked(*addr);
             }
         }
@@ -321,6 +338,13 @@ namespace sakuraE::runtime {
             }
             global_heap.clear();
             global_heap_index.clear();
+            for (auto& [_, ty] : complexGCTypePool) {
+                if (!ty) continue;
+
+                delete ty->array_layout;
+                delete ty->struct_layout;
+                delete ty;
+            }
             complexGCTypePool.clear();
             type_name_pool.clear();
         }

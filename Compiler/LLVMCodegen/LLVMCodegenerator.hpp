@@ -75,8 +75,8 @@ namespace sakuraE::Codegen {
             LLVMCodeGenerator& codegenContext;
             // Params Alloca Map
             std::map<fzlib::String, llvm::AllocaInst*> paramAllocaMap;
-            // Count gc root
-            std::stack<uint32_t> gcRootCountStack;
+            // Active GC scope depth for the current function
+            uint32_t gcScopeDepth = 0;
             // SAK IR Function
             IR::Function* sourceFn;
 
@@ -109,6 +109,25 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {});
             }
 
+            void gcEnterScope() {
+                auto fn = parent->lookup("__gc_enter_scope");
+                codegenContext.builder->CreateCall(fn->content, {});
+                gcScopeDepth ++;
+            }
+
+            void gcLeaveScope() {
+                if (gcScopeDepth == 0) return;
+                auto fn = parent->lookup("__gc_leave_scope");
+                codegenContext.builder->CreateCall(fn->content, {});
+                gcScopeDepth --;
+            }
+
+            void gcLeaveAllScopes() {
+                while (gcScopeDepth > 0) {
+                    gcLeaveScope();
+                }
+            }
+
             llvm::Value* gcAlloc(llvm::Value* size, llvm::Value* gcTy, llvm::Value* elemCount = nullptr) {
                 auto fn = parent->lookup("__gc_alloc");
 
@@ -139,8 +158,6 @@ namespace sakuraE::Codegen {
                 auto ptr = codegenContext.builder->CreateBitCast(addr, llvm::PointerType::getUnqual(*codegenContext.context));
 
                 codegenContext.builder->CreateCall(fn->content, {ptr});
-
-                if (!gcRootCountStack.empty()) gcRootCountStack.top() ++;
             }
 
             void gcPop(size_t times) {
@@ -154,17 +171,6 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {});
             }
 
-            void enterNewHeapScope() {
-                gcRootCountStack.push(0);
-            }
-
-            void leaveHeapScope() {
-                if (gcRootCountStack.empty()) return;
-                uint32_t count = gcRootCountStack.top();
-                gcPop(count);
-                gcRootCountStack.pop();
-            }
-
             llvm::AllocaInst* createAlloca(llvm::Type *ty, llvm::Value *arraySize = nullptr, fzlib::String n = "") {
                 llvm::BasicBlock* currentBlock = codegenContext.builder->GetInsertBlock();
                 llvm::BasicBlock::iterator currentPoint = codegenContext.builder->GetInsertPoint();
@@ -172,18 +178,17 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->SetInsertPoint(entryBlock, ++ entryBlock->getFirstInsertionPt());
                 llvm::AllocaInst* alloca = codegenContext.builder->CreateAlloca(ty, arraySize, n.c_str());
 
-                if (ty->isPointerTy()) gcRegisterRoot(alloca);
                 codegenContext.builder->SetInsertPoint(currentBlock, currentPoint);
 
                 return alloca;
             }
 
-            llvm::Value* createHeapAlloc(llvm::Type* t, llvm::Value* gcTy, fzlib::String n) {
+            llvm::Value* createHeapAlloc(llvm::Type* t, llvm::Value* gcTy, llvm::Value* elemCount) {
                 size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
                 llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
                 llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
-                        
-                return gcAlloc(sizeVal, gcTy, codegenContext.builder->getInt64(0));
+
+                return gcAlloc(sizeVal, gcTy, elemCount);
             }
 
             llvm::Value* getParamAddress(fzlib::String n) {

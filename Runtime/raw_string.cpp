@@ -22,7 +22,7 @@ extern "C" char* create_string(const char* literal) {
 }
 
 extern "C" void free_string(char* str) {
-    if (str) __free(str);
+    (void)str;
 }
 
 extern "C" char* concat_string(const char* s1, const char* s2) {

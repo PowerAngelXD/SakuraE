@@ -98,6 +98,20 @@ namespace sakuraE::IR {
             );
 
             runtimeMod->declareRuntimeFunction(
+                "__gc_enter_scope",
+                IRType::getVoidTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_leave_scope",
+                IRType::getVoidTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
                 "__gc_safe_point", 
                 IRType::getVoidTy(), 
                 {}, 
