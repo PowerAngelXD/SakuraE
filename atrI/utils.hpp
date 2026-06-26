@@ -1,8 +1,10 @@
 #ifndef SAKURAE_ATRI_UTILS_HPP
 #define SAKURAE_ATRI_UTILS_HPP
 
+#include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <string>
 
 #include "Compiler/IR/type/type_info.hpp"
 #include "Compiler/IR/value/array.hpp"
@@ -54,6 +56,29 @@ namespace atri {
         file.write(content.c_str(), content.len());
 
         file.close();
+    }
+
+    inline void writeFile(const std::filesystem::path& path, fzlib::String content) {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("Could not open file for writing: " + path.string());
+        }
+
+        std::vector<char> buffer(65536);
+        file.rdbuf()->pubsetbuf(buffer.data(), buffer.size());
+
+        file.write(content.c_str(), content.len());
+
+        file.close();
+    }
+
+    inline std::filesystem::path executableDirectory() {
+#if defined(__linux__)
+        return std::filesystem::read_symlink("/proc/self/exe").parent_path();
+#else
+        return std::filesystem::current_path();
+#endif
     }
 
     inline bool contains(std::vector<fzlib::String> arr, fzlib::String target) {
