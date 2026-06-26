@@ -19,8 +19,6 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/TargetSelect.h>
-#include "Compiler/IR/type/type_info.hpp"
-#include "Compiler/IR/value/array.hpp"
 #include "Runtime/alloc.h"
 #include "Runtime/gc.h"
 #include "Runtime/raw_string.h"
@@ -46,6 +44,8 @@ namespace atri::cmds {
     }
 
     inline void cmdRun(std::vector<fzlib::String> args) {
+        CompilerSessionGuard compilerSessionGuard;
+
         if (args.size() < 1) {
             fzlib::String content = "Invalid argument for command: 'run': ";
             for (auto arg: args) {
@@ -164,11 +164,6 @@ namespace atri::cmds {
         auto sakuraMain = mainSymbol.toPtr<int(*)()>();
         auto resultVal = sakuraMain();
         std::cout << "Result: " << resultVal << std::endl;
-
-        //
-
-        sakuraE::IR::TypeInfo::clearAll();
-        sakuraE::IR::IRArray::clearArrayPool();
     }
 }
 

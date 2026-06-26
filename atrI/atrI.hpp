@@ -50,24 +50,18 @@ namespace atri {
                 catch (const std::runtime_error& e) {
                     std::cerr << e.what() << "\n";
 #ifdef DEBUG
-                    sakuraE::IR::TypeInfo::clearAll();
-                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }
                 catch (sakuraE::SakuraError& e) {
                     std::cerr << e.toString() << "\n";
 #ifdef DEBUG
-                    sakuraE::IR::TypeInfo::clearAll();
-                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }
                 catch (const std::exception& e) {
                     std::cerr << "OtherError: " << e.what() << "\n";
 #ifdef DEBUG
-                    sakuraE::IR::TypeInfo::clearAll();
-                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }

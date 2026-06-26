@@ -4,9 +4,24 @@
 #include <iostream>
 #include <fstream>
 
+#include "Compiler/IR/type/type_info.hpp"
+#include "Compiler/IR/value/array.hpp"
+#include "Compiler/IR/value/constant.hpp"
 #include "includes/String.hpp"
 
 namespace atri {
+    inline void clearCompilerSessionState() {
+        sakuraE::IR::Constant::clearAll();
+        sakuraE::IR::TypeInfo::clearAll();
+        sakuraE::IR::IRArray::clearArrayPool();
+    }
+
+    struct CompilerSessionGuard {
+        ~CompilerSessionGuard() {
+            clearCompilerSessionState();
+        }
+    };
+
     inline fzlib::String readSourceFile(fzlib::String path) {
         std::ifstream file(path.c_str(), std::ios::binary | std::ios::ate);
 

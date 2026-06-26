@@ -240,9 +240,23 @@ namespace sakuraE::IR {
                 return Constant::get(tok.content[0], tok.info);
             default:
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                                    "Cannot create constant from non-constant token",
-                                    tok.info);
+                                "Cannot create constant from non-constant token",
+                                tok.info);
         }
+    }
+
+    void Constant::clearAll() {
+        i32Constants.clear();
+        ui32Constants.clear();
+        i64Constants.clear();
+        ui64Constants.clear();
+        f32Constants.clear();
+        f64Constants.clear();
+        stringConstants.clear();
+        charConstants.clear();
+        boolConstants.clear();
+        typeInfoConstants.clear();
+        arrConstants.clear();
     }
 
     llvm::Type* Constant::toLLVMType(llvm::LLVMContext& ctx) {

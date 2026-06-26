@@ -71,6 +71,7 @@ namespace sakuraE::IR {
         static Constant* get(IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* getDefault(IRType* ty, PositionInfo info);
         static Constant* getFromToken(const Token& tok);
+        static void clearAll();
 
         template<typename T>
         const T& getContentValue() const {
