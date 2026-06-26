@@ -73,13 +73,6 @@ namespace sakuraE::IR {
 
             // gc methods
             runtimeMod->declareRuntimeFunction(
-                "__gc_create_thread", 
-                IRType::getVoidTy(), 
-                {}, 
-                info
-            );
-
-            runtimeMod->declareRuntimeFunction(
                 "__gc_alloc", 
                 IRType::getPointerTo(IRType::getVoidTy()), 
                 {
@@ -108,13 +101,6 @@ namespace sakuraE::IR {
                 "__gc_leave_scope",
                 IRType::getVoidTy(),
                 {},
-                info
-            );
-
-            runtimeMod->declareRuntimeFunction(
-                "__gc_safe_point", 
-                IRType::getVoidTy(), 
-                {}, 
                 info
             );
 

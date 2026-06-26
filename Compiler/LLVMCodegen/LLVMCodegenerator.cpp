@@ -115,10 +115,7 @@ namespace sakuraE::Codegen {
         }
 
         codegenContext.builder->SetInsertPoint(entryBlock);
-        if (name == "main") gcCreateThread();
-
         gcEnterScope();
-        gcInsertSafepoint();
 
         std::size_t i = 0;
         for (auto& arg: content->args()) {

@@ -99,16 +99,6 @@ namespace sakuraE::Codegen {
                         PositionInfo info):
                 type(ty), linkageName(lkn), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
-            void gcCreateThread() {
-                auto fn = parent->lookup("__gc_create_thread");
-                codegenContext.builder->CreateCall(fn->content, {});
-            }
-
-            void gcInsertSafepoint() {
-                auto fn = parent->lookup("__gc_safe_point");
-                codegenContext.builder->CreateCall(fn->content, {});
-            }
-
             void gcEnterScope() {
                 auto fn = parent->lookup("__gc_enter_scope");
                 codegenContext.builder->CreateCall(fn->content, {});
