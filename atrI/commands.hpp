@@ -55,12 +55,13 @@ namespace atri::cmds {
         }
 
         auto content = readSourceFile(args[0]);
+        bool isDebug = false;
         DebugConfig config;
 
-        if (contains(args, "-ast")) config.displayAST = true;
-        if (contains(args, "-sakir")) config.displaySakIR = true;
-        if (contains(args, "-rawllvm")) config.displayRawLLVMIR = true;
-        if (contains(args, "-llvmir")) config.displayOptimizedLLVMIR = true;
+        if (contains(args, "-ast")) { config.displayAST = true; isDebug = true; }
+        if (contains(args, "-sakir")) { config.displaySakIR = true; isDebug = true; }
+        if (contains(args, "-rawllvm")) { config.displayRawLLVMIR = true; isDebug = true; }
+        if (contains(args, "-llvmir")) { config.displayOptimizedLLVMIR = true; isDebug = true; }
 
         std::ostringstream log;
 
@@ -112,8 +113,9 @@ namespace atri::cmds {
             log << llvmCodegen.toString() << std::endl;
         }
 
-        auto currentTime = std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::system_clock::now());
-        writeFile("log-" + currentTime + ".txt", log.str());
+        auto currentTime = std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::system_clock::now());
+        auto logPath = fzlib::String("log-" + std::string(currentTime.c_str()) + ".txt");
+        if (isDebug) writeFile(logPath, log.str());
 
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
@@ -133,8 +135,6 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("__println")] = { llvm::orc::ExecutorAddr::fromPtr(&__println), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__gc_safe_point")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_safe_point), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__gc_create_thread")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_create_thread), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_enter_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_enter_scope), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_leave_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_leave_scope), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_pop")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_pop), llvm::JITSymbolFlags::Exported };
