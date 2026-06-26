@@ -14,6 +14,17 @@ namespace fzlib {
         std::size_t _len = 0;
         std::size_t _cap = 0;
 
+        void init_empty() {
+            delete[] _content;
+            _content = new char[1];
+            if (_content == nullptr)
+                throw std::bad_alloc();
+
+            _content[0] = '\0';
+            _len = 0;
+            _cap = 0;
+        }
+
         void resize(std::size_t new_len) {
             if (new_len <= _cap)
                 return;
@@ -43,42 +54,47 @@ namespace fzlib {
         String() = default;
 
         String(const char *s) {
-            _len = strlen(s);
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (s == nullptr || s[0] == '\0') {
+                init_empty();
                 return;
             }
+
+            _len = strlen(s);
             resize(_len);
             std::memcpy(_content, s, _len);
             _content[_len] = '\0';
         }
 
         String(const char *s, std::size_t len) {
-            _len = len;
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (s == nullptr || len == 0) {
+                init_empty();
                 return;
             }
+
+            _len = len;
             resize(len);
             std::memcpy(_content, s, _len);
             _content[_len] = '\0';
         }
 
         String(const String &str) {
-            resize(str._len);
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (str._len == 0 || str._content == nullptr) {
+                init_empty();
                 return;
             }
+
+            resize(str._len);
             std::memcpy(_content, str._content, str._len);
             _len = str._len;
             _content[_len] = '\0';
         }
 
         String(std::string&& str) {
+            if (str.empty()) {
+                init_empty();
+                return;
+            }
+
             _len = str.size();
             resize(_len);
             std::memcpy(_content, str.c_str(), _len);
@@ -86,24 +102,24 @@ namespace fzlib {
         }
 
         String(const std::string& str) {
-            _len = str.size();
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (str.empty()) {
+                init_empty();
                 return;
             }
+
+            _len = str.size();
             resize(_len);
             std::memcpy(_content, str.c_str(), _len);
             _content[_len] = '\0';
         }
 
         String(std::string_view sv) {
-            _len = sv.size();
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (sv.empty()) {
+                init_empty();
                 return;
             }
+
+            _len = sv.size();
             resize(_len);
             std::memcpy(_content, sv.data(), _len);
             _content[_len] = '\0';
@@ -332,13 +348,18 @@ namespace fzlib {
 
         String& operator= (const char *str) {
             if (str == nullptr) {
-                free();
+                init_empty();
                 return *this;
             }
     
             if (_content == str) return *this;
 
             std::size_t new_l = strlen(str);
+            if (new_l == 0) {
+                init_empty();
+                return *this;
+            }
+
             _len = 0;
             resize(new_l);
 
@@ -362,6 +383,11 @@ namespace fzlib {
 
         String& operator= (const String& str) {
             if (this == &str) return *this;
+
+            if (str._len == 0 || str._content == nullptr) {
+                init_empty();
+                return *this;
+            }
 
             _len = 0; 
             resize(str._len); 

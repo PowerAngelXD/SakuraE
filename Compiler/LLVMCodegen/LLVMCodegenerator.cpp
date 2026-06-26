@@ -299,15 +299,43 @@ namespace sakuraE::Codegen {
                 else if (addrIRType->isPointer()) {
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
-                    auto* arrayTy = static_cast<IR::IRArrayType*>(ptrTy->getElementType());
-                    elementType = arrayTy->getElementType()->toLLVMType(*context);
+                    auto* pointeeTy = ptrTy->getElementType();
+
+                    if (!pointeeTy) {
+                        throw std::runtime_error("Indexing failed: pointer operand has no element type.");
+                    }
+                    if (pointeeTy->getIRTypeID() != IR::IRTypeID::CharTyID) {
+                        throw std::runtime_error(
+                            "Indexing failed: only character pointers are currently supported for pointer indexing."
+                        );
+                    }
+
+                    elementType = pointeeTy->toLLVMType(*context);
                 }
                 else if (addrIRType->isRef()) {
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     auto* refTy = static_cast<IR::IRRefType*>(addrIRType);
-                    auto* arrayTy = static_cast<IR::IRArrayType*>(refTy->getElementType());
+                    auto* refElementTy = refTy->getElementType();
+
+                    if (!refElementTy || !refElementTy->isArray()) {
+                        throw std::runtime_error(
+                            "Indexing failed: reference operand does not refer to an array value."
+                        );
+                    }
+
+                    auto* arrayTy = static_cast<IR::IRArrayType*>(refElementTy);
                     elementType = arrayTy->getElementType()->toLLVMType(*context);
+                }
+                else {
+                    throw std::runtime_error("Indexing failed: unsupported operand type.");
+                }
+
+                if (!addr) {
+                    throw std::runtime_error("Indexing failed: null address operand.");
+                }
+                if (!elementType) {
+                    throw std::runtime_error("Indexing failed: failed to resolve element type.");
                 }
 
                 auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
