@@ -1,7 +1,7 @@
 #ifndef SAKURAE_ATRI_CPP
 #define SAKURAE_ATRI_CPP
 #include "Compiler/IR/type/type_info.hpp"
-#define DEBUG
+//#define DEBUG
 
 #include <fstream>
 #include <iterator>
