@@ -1,0 +1,11 @@
+func main() -> i32 {
+    let chosen = "";
+
+    repeat(20000) {
+        let items = ["array", "root", "holds", "refs"];
+        chosen = items[1];
+    }
+
+    __println(chosen);
+    return 0;
+}

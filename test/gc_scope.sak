@@ -1,0 +1,11 @@
+func main() -> i32 {
+    let keep = "";
+
+    repeat(20000) {
+        let words = ["scope", "safe"];
+        keep = concat_string(words[0], words[1]);
+    }
+
+    __println(keep);
+    return 0;
+}

@@ -1,0 +1,14 @@
+func duplicate(text: string) -> string {
+    return concat_string(text, text);
+}
+
+func main() -> i32 {
+    let value = "";
+
+    repeat(20000) {
+        value = duplicate("arg");
+    }
+
+    __println(value);
+    return 0;
+}

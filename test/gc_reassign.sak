@@ -1,0 +1,10 @@
+func main() -> i32 {
+    let current = "";
+
+    repeat(20000) {
+        current = concat_string("re", "assign");
+    }
+
+    __println(current);
+    return 0;
+}

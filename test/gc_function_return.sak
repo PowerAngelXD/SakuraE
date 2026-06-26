@@ -1,0 +1,14 @@
+func make_word() -> string {
+    return concat_string("func", "ret");
+}
+
+func main() -> i32 {
+    let current = "";
+
+    repeat(20000) {
+        current = make_word();
+    }
+
+    __println(current);
+    return 0;
+}
