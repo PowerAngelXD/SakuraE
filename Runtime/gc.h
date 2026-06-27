@@ -14,8 +14,7 @@
 
 namespace sakuraE::runtime {
     enum GCMark: uint32_t {
-        Unscanned,
-        Uncomplete,
+        Unmarked,
         Marked
     };
 
@@ -52,7 +51,7 @@ namespace sakuraE::runtime {
     // ObjectHeader 紧挨在对象 payload 前面，生成代码只拿到 payload 指针。
     struct ObjectHeader {
         GCTypeInfo* type_info;
-        GCMark obj_status;
+        GCMark mark;
         uint64_t obj_size;
         uint64_t elem_count;
     };
@@ -63,6 +62,7 @@ namespace sakuraE::runtime {
 
     extern "C" GCTypeInfo* __gc_get_atomic_type();
     extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty);
+    extern "C" GCTypeInfo* __gc_get_struct_type(const char* name, uint32_t ptr_count, const uint32_t* ptr_offsets);
 
     extern "C" ObjectHeader* __gc_get_unlocked(void* payload);
     extern "C" void __gc_wklist_push(void* obj, void* context);
