@@ -242,7 +242,8 @@ namespace sakuraE::IR {
                 }
                 case TokenType::AND: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
-                        if (inst->isLValue())
+                        if (inst->isLValue()) {
+                            ensureStableAddressableLValue(resultAddr, node->getPosInfo(), false);
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
@@ -251,6 +252,7 @@ namespace sakuraE::IR {
                                     {resultAddr},
                                     "gaddr." + resultAddr->getName()
                                 );
+                        }
                     }
                     throw SakuraError(OccurredTerm::IR_GENERATING,
                                     "Cannot take the address of an rvalue",
@@ -259,7 +261,8 @@ namespace sakuraE::IR {
                 }
                 case TokenType::KEYWORD_REF: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
-                        if (inst->isLValue())
+                        if (inst->isLValue()) {
+                            ensureStableAddressableLValue(resultAddr, node->getPosInfo(), true);
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
@@ -268,6 +271,7 @@ namespace sakuraE::IR {
                                     {resultAddr},
                                     "gaddr.ref." + resultAddr->getName()
                                 );
+                        }
                     }
                     throw SakuraError(OccurredTerm::IR_GENERATING,
                                     "Cannot take the reference of an rvalue",

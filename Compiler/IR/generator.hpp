@@ -134,6 +134,59 @@ namespace sakuraE::IR {
             return addr;
         }
 
+        bool isManagedHeapObjectType(IRType* ty) {
+            if (!ty) {
+                return false;
+            }
+
+            // 这里明确区分语言层 string object 与原生 char*。
+            // 只有 GC 托管对象本身，才属于“不允许暴露稳定内部地址”的对象。
+            if (ty->isString() || ty->isArray()) {
+                return true;
+            }
+
+            if (ty->isRef()) {
+                auto* refTy = static_cast<IRRefType*>(ty);
+                return isManagedHeapObjectType(refTy->getElementType());
+            }
+
+            return false;
+        }
+
+        bool isInteriorGCManagedLValue(IRValue* value) {
+            auto* inst = dynamic_cast<Instruction*>(value);
+            if (!inst || !inst->isLValue()) {
+                return false;
+            }
+
+            switch (inst->getKind()) {
+                case OpKind::indexing: {
+                    return isManagedHeapObjectType(inst->arg(0)->getType());
+                }
+                case OpKind::gmem: {
+                    // 预留给后续 struct object：
+                    // 一旦 gmem 的 base 成为 GC 托管对象，这里会统一拦截 field interior address。
+                    return isManagedHeapObjectType(inst->arg(0)->getType());
+                }
+                default:
+                    return false;
+            }
+        }
+
+        void ensureStableAddressableLValue(IRValue* value, PositionInfo info, bool isRefOp) {
+            if (!isInteriorGCManagedLValue(value)) {
+                return;
+            }
+
+            throw SakuraError(
+                OccurredTerm::IR_GENERATING,
+                isRefOp
+                    ? "Interior address of a GC-managed object cannot be used as a stable language-level reference."
+                    : "Interior address of a GC-managed object cannot be taken as a stable language-level pointer.",
+                info
+            );
+        }
+
         TypeInfo* getTypeInfoFromNode(sakuraE::NodePtr node) {
             TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Null);
 
