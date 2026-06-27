@@ -35,6 +35,9 @@ namespace sakuraE::IR {
         if (ty->isArray()) {
             ty = static_cast<IRArrayType*>(ty)->getElementType();
         }
+        else if (ty->isString()) {
+            ty = IRType::getCharTy();
+        }
         else if (ty->isPointer()) {
             ty = static_cast<IRPointerType*>(ty)->getElementType();
             if (ty->getIRTypeID() == CharTyID) {}
@@ -42,9 +45,19 @@ namespace sakuraE::IR {
         }
         else if (ty->isRef()) {
             ty = static_cast<IRRefType*>(ty)->getElementType();
-            if (!ty->isArray()) goto err_case;
-
-            ty = static_cast<IRArrayType*>(ty)->getElementType();
+            if (ty->isArray()) {
+                ty = static_cast<IRArrayType*>(ty)->getElementType();
+            }
+            else if (ty->isString()) {
+                ty = IRType::getCharTy();
+            }
+            else if (ty->isPointer()) {
+                ty = static_cast<IRPointerType*>(ty)->getElementType();
+                if (ty->getIRTypeID() != CharTyID) goto err_case;
+            }
+            else {
+                goto err_case;
+            }
         }
         else {
             err_case:

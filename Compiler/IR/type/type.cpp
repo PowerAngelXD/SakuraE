@@ -52,6 +52,7 @@ namespace sakuraE::IR {
             case CharTyID:
             case BoolTyID:
             case TypeInfoTyID:
+            case StringTyID:
             case Float32TyID:
             case Float64TyID:
             case VoidTyID:
@@ -146,6 +147,11 @@ namespace sakuraE::IR {
         return &tinfoSingle;
     }
 
+    IRType* IRType::getStringTy() {
+        static IRStringType stringSingle;
+        return &stringSingle;
+    }
+
     IRType* IRType::getFloat32Ty() {
         static IRFloatType float32Single(32);
         return &float32Single;
@@ -222,6 +228,10 @@ namespace sakuraE::IR {
         return llvm::PointerType::get(ctx, 0);
     }
 
+    llvm::Type* IRStringType::toLLVMType(llvm::LLVMContext& ctx) {
+        return llvm::PointerType::getUnqual(ctx);
+    }
+
     llvm::Type* IRRefType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::PointerType::get(ctx, 0);
     }
@@ -275,6 +285,10 @@ namespace sakuraE::IR {
 
     fzlib::String IRTypeInfoType::toString() {
         return "tinfo";
+    }
+
+    fzlib::String IRStringType::toString() {
+        return "string";
     }
 
     fzlib::String IRPointerType::toString() {

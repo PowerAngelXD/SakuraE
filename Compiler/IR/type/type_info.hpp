@@ -49,7 +49,7 @@ namespace sakuraE::IR {
         case TypeID::Bool:
             return IRType::getBoolTy();
         case TypeID::String:
-            return IRType::getPointerTo(IRType::getCharTy());
+            return IRType::getStringTy();
         default:
             throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Unknown type id to convert to IRType",

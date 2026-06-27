@@ -4,11 +4,13 @@
 
 ### This document primarily outlines the string types in SakuraE IR.
 
-In SakuraE, for the sake of uniformity, all strings (whether literals or otherwise) are internally represented as `char*`.
+In SakuraE IR, `string` is now a dedicated IR type instead of being aliased to raw `char*`.
 
-Therefore, when declaring a variable with the String type (or other type identifiers), the specified type should not be char[], as the length of the string held by this variable is unknown. Instead, its type should be char*.
+This distinction is important for GC and language semantics:
+- `string` means a GC-managed string object.
+- `char*` means a raw native pointer.
 
-Therefore, when the String type is represented as a TypeInfo (in other words, when your type is derived from the TypeInfo class via `IRType* toIRType()`), the resulting String type will be char*.
+Therefore, when the String type is represented as a TypeInfo, the resulting IR type must be `string`, not `char*`.
 
 Relatively, you can see how tid2IRType works for more details:
 ```c++
@@ -24,7 +26,7 @@ inline IRType* tid2IRType(TypeID tid) {
         case TypeID::Bool:
             return IRType::getBoolTy();
         case TypeID::String:
-            return IRType::getPointerTo(IRType::getCharTy());
+            return IRType::getStringTy();
         default:
             throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Unknown type id to convert to IRType",

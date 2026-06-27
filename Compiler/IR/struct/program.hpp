@@ -35,7 +35,7 @@ namespace sakuraE::IR {
 
             runtimeMod->declareRuntimeFunction(
                 "create_string", 
-                IRType::getPointerTo(IRType::getCharTy()), 
+                IRType::getStringTy(), 
                 { {"literal", IRType::getPointerTo(IRType::getCharTy())} }, 
                 info
             );
@@ -43,16 +43,16 @@ namespace sakuraE::IR {
             runtimeMod->declareRuntimeFunction(
                 "free_string", 
                 IRType::getVoidTy(), 
-                { {"str", IRType::getPointerTo(IRType::getCharTy())} }, 
+                { {"str", IRType::getStringTy()} }, 
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
                 "concat_string", 
-                IRType::getPointerTo(IRType::getCharTy()), 
+                IRType::getStringTy(), 
                 { 
-                    {"s1", IRType::getPointerTo(IRType::getCharTy())}, 
-                    {"s2", IRType::getPointerTo(IRType::getCharTy())} 
+                    {"s1", IRType::getStringTy()}, 
+                    {"s2", IRType::getStringTy()} 
                 }, 
                 info
             );
@@ -60,14 +60,14 @@ namespace sakuraE::IR {
             runtimeMod->declareRuntimeFunction(
                 "__print", 
                 IRType::getVoidTy(), 
-                { {"str", IRType::getPointerTo(IRType::getCharTy())} }, 
+                { {"str", IRType::getStringTy()} }, 
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
                 "__println", 
                 IRType::getVoidTy(), 
-                { {"str", IRType::getPointerTo(IRType::getCharTy())} }, 
+                { {"str", IRType::getStringTy()} }, 
                 info
             );
 
@@ -115,6 +115,17 @@ namespace sakuraE::IR {
                 "__gc_collect", 
                 IRType::getVoidTy(), 
                 {}, 
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_get_struct_type",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {
+                    { "name", IRType::getPointerTo(IRType::getCharTy()) },
+                    { "ptr_count", IRType::getUInt32Ty() },
+                    { "ptr_offsets", IRType::getPointerTo(IRType::getVoidTy()) }
+                },
                 info
             );
         }

@@ -161,6 +161,72 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {});
             }
 
+            // 当前 GC 只把“真正的托管对象引用”纳入 root stack：
+            // 1. string object
+            // 2. array object，语义上对应 heap-allocated array payload
+            // ref / address-of / indexing 这类派生地址不视作 GC root。
+            bool isManagedStringType(IR::IRType* ty) const {
+                return ty && ty->isString();
+            }
+
+            bool isRawCharPointerType(IR::IRType* ty) const {
+                if (!ty || !ty->isPointer()) {
+                    return false;
+                }
+
+                auto* ptrTy = dynamic_cast<IR::IRPointerType*>(ty);
+                return ptrTy && ptrTy->getElementType() == IR::IRType::getCharTy();
+            }
+
+            bool isManagedHeapType(IR::IRType* ty) const {
+                if (!ty) {
+                    return false;
+                }
+
+                if (ty->isArray()) {
+                    return true;
+                }
+
+                return isManagedStringType(ty);
+            }
+
+            bool shouldTrackAsGCRoot(IR::IRValue* value) const {
+                if (!value || !isManagedHeapType(value->getType())) {
+                    return false;
+                }
+
+                if (auto* inst = dynamic_cast<IR::Instruction*>(value)) {
+                    switch (inst->getKind()) {
+                        case IR::OpKind::constant:
+                        case IR::OpKind::create_array:
+                        case IR::OpKind::call:
+                        case IR::OpKind::load:
+                            return true;
+                        case IR::OpKind::gaddr:
+                        case IR::OpKind::indexing:
+                        case IR::OpKind::deref:
+                        case IR::OpKind::param:
+                        case IR::OpKind::create_alloca:
+                            return false;
+                        default:
+                            return false;
+                    }
+                }
+
+                return true;
+            }
+
+            bool shouldRegisterSlotAsGCRoot(IR::IRType* ty) const {
+                return isManagedHeapType(ty);
+            }
+
+            llvm::AllocaInst* createRootedTemporary(llvm::Value* value, const fzlib::String& slotName) {
+                auto* slot = createAlloca(value->getType(), nullptr, slotName);
+                codegenContext.builder->CreateStore(value, slot);
+                gcRegisterRoot(slot);
+                return slot;
+            }
+
             llvm::AllocaInst* createAlloca(llvm::Type *ty, llvm::Value *arraySize = nullptr, fzlib::String n = "") {
                 llvm::BasicBlock* currentBlock = codegenContext.builder->GetInsertBlock();
                 llvm::BasicBlock::iterator currentPoint = codegenContext.builder->GetInsertPoint();
@@ -219,14 +285,6 @@ namespace sakuraE::Codegen {
             llvm::Value* getAtomicGCType() {
                 auto callee = content->getOrInsertFunction(
                     "__gc_get_atomic_type",
-                    llvm::FunctionType::get(codegenContext.builder->getPtrTy(), false)
-                );
-                return codegenContext.builder->CreateCall(callee, {});
-            }
-        
-            llvm::Value* getStringGCType() {
-                auto callee = content->getOrInsertFunction(
-                    "__gc_get_string_type",
                     llvm::FunctionType::get(codegenContext.builder->getPtrTy(), false)
                 );
                 return codegenContext.builder->CreateCall(callee, {});
@@ -318,6 +376,7 @@ namespace sakuraE::Codegen {
 
         // Instruction Referring ==============================================
         std::map<IR::IRValue*, llvm::Value*> instructionMap;
+        std::map<IR::IRValue*, llvm::AllocaInst*> protectedValueSlots;
         // Get IRValue to llvm Value reference
         inline llvm::Value* getRef(IR::IRValue* sakIRVal) {
             return instructionMap[sakIRVal];
@@ -326,6 +385,10 @@ namespace sakuraE::Codegen {
         // Create a new IRValue to llvm Value reference
         inline void bind(IR::IRValue* sakIRVal, llvm::Value* llvmIRVal) {
             instructionMap[sakIRVal] = llvmIRVal;
+        }
+
+        inline void protectValue(IR::IRValue* sakIRVal, llvm::AllocaInst* slot) {
+            protectedValueSlots[sakIRVal] = slot;
         }
         // =====================================================================
 
@@ -401,24 +464,19 @@ namespace sakuraE::Codegen {
                     return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<float>());
                 case IR::IRTypeID::Float64TyID:
                     return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<double>());
-                case IR::IRTypeID::PointerTyID: {
-                    auto ptrType = dynamic_cast<IR::IRPointerType*>(constant->getType());
-                    if (ptrType->getElementType() == IR::IRType::getCharTy()) {
-                        // Is String
-                        fzlib::String strVal = constant->getContentValue<fzlib::String>();
+                case IR::IRTypeID::StringTyID: {
+                    fzlib::String strVal = constant->getContentValue<fzlib::String>();
 
-                        if (stringPool.contains(strVal)) return stringPool[strVal];
+                    if (stringPool.contains(strVal)) return stringPool[strVal];
 
-                        auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
+                    auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
 
-                        auto string_creator = curFn->parent->lookup("create_string");
+                    auto string_creator = curFn->parent->lookup("create_string");
 
-                        llvm::Value* heapStr = builder->CreateCall(string_creator->content, {strVar}, "heap_str");
-                        stringPool[strVal] = heapStr;
+                    llvm::Value* heapStr = builder->CreateCall(string_creator->content, {strVar}, "heap_str");
+                    stringPool[strVal] = heapStr;
 
-                        return heapStr;
-                    }
-                    break;
+                    return heapStr;
                 }
                 case IR::IRTypeID::CharTyID: {
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<char>());
@@ -434,6 +492,10 @@ namespace sakuraE::Codegen {
         }
 
         llvm::Value* toLLVMValue(IR::IRValue* value, LLVMFunction* curFn) {
+            if (protectedValueSlots.contains(value)) {
+                auto* slot = protectedValueSlots[value];
+                return builder->CreateLoad(slot->getAllocatedType(), slot, "gc.protected.load");
+            }
             if (instructionMap.find(value) != instructionMap.end()) {
                 return getRef(value);
             }
@@ -450,7 +512,7 @@ namespace sakuraE::Codegen {
         }
 
         bool hasLLVMValue(IR::IRValue* value) {
-            return instructionMap.contains(value);
+            return instructionMap.contains(value) || protectedValueSlots.contains(value);
         }
         // =====================================================================
 
@@ -525,7 +587,34 @@ namespace sakuraE::Codegen {
                 builder->CreateFRem(lhs, rhs, "remftmp") : builder->CreateSRem(lhs, rhs, "remtmp");
         }
 
-        llvm::Value* compare(llvm::Value* lhs, llvm::Value* rhs, IR::OpKind kind, LLVMFunction* curFn) {
+        llvm::Value* compare(
+            llvm::Value* lhs,
+            llvm::Value* rhs,
+            IR::IRType* lhsType,
+            IR::IRType* rhsType,
+            IR::OpKind kind,
+            LLVMFunction* curFn
+        ) {
+            if (lhsType && rhsType && (lhsType->isString() || rhsType->isString())) {
+                if (!(lhsType->isString() && rhsType->isString())) {
+                    throw std::runtime_error("String values cannot be compared with raw pointer values.");
+                }
+
+                if (kind != IR::OpKind::lgc_equal && kind != IR::OpKind::lgc_not_equal) {
+                    throw std::runtime_error("Only '==' and '!=' are supported for string values.");
+                }
+
+                llvm::FunctionCallee strcmpFunc = curFn->parent->content->getOrInsertFunction(
+                    "strcmp", builder->getInt32Ty(), builder->getPtrTy(), builder->getPtrTy()
+                );
+                llvm::Value* res = builder->CreateCall(strcmpFunc, {lhs, rhs}, "strcmp.tmp");
+
+                if (kind == IR::OpKind::lgc_equal) {
+                    return builder->CreateICmpEQ(res, builder->getInt32(0), "str.eq");
+                }
+                return builder->CreateICmpNE(res, builder->getInt32(0), "str.ne");
+            }
+
             auto targetTy = promote(lhs, rhs);
 
             if (targetTy && targetTy->isFloatingPointTy()) {
@@ -557,18 +646,14 @@ namespace sakuraE::Codegen {
                 return builder->CreateICmp(pred, lhs, rhs, "icmp.tmp");
             }
 
-            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy()) {
-                if (kind == IR::OpKind::lgc_equal || kind == IR::OpKind::lgc_not_equal) {
-                    llvm::FunctionCallee strcmpFunc = curFn->parent->content->getOrInsertFunction(
-                        "strcmp", builder->getInt32Ty(), builder->getPtrTy(), builder->getPtrTy()
-                    );
-                    llvm::Value* res = builder->CreateCall(strcmpFunc, {lhs, rhs}, "strcmp.tmp");
+            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy() &&
+                kind == IR::OpKind::lgc_equal) {
+                return builder->CreateICmpEQ(lhs, rhs, "ptr.eq");
+            }
 
-                    if (kind == IR::OpKind::lgc_equal)
-                        return builder->CreateICmpEQ(res, builder->getInt32(0), "str.eq");
-                    else
-                        return builder->CreateICmpNE(res, builder->getInt32(0), "str.ne");
-                }
+            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy() &&
+                kind == IR::OpKind::lgc_not_equal) {
+                return builder->CreateICmpNE(lhs, rhs, "ptr.ne");
             }
 
             return nullptr;

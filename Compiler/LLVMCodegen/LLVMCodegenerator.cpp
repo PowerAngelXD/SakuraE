@@ -127,6 +127,11 @@ namespace sakuraE::Codegen {
 
             codegenContext.builder->CreateStore(&arg, argAlloca);
 
+            // 参数如果承载的是 GC 托管对象引用，需要在函数入口立即注册进 root stack。
+            if (shouldRegisterSlotAsGCRoot(irParams[i].second)) {
+                gcRegisterRoot(argAlloca);
+            }
+
             scope.declare(irParams[i].first, argAlloca, nullptr);
             i ++;
         }
@@ -209,7 +214,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* rhs = toLLVMValue(ins->arg(1), curFn);
 
-                instResult = compare(lhs, rhs, ins->getKind(), curFn);
+                instResult = compare(lhs, rhs, ins->arg(0)->getType(), ins->arg(1)->getType(), ins->getKind(), curFn);
                 break;
             }
             case IR::OpKind::create_alloca: {
@@ -233,7 +238,7 @@ namespace sakuraE::Codegen {
                     builder->CreateStore(llvm::Constant::getNullValue(identifierType), alloca);
                 }
 
-                if (identifierType->isPointerTy()) {
+                if (curFn->shouldRegisterSlotAsGCRoot(ins->getType())) {
                     curFn->gcRegisterRoot(alloca);
                 }
 
@@ -261,13 +266,31 @@ namespace sakuraE::Codegen {
                 auto irArray = irArrayConst->getContentValue<IR::IRArray*>();
 
                 std::vector<llvm::Value*> arrayContent;
+                bool openedTempScope = false;
                 for (auto element: irArray->getArray()) {
-                    arrayContent.push_back(toLLVMValue(element, curFn));
+                    llvm::Value* elementValue = toLLVMValue(element, curFn);
+
+                    if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(elementValue)) {
+                        llvm::Type* allocatedType = allocaInst->getAllocatedType();
+                        elementValue = builder->CreateLoad(allocatedType, allocaInst, "array.elem.load");
+                    }
+
+                    if (curFn->shouldTrackAsGCRoot(element)) {
+                        if (!openedTempScope) {
+                            curFn->gcEnterScope();
+                            openedTempScope = true;
+                        }
+
+                        auto* rootedSlot = curFn->createRootedTemporary(elementValue, "gc.array.elem");
+                        elementValue = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "array.elem.rooted");
+                    }
+
+                    arrayContent.push_back(elementValue);
                 }
                 auto arrayType = ins->getType()->toLLVMType(*context);
                 auto elementType = arrayType->getArrayElementType();  
 
-                // TODO: 不安全的处理
+                // array object 的 payload 是实际数组内容，header 中只记录扫描规则与元素个数。
                 llvm::Value* gcType = curFn->parent->llvmTy2GCType(arrayType);
                 llvm::Value* elemCount = builder->getInt64(irArray->getSize());
                 llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, elemCount);
@@ -279,6 +302,15 @@ namespace sakuraE::Codegen {
                     builder->CreateStore(arrayContent[i], ptr);
                 }
 
+                if (openedTempScope) {
+                    curFn->gcLeaveScope();
+                }
+
+                if (curFn->shouldTrackAsGCRoot(ins)) {
+                    auto* protectedSlot = curFn->createRootedTemporary(arrayPtr, "gc.array.result");
+                    protectValue(ins, protectedSlot);
+                }
+
                 bind(ins, arrayPtr);
                 break;
             }
@@ -288,41 +320,73 @@ namespace sakuraE::Codegen {
 
                 auto addrIRType = ins->arg(0)->getType();
                 llvm::Type* elementType = nullptr;
+                auto* addrInst = dynamic_cast<IR::Instruction*>(ins->arg(0));
+                bool baseIsLValue = addrInst && addrInst->isLValue();
 
                 if (addrIRType->isArray()) {
-                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
+                    if (baseIsLValue) {
+                        addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.array.base");
+                    }
                     elementType = static_cast<IR::IRArrayType*>(addrIRType)->getElementType()->toLLVMType(*context);
                 }
+                else if (addrIRType->isString()) {
+                    if (baseIsLValue) {
+                        addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.string.base");
+                    }
+                    elementType = IR::IRType::getCharTy()->toLLVMType(*context);
+                }
                 else if (addrIRType->isPointer()) {
-                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
                     auto* pointeeTy = ptrTy->getElementType();
 
                     if (!pointeeTy) {
                         throw std::runtime_error("Indexing failed: pointer operand has no element type.");
                     }
-                    if (pointeeTy->getIRTypeID() != IR::IRTypeID::CharTyID) {
+                    if (!curFn->isRawCharPointerType(addrIRType)) {
                         throw std::runtime_error(
                             "Indexing failed: only character pointers are currently supported for pointer indexing."
                         );
                     }
 
+                    if (baseIsLValue) {
+                        addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.ptr.base");
+                    }
                     elementType = pointeeTy->toLLVMType(*context);
                 }
                 else if (addrIRType->isRef()) {
-                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
-                    addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr);
                     auto* refTy = static_cast<IR::IRRefType*>(addrIRType);
                     auto* refElementTy = refTy->getElementType();
+                    llvm::Value* refAddr = addr;
 
-                    if (!refElementTy || !refElementTy->isArray()) {
+                    if (baseIsLValue) {
+                        refAddr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.addr");
+                    }
+
+                    if (!refElementTy) {
                         throw std::runtime_error(
-                            "Indexing failed: reference operand does not refer to an array value."
+                            "Indexing failed: reference operand has no element type."
                         );
                     }
 
-                    auto* arrayTy = static_cast<IR::IRArrayType*>(refElementTy);
-                    elementType = arrayTy->getElementType()->toLLVMType(*context);
+                    if (refElementTy->isArray()) {
+                        auto* arrayTy = static_cast<IR::IRArrayType*>(refElementTy);
+                        addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.array.base");
+                        elementType = arrayTy->getElementType()->toLLVMType(*context);
+                    }
+                    else if (refElementTy->isString()) {
+                        addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.string.base");
+                        elementType = IR::IRType::getCharTy()->toLLVMType(*context);
+                    }
+                    else if (curFn->isRawCharPointerType(refElementTy)) {
+                        auto* ptrTy = static_cast<IR::IRPointerType*>(refElementTy);
+                        addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.ptr.base");
+                        elementType = ptrTy->getElementType()->toLLVMType(*context);
+                    }
+                    else {
+                        throw std::runtime_error(
+                            "Indexing failed: reference operand does not refer to an indexable value."
+                        );
+                    }
                 }
                 else {
                     throw std::runtime_error("Indexing failed: unsupported operand type.");
@@ -424,12 +488,26 @@ namespace sakuraE::Codegen {
 
                 auto arguments = ins->getOperands();
                 std::vector<llvm::Value*> llvmArguments;
+                bool openedTempScope = false;
                 for (std::size_t i = 0; i < arguments.size(); i ++) {
                     auto argVal = toLLVMValue(arguments[i], curFn);
                     if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(argVal)) {
                         llvm::Type* allocatedType = allocaInst->getAllocatedType();
                         argVal = builder->CreateLoad(allocatedType, allocaInst, "call.arg.load");
                     }
+
+                    // 某个参数如果是 GC 对象引用，而后面还有新的参数求值或 callee 内部分配，
+                    // 就必须先 spill 到一个已注册 root 的临时槽位里，避免它在调用期间被误回收。
+                    if (curFn->shouldTrackAsGCRoot(arguments[i])) {
+                        if (!openedTempScope) {
+                            curFn->gcEnterScope();
+                            openedTempScope = true;
+                        }
+
+                        auto* rootedSlot = curFn->createRootedTemporary(argVal, "gc.call.arg");
+                        argVal = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "call.arg.rooted");
+                    }
+
                     llvmArguments.push_back(argVal);
                 }
 
@@ -437,6 +515,15 @@ namespace sakuraE::Codegen {
                     instResult = builder->CreateCall(fn, llvmArguments);
                 else
                     instResult = builder->CreateCall(fn, llvmArguments, ins->getName().c_str());
+
+                if (openedTempScope) {
+                    curFn->gcLeaveScope();
+                }
+
+                if (instResult && curFn->shouldTrackAsGCRoot(ins)) {
+                    auto* protectedSlot = curFn->createRootedTemporary(instResult, "gc.call.result");
+                    protectValue(ins, protectedSlot);
+                }
 
                 bind(ins, instResult);
                 break;

@@ -23,6 +23,7 @@ namespace sakuraE::IR {
         CharTyID,
         BoolTyID,
         TypeInfoTyID,
+        StringTyID,
         // ComplexType
         RefTyID,
         PointerTyID,
@@ -54,10 +55,11 @@ namespace sakuraE::IR {
         IRType* unwrapPointer();
         IRType* getStorageType();
         IRTypeID getIRTypeID() const { return irTypeID; }
+        bool isString() { return irTypeID == StringTyID; }
         bool isPointer() { return irTypeID == PointerTyID; }
         bool isRef() { return irTypeID == RefTyID; }
         bool isArray() { return irTypeID == ArrayTyID; }
-        bool isComplexType() { return isPointer() || isArray() || isRef(); }
+        bool isComplexType() { return isString() || isPointer() || isArray() || isRef(); }
         bool isEqual(IRType* ty);
 
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
@@ -75,6 +77,7 @@ namespace sakuraE::IR {
         static IRType* getFloat32Ty();
         static IRType* getFloat64Ty();
         static IRType* getTypeInfoTy();
+        static IRType* getStringTy();
         static IRType* getPointerTo(IRType* elementType);
         static IRType* getRefTo(IRType* elementType);
         static IRType* getArrayTy(IRType* elementType, uint64_t numElements);
@@ -150,6 +153,14 @@ namespace sakuraE::IR {
     class IRTypeInfoType : public IRType {
         friend class IRType;
         IRTypeInfoType() : IRType(TypeInfoTyID) {}
+    public:
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+        fzlib::String toString() override;
+    };
+
+    class IRStringType : public IRType {
+        friend class IRType;
+        IRStringType() : IRType(StringTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
