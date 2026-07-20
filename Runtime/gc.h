@@ -12,6 +12,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "value.h"
+
 namespace sakuraE::runtime {
     // 对象在一次 mark-sweep 周期中的可达性标记。
     enum GCMark: uint32_t {
@@ -42,6 +44,7 @@ namespace sakuraE::runtime {
         bool is_ptr;
         uint64_t length;
         GCTypeInfo* member_type = nullptr;
+        bool boxed_value = false;
     };
 
     // 每个堆对象都会挂一个 GCTypeInfo，标记阶段据此决定如何继续遍历。
@@ -71,6 +74,7 @@ namespace sakuraE::runtime {
     extern "C" GCTypeInfo* __gc_get_atomic_type();
     extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty);
     extern "C" GCTypeInfo* __gc_get_array_type_with_length(bool is_ptr, uint32_t size, uint64_t length, GCTypeInfo* mem_ty);
+    extern "C" GCTypeInfo* __gc_get_runtime_value_array_type(uint32_t size, uint64_t length);
     extern "C" GCTypeInfo* __gc_get_struct_type(const char* name, uint32_t ptr_count, const uint32_t* ptr_offsets);
 
     extern "C" ObjectHeader* __gc_get_unlocked(void* payload);
@@ -92,8 +96,13 @@ namespace sakuraE::runtime {
     extern "C" void   __gc_leave_scope();
     extern "C" void*  __gc_alloc(size_t size, GCTypeInfo* ty, uint64_t member_count = 0);
     extern "C" void   __gc_register(void** addr);
+    // Register a boxed value slot; the collector follows managed references
+    // described by RuntimeValue instead of treating scalar storage as a pointer.
+    extern "C" void   __gc_register_value(RuntimeValue* value);
+    extern "C" void   __gc_register_value_slot(RuntimeValue** slot);
     extern "C" void   __gc_pop(uint32_t times);
     extern "C" void   __gc_scan(void* ptr);
+    extern "C" void   __gc_scan_value(const RuntimeValue* value);
     extern "C" void   __gc_collect();
 }
 

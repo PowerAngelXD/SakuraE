@@ -13,6 +13,24 @@
 #include "includes/String.hpp"
 
 namespace sakuraE::runtime {
+    namespace {
+        // RuntimeValue wrappers are not GC payloads: they may be referenced
+        // by arrays and variables, so they are reclaimed at runtime shutdown
+        // rather than during payload sweeping.
+        std::vector<RuntimeValue*> runtime_values;
+    }
+
+    extern "C" RuntimeValue* __runtime_alloc_value() {
+        auto* value = static_cast<RuntimeValue*>(std::malloc(sizeof(RuntimeValue)));
+        if (!value) {
+            std::fprintf(stderr, "[Runtime Error] Out of memory allocating RuntimeValue\n");
+            std::exit(1);
+        }
+        *value = {};
+        runtime_values.push_back(value);
+        return value;
+    }
+
     size_t allocated_bytes = 0;
     size_t limit = 1024 * 1024;
 
@@ -145,6 +163,19 @@ namespace sakuraE::runtime {
         return get_array_type(is_ptr, size, length, mem_ty);
     }
 
+    extern "C" GCTypeInfo* __gc_get_runtime_value_array_type(uint32_t size, uint64_t length) {
+        static GCTypeInfo runtime_value_type {
+            "runtime-value",
+            GCObjectKind::Struct,
+            true,
+            nullptr,
+            nullptr
+        };
+        auto* type = get_array_type(false, size, length, &runtime_value_type);
+        type->array_layout->boxed_value = true;
+        return type;
+    }
+
     // 这是给未来 struct object 预留的接口。
     // 当前语言主路径还未真正生成 struct 的 GC metadata，但 runtime 已经支持缓存和扫描规则描述。
     extern "C" GCTypeInfo* __gc_get_struct_type(const char* name, uint32_t ptr_count, const uint32_t* ptr_offsets) {
@@ -265,6 +296,27 @@ namespace sakuraE::runtime {
                 void* child = *reinterpret_cast<void**>(element_addr);
                 if (child) {
                     visit(child, context);
+                }
+                continue;
+            }
+
+            if (a_layout->boxed_value) {
+                auto* value = *reinterpret_cast<RuntimeValue**>(element_addr);
+                if (value) {
+                    switch (value->type) {
+                        case RuntimeType::String:
+                            if (value->data.string.data) visit(const_cast<char*>(value->data.string.data), context);
+                            break;
+                        case RuntimeType::Array:
+                        case RuntimeType::Struct:
+                            if (value->data.aggregate.data) visit(value->data.aggregate.data, context);
+                            break;
+                        case RuntimeType::Pointer:
+                            if (value->data.pointer) visit(value->data.pointer, context);
+                            break;
+                        default:
+                            break;
+                    }
                 }
                 continue;
             }
@@ -394,6 +446,37 @@ namespace sakuraE::runtime {
         global_roots.push_back(addr);
     }
 
+    extern "C" void __gc_register_value(RuntimeValue* value) {
+        if (!value) {
+            return;
+        }
+
+        // A boxed value is rooted through its managed payload when its
+        // runtime type identifies the payload as a GC object.
+        switch (value->type) {
+            case RuntimeType::String:
+                __gc_register(reinterpret_cast<void**>(const_cast<char**>(&value->data.string.data)));
+                return;
+            case RuntimeType::Array:
+            case RuntimeType::Struct:
+                __gc_register(reinterpret_cast<void**>(&value->data.aggregate.data));
+                return;
+            case RuntimeType::Pointer: {
+                void** payload = &value->data.pointer;
+                __gc_register(payload);
+                return;
+            }
+            default:
+                return;
+        }
+    }
+
+    extern "C" void __gc_register_value_slot(RuntimeValue** slot) {
+        if (slot && *slot) {
+            __gc_register_value(*slot);
+        }
+    }
+
     extern "C" void __gc_pop(uint32_t times) {
         while (times > 0 && !global_roots.empty()) {
             global_roots.pop_back();
@@ -403,6 +486,27 @@ namespace sakuraE::runtime {
 
     extern "C" void __gc_scan(void* ptr) {
         __gc_scan_unlocked(ptr);
+    }
+
+    extern "C" void __gc_scan_value(const RuntimeValue* value) {
+        if (!value) {
+            return;
+        }
+
+        switch (value->type) {
+            case RuntimeType::String:
+                __gc_scan_unlocked(const_cast<char*>(value->data.string.data));
+                return;
+            case RuntimeType::Array:
+            case RuntimeType::Struct:
+                __gc_scan_unlocked(value->data.aggregate.data);
+                return;
+            case RuntimeType::Pointer:
+                __gc_scan_unlocked(value->data.pointer);
+                return;
+            default:
+                return;
+        }
     }
 
     // 单线程 stop-the-world mark-sweep：
@@ -442,6 +546,11 @@ namespace sakuraE::runtime {
 
     struct GCCleaner {
         ~GCCleaner() {
+            for (auto* value: runtime_values) {
+                std::free(value);
+            }
+            runtime_values.clear();
+
             for (auto* header : global_heap) {
                 std::free(header);
             }
