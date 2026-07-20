@@ -19,7 +19,7 @@ namespace sakuraE {
         LEXER, PARSER, IR_GENERATING, COMPILING, SYSTEM
     };
 
-    class SakuraError {
+    class SakuraError: std::exception {
         OccurredTerm term;
         fzlib::String content;
         PositionInfo info;
