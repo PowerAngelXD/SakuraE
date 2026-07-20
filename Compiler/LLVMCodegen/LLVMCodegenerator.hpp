@@ -153,6 +153,13 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {ptr});
             }
 
+            void gcRegisterValueRoot(llvm::Value* addr) {
+                auto fn = parent->lookup("__gc_register_value_slot");
+                auto ptr = codegenContext.builder->CreateBitCast(addr,
+                    llvm::PointerType::getUnqual(*codegenContext.context));
+                codegenContext.builder->CreateCall(fn->content, {ptr});
+            }
+
             void gcPop(size_t times) {
                 if (times == 0) return;
                 auto fn = parent->lookup("__gc_pop");
@@ -227,7 +234,7 @@ namespace sakuraE::Codegen {
                 // 将 SSA 值落到 entry block 的槽位，避免后续分配发生时值无法作为 root 被扫描。
                 auto* slot = createAlloca(value->getType(), nullptr, slotName);
                 codegenContext.builder->CreateStore(value, slot);
-                gcRegisterRoot(slot);
+                gcRegisterValueRoot(slot);
                 return slot;
             }
 
@@ -281,6 +288,23 @@ namespace sakuraE::Codegen {
             LLVMModule(fzlib::String id, llvm::LLVMContext& ctx, LLVMCodeGenerator& codegen):
                 ID(id), content(nullptr), codegenContext(codegen) {}
 
+            llvm::StructType* runtimeValueType() {
+                return codegenContext.runtimeValueType();
+            }
+
+            llvm::Type* abiType(IR::IRType* type, const fzlib::String& name) {
+                if (!type || type->getIRTypeID() == IR::IRTypeID::VoidTyID) {
+                    return llvm::Type::getVoidTy(*codegenContext.context);
+                }
+
+                if (name == "__gc_alloc" || name == "__alloc" || name == "__free" ||
+                    name == "__gc_register" || name == "__gc_pop") {
+                    return type->toLLVMType(*codegenContext.context);
+                }
+
+                return llvm::PointerType::getUnqual(*codegenContext.context);
+            }
+
             ~LLVMModule() {
                 for (auto& pair : fnMap) {
                     if (pair.second) delete pair.second;
@@ -319,6 +343,24 @@ namespace sakuraE::Codegen {
                         memTy
                     }
                 );
+            }
+
+            llvm::Value* getRuntimeValueArrayGCType(uint32_t memberSize, uint64_t length) {
+                auto callee = content->getOrInsertFunction(
+                    "__gc_get_runtime_value_array_type",
+                    llvm::FunctionType::get(
+                        codegenContext.builder->getPtrTy(),
+                        {
+                            llvm::Type::getInt32Ty(*codegenContext.context),
+                            llvm::Type::getInt64Ty(*codegenContext.context)
+                        },
+                        false
+                    )
+                );
+                return codegenContext.builder->CreateCall(callee, {
+                    codegenContext.builder->getInt32(memberSize),
+                    codegenContext.builder->getInt64(length)
+                });
             }
 
             llvm::Value* llvmTy2GCType(llvm::Type* ty) {
@@ -381,6 +423,108 @@ namespace sakuraE::Codegen {
         };
 
         // ====================================================================
+
+        llvm::StructType* runtimeValueType() {
+            auto* existing = llvm::StructType::getTypeByName(*context, "sakurae.RuntimeValue");
+            if (existing) return existing;
+
+            auto* padding = llvm::ArrayType::get(llvm::Type::getInt8Ty(*context), 7);
+            // RawValue is 32 bytes with 8-byte alignment on the C++ ABI.
+            auto* data = llvm::ArrayType::get(llvm::Type::getInt64Ty(*context), 4);
+            return llvm::StructType::create(*context,
+                {llvm::Type::getInt8Ty(*context), padding, data},
+                "sakurae.RuntimeValue");
+        }
+
+        llvm::Type* abiType(IR::IRType* type, const fzlib::String& name) {
+            if (!type || type->getIRTypeID() == IR::IRTypeID::VoidTyID) {
+                return llvm::Type::getVoidTy(*context);
+            }
+            if (name == "__gc_alloc" || name == "__alloc" || name == "__free" ||
+                name == "__gc_register" || name == "__gc_register_value" ||
+                name == "__gc_pop" || name == "__gc_get_struct_type") {
+                return type->toLLVMType(*context);
+            }
+            return llvm::PointerType::getUnqual(*context);
+        }
+
+        llvm::Type* abiParamType(IR::IRType* type, const fzlib::String& name) {
+            if ((name == "create_string" || name == "__gc_register_value") && type && type->isPointer()) {
+                return type->toLLVMType(*context);
+            }
+            if (name == "__gc_get_struct_type") {
+                return type->toLLVMType(*context);
+            }
+            return abiType(type, name);
+        }
+
+        llvm::Value* boxRaw(llvm::Value* raw, IR::IRType* type, LLVMFunction* curFn) {
+            auto* allocFn = curFn->parent->lookup("__runtime_alloc_value");
+            auto* resultSlot = builder->CreateCall(allocFn->content, {}, "runtime.value");
+            builder->CreateStore(llvm::Constant::getNullValue(runtimeValueType()), resultSlot);
+            builder->CreateStore(builder->getInt8(runtimeTypeTag(type)),
+                                 builder->CreateStructGEP(runtimeValueType(), resultSlot, 0));
+
+            auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), resultSlot, 2);
+            auto* rawSlot = builder->CreateBitCast(dataSlot, llvm::PointerType::getUnqual(*context));
+            builder->CreateStore(raw, rawSlot);
+            return resultSlot;
+        }
+
+        std::uint8_t runtimeTypeTag(IR::IRType* type) const {
+            switch (type->getIRTypeID()) {
+                case IR::IRTypeID::CharTyID: return 0;
+                case IR::IRTypeID::Integer32TyID: return 1;
+                case IR::IRTypeID::Integer64TyID: return 2;
+                case IR::IRTypeID::UInteger32TyID: return 4;
+                case IR::IRTypeID::UInteger64TyID: return 5;
+                case IR::IRTypeID::Float32TyID: return 6;
+                case IR::IRTypeID::Float64TyID: return 7;
+                case IR::IRTypeID::BoolTyID: return 8;
+                case IR::IRTypeID::StringTyID: return 9;
+                case IR::IRTypeID::ArrayTyID: return 10;
+                case IR::IRTypeID::TypeInfoTyID:
+                case IR::IRTypeID::PointerTyID:
+                case IR::IRTypeID::RefTyID: return 12;
+                default: return 12;
+            }
+        }
+
+        llvm::Value* unboxRaw(llvm::Value* boxed, IR::IRType* type, LLVMFunction* curFn) {
+            auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), boxed, 2);
+            auto* rawSlot = builder->CreateBitCast(dataSlot, llvm::PointerType::getUnqual(*context));
+            return builder->CreateLoad(type->toLLVMType(*context), rawSlot, "unboxed.value");
+        }
+
+        llvm::Value* rawValue(IR::IRValue* value, LLVMFunction* curFn) {
+            return unboxRaw(toLLVMValue(value, curFn), value->getType(), curFn);
+        }
+
+        llvm::Value* boxConstant(IR::Constant* constant, LLVMFunction* curFn) {
+            switch (constant->getType()->getIRTypeID()) {
+                case IR::IRTypeID::Integer32TyID:
+                    return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::Integer64TyID:
+                    return boxRaw(builder->getInt64(constant->getContentValue<std::int64_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::UInteger32TyID:
+                    return boxRaw(builder->getInt32(constant->getContentValue<std::uint32_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::UInteger64TyID:
+                    return boxRaw(builder->getInt64(constant->getContentValue<std::uint64_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::Float32TyID:
+                    return boxRaw(llvm::ConstantFP::get(builder->getFloatTy(), constant->getContentValue<float>()), constant->getType(), curFn);
+                case IR::IRTypeID::Float64TyID:
+                    return boxRaw(llvm::ConstantFP::get(builder->getDoubleTy(), constant->getContentValue<double>()), constant->getType(), curFn);
+                case IR::IRTypeID::CharTyID:
+                    return boxRaw(builder->getInt8(constant->getContentValue<std::int8_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::BoolTyID:
+                    return boxRaw(builder->getInt1(constant->getContentValue<bool>()), constant->getType(), curFn);
+                case IR::IRTypeID::TypeInfoTyID:
+                    return boxRaw(llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(
+                        constant->getType()->toLLVMType(*context))), constant->getType(), curFn);
+                default:
+                    throw std::runtime_error(fzlib::String("Unsupported boxed constant type: " + constant->getType()->toString()).c_str());
+            }
+        }
 
         // Instruction Referring ==============================================
         std::map<IR::IRValue*, llvm::Value*> instructionMap;
@@ -458,41 +602,14 @@ namespace sakuraE::Codegen {
 
         // Tool Methods =========================================================
         llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
-            switch (constant->getType()->getIRTypeID()){
-                case IR::IRTypeID::Integer32TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<int>());
-                case IR::IRTypeID::Integer64TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<long long>());
-                case IR::IRTypeID::UInteger32TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<unsigned int>());
-                case IR::IRTypeID::UInteger64TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<unsigned long long>());
-                case IR::IRTypeID::Float32TyID:
-                    return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<float>());
-                case IR::IRTypeID::Float64TyID:
-                    return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<double>());
-                case IR::IRTypeID::StringTyID: {
-                    fzlib::String strVal = constant->getContentValue<fzlib::String>();
-
-                    auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
-
-                    auto string_creator = curFn->parent->lookup("create_string");
-
-                    llvm::Value* heapStr = builder->CreateCall(string_creator->content, {strVar}, "heap_str");
-                    auto* rootedSlot = curFn->createRootedTemporary(heapStr, "gc.string.constant");
-                    return builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "gc.string.constant.load");
-                }
-                case IR::IRTypeID::CharTyID: {
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<char>());
-                }
-                case IR::IRTypeID::BoolTyID: {
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<bool>());
-                }
-                default:
-                    return nullptr;
+            if (constant->getType()->getIRTypeID() != IR::IRTypeID::StringTyID) {
+                return boxConstant(constant, curFn);
             }
 
-            return nullptr;
+            fzlib::String strVal = constant->getContentValue<fzlib::String>();
+            auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
+            auto stringCreator = curFn->parent->lookup("create_string");
+            return builder->CreateCall(stringCreator->content, {strVar}, "boxed.string");
         }
 
         llvm::Value* toLLVMValue(IR::IRValue* value, LLVMFunction* curFn) {
