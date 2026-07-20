@@ -9,11 +9,14 @@
 #ifndef SAKURAE_RUNTIME_PRINT_H
 #define SAKURAE_RUNTIME_PRINT_H
 
+#include <cstdint>
 #include <cstdlib>
 #include <stdio.h>
+#include "value.h"
 
-extern "C" void __print(char* str);
 
-extern "C" void __println(char* str);
+extern "C" void __print(const sakuraE::runtime::RuntimeValue* value);
+extern "C" void __println(const sakuraE::runtime::RuntimeValue* value);
+
 
 #endif
