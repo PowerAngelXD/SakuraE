@@ -100,6 +100,7 @@ namespace sakuraE::Codegen {
                 type(ty), linkageName(lkn), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
             void gcEnterScope() {
+                // 进入函数或临时表达式作用域，后续注册的 root 会按栈序撤销。
                 auto fn = parent->lookup("__gc_enter_scope");
                 codegenContext.builder->CreateCall(fn->content, {});
                 gcScopeDepth ++;
@@ -119,12 +120,13 @@ namespace sakuraE::Codegen {
             }
 
             llvm::Value* gcAlloc(llvm::Value* size, llvm::Value* gcTy, llvm::Value* elemCount = nullptr) {
+                // 所有托管对象都通过统一入口分配，GC 可据此维护对象链表和类型信息。
                 auto fn = parent->lookup("__gc_alloc");
 
                 if (!elemCount) {
                     elemCount = codegenContext.builder->getInt64(0);
                 }
-            
+
                 return codegenContext.builder->CreateCall(fn->content, {
                     size,
                     gcTy,
@@ -144,6 +146,7 @@ namespace sakuraE::Codegen {
             }
 
             void gcRegisterRoot(llvm::Value* addr) {
+                // addr 指向 LLVM alloca 槽位，运行时会在收集时读取槽位中的最新对象指针。
                 auto fn = parent->lookup("__gc_register");
                 auto ptr = codegenContext.builder->CreateBitCast(addr, llvm::PointerType::getUnqual(*codegenContext.context));
 
@@ -221,6 +224,7 @@ namespace sakuraE::Codegen {
             }
 
             llvm::AllocaInst* createRootedTemporary(llvm::Value* value, const fzlib::String& slotName) {
+                // 将 SSA 值落到 entry block 的槽位，避免后续分配发生时值无法作为 root 被扫描。
                 auto* slot = createAlloca(value->getType(), nullptr, slotName);
                 codegenContext.builder->CreateStore(value, slot);
                 gcRegisterRoot(slot);
@@ -240,6 +244,7 @@ namespace sakuraE::Codegen {
             }
 
             llvm::Value* createHeapAlloc(llvm::Type* t, llvm::Value* gcTy, llvm::Value* elemCount) {
+                // 数组 payload 不包含 header；header 由 Runtime::__gc_alloc 在 payload 前方创建。
                 size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
                 llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
                 llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
@@ -290,24 +295,27 @@ namespace sakuraE::Codegen {
                 return codegenContext.builder->CreateCall(callee, {});
             }
 
-            llvm::Value* getArrayGCType(bool isPtr, uint32_t length, llvm::Value* memTy) {
+            llvm::Value* getArrayGCType(bool isPtr, uint32_t memberSize, llvm::Value* memTy, uint64_t length = 0) {
+                // 将 LLVM 数组布局转换为运行时扫描描述符，length 用于嵌入式数组递归扫描。
                 auto callee = content->getOrInsertFunction(
-                    "__gc_get_array_type",
+                    "__gc_get_array_type_with_length",
                     llvm::FunctionType::get(
-                        codegenContext.builder->getPtrTy(), 
+                        codegenContext.builder->getPtrTy(),
                         {
                             llvm::Type::getInt1Ty(*codegenContext.context),
                             llvm::Type::getInt32Ty(*codegenContext.context),
+                            llvm::Type::getInt64Ty(*codegenContext.context),
                             codegenContext.builder->getPtrTy()
-                        }, 
+                        },
                         false
                     )
                 );
                 return codegenContext.builder->CreateCall(
-                    callee, 
+                    callee,
                     {
-                        codegenContext.builder->getInt1(isPtr), 
-                        codegenContext.builder->getInt32(length), 
+                        codegenContext.builder->getInt1(isPtr),
+                        codegenContext.builder->getInt32(memberSize),
+                        codegenContext.builder->getInt64(length),
                         memTy
                     }
                 );
@@ -317,7 +325,7 @@ namespace sakuraE::Codegen {
                 if (!ty) {
                     return getAtomicGCType();
                 }
-                
+
                 if (ty->isArrayTy()) {
                     auto* arrTy = llvm::cast<llvm::ArrayType>(ty);
                     llvm::Type* elemTy = arrTy->getElementType();
@@ -326,15 +334,15 @@ namespace sakuraE::Codegen {
                         content->getDataLayout().getTypeAllocSize(elemTy)
                     );
                     llvm::Value* elemGcTy = elemIsPtr ? getAtomicGCType() : llvmTy2GCType(elemTy);
-                
-                    return getArrayGCType(elemIsPtr, elemSize, elemGcTy);
+
+                    return getArrayGCType(elemIsPtr, elemSize, elemGcTy, arrTy->getNumElements());
                 }
-            
+
                 if (ty->isPointerTy()) {
                     uint32_t ptrSize = static_cast<uint32_t>(content->getDataLayout().getPointerSize());
                     return getArrayGCType(true, ptrSize, getAtomicGCType());
                 }
-            
+
                 return getAtomicGCType();
             }
 
@@ -413,7 +421,6 @@ namespace sakuraE::Codegen {
         // =====================================================================
 
         // Resources ===========================================================
-        std::map<fzlib::String, llvm::Value*> stringPool;
         // =====================================================================
     public:
         LLVMCodeGenerator()=default;
@@ -467,16 +474,13 @@ namespace sakuraE::Codegen {
                 case IR::IRTypeID::StringTyID: {
                     fzlib::String strVal = constant->getContentValue<fzlib::String>();
 
-                    if (stringPool.contains(strVal)) return stringPool[strVal];
-
                     auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
 
                     auto string_creator = curFn->parent->lookup("create_string");
 
                     llvm::Value* heapStr = builder->CreateCall(string_creator->content, {strVar}, "heap_str");
-                    stringPool[strVal] = heapStr;
-
-                    return heapStr;
+                    auto* rootedSlot = curFn->createRootedTemporary(heapStr, "gc.string.constant");
+                    return builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "gc.string.constant.load");
                 }
                 case IR::IRTypeID::CharTyID: {
                     return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<char>());

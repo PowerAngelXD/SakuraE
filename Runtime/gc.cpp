@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <list>
 #include <map>
 #include <stack>
@@ -44,6 +45,7 @@ namespace sakuraE::runtime {
         // 防止 collect 过程中再次递归进入 collect。
         bool gc_collecting = false;
 
+        // payload 紧邻 header，所有对外暴露的对象指针都指向 payload。
         inline char* payload_begin(ObjectHeader* header) {
             return reinterpret_cast<char*>(header + 1);
         }
@@ -104,12 +106,13 @@ namespace sakuraE::runtime {
         return &GC_ATOMIC_TYPE;
     }
 
-    extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty) {
+    // 根据数组元素布局生成或复用类型描述符；长度为零表示仅用于兼容旧接口。
+    static GCTypeInfo* get_array_type(bool is_ptr, uint32_t size, uint64_t length, GCTypeInfo* mem_ty) {
         if (!mem_ty) {
             return nullptr;
         }
 
-        fzlib::String key = build_array_type_key(is_ptr, size, mem_ty);
+        fzlib::String key = build_array_type_key(is_ptr, size, mem_ty) + "|" + std::to_string(length);
         if (complex_gc_type_pool.contains(key)) {
             return complex_gc_type_pool[key];
         }
@@ -125,12 +128,21 @@ namespace sakuraE::runtime {
             new GCArrayLayout {
                 size,
                 is_ptr,
+                length,
                 mem_ty
             }
         };
 
         complex_gc_type_pool[key] = type_info;
         return type_info;
+    }
+
+    extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty) {
+        return get_array_type(is_ptr, size, 0, mem_ty);
+    }
+
+    extern "C" GCTypeInfo* __gc_get_array_type_with_length(bool is_ptr, uint32_t size, uint64_t length, GCTypeInfo* mem_ty) {
+        return get_array_type(is_ptr, size, length, mem_ty);
     }
 
     // 这是给未来 struct object 预留的接口。
@@ -186,9 +198,13 @@ namespace sakuraE::runtime {
             return;
         }
 
+        // 只读取元数据声明的指针字段，不扫描结构体中的普通标量字段。
         auto* base = static_cast<char*>(obj);
         for (uint32_t i = 0; i < s_layout->ptr_count; ++i) {
             uint32_t offset = s_layout->ptr_offsets[i];
+            if (offset > std::numeric_limits<size_t>::max() - sizeof(void*)) {
+                continue;
+            }
             void* child = *reinterpret_cast<void**>(base + offset);
             if (child) {
                 visit(child, context);
@@ -201,6 +217,7 @@ namespace sakuraE::runtime {
             return;
         }
 
+        // 嵌入式对象没有独立 header，因此必须由外层对象提供其布局和长度。
         switch (ty->kind) {
             case GCObjectKind::Atomic:
                 return;
@@ -208,8 +225,24 @@ namespace sakuraE::runtime {
                 __gc_scan_struct(mem, ty->struct_layout, visit, ctx);
                 return;
             case GCObjectKind::Array:
-                // 预留给未来“内嵌 array field”的扫描路径。
-                // 当前简单 GC 只完整支持独立 heap object 形式的 array。
+                if (ty->array_layout && ty->array_layout->length > 0) {
+                    if (ty->array_layout->member_size == 0 ||
+                        ty->array_layout->length > std::numeric_limits<size_t>::max() / ty->array_layout->member_size) {
+                        return;
+                    }
+                    auto* base = static_cast<char*>(mem);
+                    for (uint64_t i = 0; i < ty->array_layout->length; ++i) {
+                        void* element = base + i * ty->array_layout->member_size;
+                        if (ty->array_layout->is_ptr) {
+                            if (void* child = *reinterpret_cast<void**>(element)) {
+                                visit(child, ctx);
+                            }
+                        }
+                        else if (ty->array_layout->member_type && ty->array_layout->member_type->contains_refs) {
+                            __gc_scan_embedded(element, ty->array_layout->member_type, visit, ctx);
+                        }
+                    }
+                }
                 return;
         }
     }
@@ -219,7 +252,12 @@ namespace sakuraE::runtime {
             return;
         }
 
+        // 独立数组对象的实际元素数量来自 header，而非类型缓存。
         auto* base = static_cast<char*>(obj);
+        if (a_layout->member_size == 0 ||
+            header->elem_count > header->obj_size / a_layout->member_size) {
+            return;
+        }
         for (uint64_t i = 0; i < header->elem_count; ++i) {
             void* element_addr = base + i * a_layout->member_size;
 
@@ -296,6 +334,7 @@ namespace sakuraE::runtime {
     }
 
     extern "C" void __gc_enter_scope() {
+        // 记录进入作用域时的 root 数量，支持嵌套作用域按栈序退出。
         scope_markers.push_back(global_roots.size());
     }
 
@@ -310,9 +349,15 @@ namespace sakuraE::runtime {
     }
 
     extern "C" void* __gc_alloc(size_t size, GCTypeInfo* ty, uint64_t member_count) {
+        // 分配触发 GC 前，调用方必须已经将仍需保留的对象注册为 root。
+        if (size > std::numeric_limits<size_t>::max() - sizeof(ObjectHeader)) {
+            std::fprintf(stderr, "[Runtime Error] Allocation size overflow in __gc_alloc\n");
+            std::exit(1);
+        }
         const size_t total_size = sizeof(ObjectHeader) + size;
 
-        if (!gc_collecting && allocated_bytes + total_size > limit) {
+        if (!gc_collecting && (total_size > std::numeric_limits<size_t>::max() - allocated_bytes ||
+                               allocated_bytes + total_size > limit)) {
             __gc_collect();
         }
 
@@ -345,6 +390,7 @@ namespace sakuraE::runtime {
             return;
         }
 
+        // 保存槽位地址而不是对象值，使对象被移动或重写后 root 仍能反映最新值。
         global_roots.push_back(addr);
     }
 

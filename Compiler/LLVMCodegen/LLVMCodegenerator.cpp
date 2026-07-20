@@ -115,6 +115,7 @@ namespace sakuraE::Codegen {
         }
 
         codegenContext.builder->SetInsertPoint(entryBlock);
+        // 函数级 root scope 覆盖参数、局部变量和所有临时 root。
         gcEnterScope();
 
         std::size_t i = 0;
@@ -291,6 +292,7 @@ namespace sakuraE::Codegen {
                 auto elementType = arrayType->getArrayElementType();  
 
                 // array object 的 payload 是实际数组内容，header 中只记录扫描规则与元素个数。
+                // 元素求值阶段先建立临时 root，确保构造数组期间的嵌套对象不会被回收。
                 llvm::Value* gcType = curFn->parent->llvmTy2GCType(arrayType);
                 llvm::Value* elemCount = builder->getInt64(irArray->getSize());
                 llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, elemCount);

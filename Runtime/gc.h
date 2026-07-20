@@ -13,11 +13,13 @@
 #include <cstdint>
 
 namespace sakuraE::runtime {
+    // 对象在一次 mark-sweep 周期中的可达性标记。
     enum GCMark: uint32_t {
         Unmarked,
         Marked
     };
 
+    // GC 根据对象种类选择对应的引用扫描策略。
     enum class GCObjectKind: uint8_t {
         Atomic,
         Struct,
@@ -28,19 +30,23 @@ namespace sakuraE::runtime {
     struct GCTypeInfo;
 
     struct GCStructLayout {
+        // 结构体中每个托管指针字段相对于 payload 起始地址的字节偏移。
         uint32_t ptr_count;
         uint32_t* ptr_offsets = nullptr;
     };
 
     // 数组对象的扫描规则：元素大小、是否为指针、以及元素本身的类型信息。
     struct GCArrayLayout {
+        // member_size 是单个元素的字节大小，length 用于扫描嵌入式数组。
         uint32_t member_size;
         bool is_ptr;
+        uint64_t length;
         GCTypeInfo* member_type = nullptr;
     };
 
     // 每个堆对象都会挂一个 GCTypeInfo，标记阶段据此决定如何继续遍历。
     struct GCTypeInfo {
+        // contains_refs 为 false 时可以跳过整个对象的递归扫描。
         const char* name;
         GCObjectKind kind;
         bool contains_refs;
@@ -50,6 +56,7 @@ namespace sakuraE::runtime {
 
     // ObjectHeader 紧挨在对象 payload 前面，生成代码只拿到 payload 指针。
     struct ObjectHeader {
+        // header 紧邻 payload，elem_count 仅对堆数组对象表示元素数量。
         GCTypeInfo* type_info;
         GCMark mark;
         uint64_t obj_size;
@@ -60,8 +67,10 @@ namespace sakuraE::runtime {
     extern size_t limit;
     extern GCTypeInfo GC_ATOMIC_TYPE;
 
+    // 获取静态的无引用原子类型描述符。
     extern "C" GCTypeInfo* __gc_get_atomic_type();
     extern "C" GCTypeInfo* __gc_get_array_type(bool is_ptr, uint32_t size, GCTypeInfo* mem_ty);
+    extern "C" GCTypeInfo* __gc_get_array_type_with_length(bool is_ptr, uint32_t size, uint64_t length, GCTypeInfo* mem_ty);
     extern "C" GCTypeInfo* __gc_get_struct_type(const char* name, uint32_t ptr_count, const uint32_t* ptr_offsets);
 
     extern "C" ObjectHeader* __gc_get_unlocked(void* payload);
@@ -78,6 +87,7 @@ namespace sakuraE::runtime {
     extern "C" void   __gc_destroy_thread();
     extern "C" void   __gc_safe_point();
 
+    // root scope 采用栈式嵌套管理，离开作用域时回退到进入前的 root 深度。
     extern "C" void   __gc_enter_scope();
     extern "C" void   __gc_leave_scope();
     extern "C" void*  __gc_alloc(size_t size, GCTypeInfo* ty, uint64_t member_count = 0);

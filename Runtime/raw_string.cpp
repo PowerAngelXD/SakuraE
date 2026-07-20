@@ -8,6 +8,7 @@
 #include "raw_string.h"
 #include "gc.h"
 #include "alloc.h"
+#include <limits>
 
 using namespace sakuraE::runtime;
 
@@ -15,6 +16,11 @@ extern "C" char* create_string(const char* literal) {
     if (!literal) return nullptr;
 
     size_t len = strlen(literal);
+    if (len == std::numeric_limits<size_t>::max()) {
+        std::fprintf(stderr, "[Runtime Error] String size overflow in create_string\n");
+        std::exit(1);
+    }
+    // 语言字符串使用 GC 原子对象承载，调用方不需要手动释放。
     char* str = (char*)__gc_alloc(len + 1, __gc_get_atomic_type());
 
     strcpy(str, literal);
@@ -22,6 +28,7 @@ extern "C" char* create_string(const char* literal) {
 }
 
 extern "C" void free_string(char* str) {
+    // Strings are GC-managed; retain this ABI-compatible no-op for existing callers.
     (void)str;
 }
 
@@ -44,6 +51,10 @@ extern "C" char* concat_string(const char* s1, const char* s2) {
 
     size_t len1 = strlen(safe_s1);
     size_t len2 = strlen(safe_s2);
+    if (len1 > std::numeric_limits<size_t>::max() - len2 - 1) {
+        std::fprintf(stderr, "[Runtime Error] String size overflow in concat_string\n");
+        std::exit(1);
+    }
 
     char* result = (char*)__gc_alloc(len1 + len2 + 1, __gc_get_atomic_type());
     if (!result) exit(1);

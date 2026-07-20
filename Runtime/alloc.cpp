@@ -9,16 +9,17 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <limits>
 #include <iostream>
 #include "alloc.h"
 
 extern "C" void* __alloc(size_t size) {
-    if (size <= 0) return nullptr;
+    if (size == 0) return nullptr;
 
     void* ptr = malloc(size);
 
     if (!ptr) {
-        fprintf(stderr, "[Runtime Error] Out of memory in function: create_string");
+        fprintf(stderr, "[Runtime Error] Out of memory in function: __alloc\n");
         exit(1);
     }
 

@@ -141,6 +141,8 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("__gc_register")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_atomic_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_atomic_type), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_array_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_array_type), llvm::JITSymbolFlags::Exported };
+        // LLVM 生成数组 GC 元数据时使用带长度的接口，必须显式加入 JIT 符号表。
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_array_type_with_length")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_array_type_with_length), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_struct_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_struct_type), llvm::JITSymbolFlags::Exported };
 
         llvm::cantFail(JD.define(llvm::orc::absoluteSymbols(runtimeSymbols)));
