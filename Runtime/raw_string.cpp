@@ -12,8 +12,10 @@
 
 using namespace sakuraE::runtime;
 
-extern "C" char* create_string(const char* literal) {
-    if (!literal) return nullptr;
+extern "C" RuntimeValue* create_string(const char* literal) {
+    auto* value = __runtime_alloc_value();
+    value->type = RuntimeType::String;
+    if (!literal) return value;
 
     size_t len = strlen(literal);
     if (len == std::numeric_limits<size_t>::max()) {
@@ -24,28 +26,34 @@ extern "C" char* create_string(const char* literal) {
     char* str = (char*)__gc_alloc(len + 1, __gc_get_atomic_type());
 
     strcpy(str, literal);
-    return str;
+    value->data.string = {str, static_cast<std::uint64_t>(len)};
+    // Keep a newly created string alive until the surrounding runtime scope
+    // ends; the caller may not have installed its wrapper root yet.
+    __gc_register(reinterpret_cast<void**>(const_cast<char**>(&value->data.string.data)));
+    return value;
 }
 
-extern "C" void free_string(char* str) {
+extern "C" void free_string(RuntimeValue* str) {
     // Strings are GC-managed; retain this ABI-compatible no-op for existing callers.
     (void)str;
 }
 
-extern "C" char* concat_string(const char* s1, const char* s2) {
-    if (!s1) s1 = "";
-    if (!s2) s2 = "";
+extern "C" RuntimeValue* concat_string(RuntimeValue* s1, RuntimeValue* s2) {
+    auto* value = __runtime_alloc_value();
+    value->type = RuntimeType::String;
+    const char* raw_s1 = s1 && s1->type == RuntimeType::String ? s1->data.string.data : nullptr;
+    const char* raw_s2 = s2 && s2->type == RuntimeType::String ? s2->data.string.data : nullptr;
+    if (!raw_s1) raw_s1 = "";
+    if (!raw_s2) raw_s2 = "";
 
     // `concat_string` 在真正拼接前可能先触发新的 GC 分配。
     // 因此先把两个入参临时压入根栈，避免它们在本次调用中途被误回收。
-    void* root1 = const_cast<char*>(s1);
-    void* root2 = const_cast<char*>(s2);
-
     __gc_enter_scope();
+    void* root1 = const_cast<char*>(raw_s1);
+    void* root2 = const_cast<char*>(raw_s2);
     __gc_register(&root1);
     __gc_register(&root2);
 
-    // 之后统一从被根住的局部变量中读取安全入参。
     const char* safe_s1 = static_cast<const char*>(root1);
     const char* safe_s2 = static_cast<const char*>(root2);
 
@@ -63,5 +71,7 @@ extern "C" char* concat_string(const char* s1, const char* s2) {
     strcat(result, safe_s2);
     // 拼接完成后，释放本次调用临时压入的根。
     __gc_leave_scope();
-    return result;
+    value->data.string = {result, static_cast<std::uint64_t>(len1 + len2)};
+    __gc_register(reinterpret_cast<void**>(const_cast<char**>(&value->data.string.data)));
+    return value;
 }
