@@ -7,6 +7,7 @@ The runtime library for the SakuraE compiler, providing memory management, strin
 ## File List and Functionality
 
 ### 1. Memory Management
+*   **[Garbage Collector Design](GC.md)**: Design, APIs, object layout, root management, and LLVM integration.
 *   **[`alloc.h`](Runtime/alloc.h)**: Header for the memory allocator, defining core runtime allocation interfaces.
 *   **[`alloc.cpp`](Runtime/alloc.cpp)**: 
     *   `__alloc(size_t size)`: Wraps `malloc` to provide heap allocation with zero-initialization and error handling for out-of-memory conditions.
@@ -15,7 +16,7 @@ The runtime library for the SakuraE compiler, providing memory management, strin
 ### 2. String Manipulation
 *   **[`raw_string.cpp`](Runtime/raw_string.cpp)**:
     *   `create_string(const char* literal)`: Copies a C-style string literal into heap memory, supporting string mutability.
-    *   `free_string(char* str)`: Releases memory for strings created by the runtime.
+    *   `free_string(char* str)`: Compatibility no-op; strings are reclaimed by the GC.
     *   `concat_string(const char* s1, const char* s2)`: Concatenates two strings and returns a new heap-allocated string.
 
 ### 3. Basic I/O
