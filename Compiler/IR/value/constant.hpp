@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <variant>
 #include <map>
+#include <cstdint>
 
 #include <llvm/IR/Type.h>
 
@@ -20,27 +21,27 @@ namespace sakuraE::IR {
     private:
         std::variant<
             std::monostate,
-            int,
-            long long,
-            unsigned int,
-            unsigned long long,
+            std::int32_t,
+            std::int64_t,
+            std::uint32_t,
+            std::uint64_t,
             double,
             float,
             fzlib::String,
-            char,
+            std::int8_t,
             bool,
             TypeInfo*,
             IRArray*
         > content;
         PositionInfo createInfo;
 
-        Constant(IRType* ty, int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+        Constant(IRType* ty, std::int32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, unsigned int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+        Constant(IRType* ty, std::uint32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, unsigned long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+        Constant(IRType* ty, std::uint64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+        Constant(IRType* ty, std::int64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
@@ -48,7 +49,7 @@ namespace sakuraE::IR {
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, const fzlib::String& val, PositionInfo info)
             : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
+        Constant(IRType* ty, std::int8_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
@@ -58,14 +59,14 @@ namespace sakuraE::IR {
             : IRValue(ty), content(val), createInfo(info) {}
 
     public:
-        static Constant* get(unsigned int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(unsigned long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(long long val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(int val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::uint32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::uint64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::int64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::int32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(const fzlib::String& val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(char val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::int8_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
@@ -93,7 +94,10 @@ namespace sakuraE::IR {
                 if constexpr (std::is_same_v<T, std::monostate>) {
                     return "null";
                 }
-                else if constexpr (std::is_same_v<T, int>) {
+                else if constexpr (std::is_same_v<T, std::int32_t> ||
+                                   std::is_same_v<T, std::int64_t> ||
+                                   std::is_same_v<T, std::uint32_t> ||
+                                   std::is_same_v<T, std::uint64_t>) {
                     return std::to_string(arg);
                 }
                 else if constexpr (std::is_same_v<T, float>) {
@@ -102,8 +106,8 @@ namespace sakuraE::IR {
                 else if constexpr (std::is_same_v<T, fzlib::String>) {
                     return arg;
                 }
-                else if constexpr (std::is_same_v<T, char>) {
-                    char buf[4] = {'\'', arg, '\'', '\0'};
+                else if constexpr (std::is_same_v<T, std::int8_t>) {
+                    char buf[4] = {'\'', static_cast<char>(arg), '\'', '\0'};
                     return fzlib::String(buf);
                 }
                 else if constexpr (std::is_same_v<T, bool>) {
