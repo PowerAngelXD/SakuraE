@@ -130,7 +130,33 @@ namespace sakuraE::IR {
 
                 auto mangledName = mangleFnName(name, argTypes);
 
-                auto symbol = lookup(mangledName, node->getPosInfo());
+                auto symbol = curModule()->lookup(mangledName);
+                IRValue* callee = nullptr;
+                if (!symbol && (name == "__print" || name == "__println")) {
+                    // Printing is a generic RuntimeValue API. Its IR
+                    // declaration is represented by the string overload, but
+                    // the LLVM ABI is RuntimeValue* for every source type.
+                    auto* runtimeFn = curModule()->lookupRuntimeFunction(name);
+                    if (runtimeFn) {
+                        callee = runtimeFn;
+                    }
+                }
+                if (!symbol) {
+                    if (callee) {
+                        currentAddr = visitCallingOpNode(callee, ops[0], argValues);
+                        for (size_t i = 1; i < ops.size(); ++i) {
+                            if (ops[i]->getTag() == ASTTag::IndexOpNode)
+                                currentAddr = visitIndexOpNode(currentAddr, ops[i]);
+                            else
+                                currentAddr = visitCallingOpNode(currentAddr, ops[i]);
+                        }
+                        return currentAddr;
+                    }
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "Unknown identifier: " + mangledName,
+                        node->getPosInfo());
+                }
                 currentAddr = symbol->address;
                 currentAddr = visitCallingOpNode(currentAddr, ops[0], argValues);
 

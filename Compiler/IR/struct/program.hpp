@@ -35,39 +35,46 @@ namespace sakuraE::IR {
 
             runtimeMod->declareRuntimeFunction(
                 "create_string", 
-                IRType::getStringTy(), 
+                IRType::getStringTy(),
                 { {"literal", IRType::getPointerTo(IRType::getCharTy())} }, 
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
                 "free_string", 
-                IRType::getVoidTy(), 
-                { {"str", IRType::getStringTy()} }, 
+                IRType::getVoidTy(),
+                { {"str", IRType::getStringTy()} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
                 "concat_string", 
-                IRType::getStringTy(), 
+                IRType::getStringTy(),
                 { 
-                    {"s1", IRType::getStringTy()}, 
-                    {"s2", IRType::getStringTy()} 
+                    {"s1", IRType::getStringTy()},
+                    {"s2", IRType::getStringTy()}
                 }, 
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
                 "__print", 
-                IRType::getVoidTy(), 
-                { {"str", IRType::getStringTy()} }, 
+                IRType::getVoidTy(),
+                { {"value", IRType::getStringTy()} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
                 "__println", 
-                IRType::getVoidTy(), 
-                { {"str", IRType::getStringTy()} }, 
+                IRType::getVoidTy(),
+                { {"value", IRType::getStringTy()} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_alloc_value",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {},
                 info
             );
 
@@ -87,6 +94,20 @@ namespace sakuraE::IR {
                 "__gc_register", 
                 IRType::getVoidTy(), 
                 { {"addr", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} }, 
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_register_value",
+                IRType::getVoidTy(),
+                { {"value", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_register_value_slot",
+                IRType::getVoidTy(),
+                { {"slot", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} },
                 info
             );
 
