@@ -133,14 +133,18 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("concat_string")] = { llvm::orc::ExecutorAddr::fromPtr(&concat_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__print")] = { llvm::orc::ExecutorAddr::fromPtr(&__print), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__println")] = { llvm::orc::ExecutorAddr::fromPtr(&__println), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_alloc_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_alloc_value), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_enter_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_enter_scope), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_leave_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_leave_scope), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_pop")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_pop), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_register")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_register_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register_value), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_register_value_slot")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register_value_slot), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_atomic_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_atomic_type), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_array_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_array_type), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_runtime_value_array_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_runtime_value_array_type), llvm::JITSymbolFlags::Exported };
         // LLVM 生成数组 GC 元数据时使用带长度的接口，必须显式加入 JIT 符号表。
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_array_type_with_length")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_array_type_with_length), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_get_struct_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_struct_type), llvm::JITSymbolFlags::Exported };
@@ -153,6 +157,12 @@ namespace atri::cmds {
             if (mod->ID == "__main") {
                 auto module = mod;
                 llvm::Module* rawModule = module->content;
+                auto* entryFunction = rawModule->getFunction("main");
+                if (!entryFunction || !entryFunction->getReturnType()->isPointerTy() ||
+                    entryFunction->arg_size() != 0) {
+                    throw std::runtime_error(
+                        "Generated main must have the RuntimeValue*() ABI.");
+                }
                 auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
                 auto TSM = llvm::orc::ThreadSafeModule(
                     std::move(modulePtr),
@@ -164,9 +174,9 @@ namespace atri::cmds {
         }
 
         auto mainSymbol = llvm::cantFail(JIT->lookup("main"));
-        auto sakuraMain = mainSymbol.toPtr<int(*)()>();
+        auto sakuraMain = mainSymbol.toPtr<sakuraE::runtime::RuntimeValue*(*)()>();
         auto resultVal = sakuraMain();
-        std::cout << "Result: " << resultVal << std::endl;
+        (void)resultVal;
     }
 }
 
