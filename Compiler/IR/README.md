@@ -9,3 +9,4 @@
 - [Instruction Naming Standard](docs/ins-naming.md)
 - [String Type](docs/string.md)
 - [About Alloca and Heap Memory Management](docs/alloca-heap.md)
+- [Value System](docs/value.md)
