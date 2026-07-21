@@ -397,6 +397,9 @@ namespace sakuraE::Codegen {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.ptr.base");
                     }
+                    // Pointer variables store boxed pointer values. Indexing
+                    // needs the actual address held by RuntimeValue::Pointer.
+                    addr = unboxRaw(addr, addrIRType, curFn);
                     elementType = pointeeTy->toLLVMType(*context);
                 }
                 else if (addrIRType->isRef()) {
@@ -465,15 +468,37 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::gaddr: {
-                bind(ins, toLLVMValue(ins->arg(0), curFn));
+                auto* address = toLLVMValue(ins->arg(0), curFn);
+
+                // A first-class pointer is a boxed RuntimeValue. The payload
+                // is the actual address represented by the address-of
+                // expression; the storage slot itself is not passed as a
+                // RuntimeValue*.
+                if (ins->getType()->isPointer()) {
+                    bind(ins, boxRaw(address, ins->getType(), curFn));
+                }
+                else {
+                    bind(ins, address);
+                }
                 break;
             }
             case IR::OpKind::deref: {
                 instResult = toLLVMValue(ins->arg(0), curFn);
 
-                if (ins->arg(0)->getType()->isRef()) {
-                    auto* raw = builder->CreateLoad(ins->getType()->toLLVMType(*context), instResult);
-                    instResult = boxRaw(raw, ins->getType(), curFn);
+                if (ins->arg(0)->getType()->isPointer()) {
+                    // Pointer expressions are boxed at the language-value
+                    // boundary. Dereference operates on the stored address.
+                    instResult = unboxRaw(instResult, ins->arg(0)->getType(), curFn);
+                }
+                else if (ins->arg(0)->getType()->isRef()) {
+                    /* 引用指向语言层的存储槽位。这些槽位中存放的可能是RuntimeValue*（标量/字符串），
+                     * 也可能是托管对象的payload 指针（数组），
+                     * 因此解引用时必须直接加载指针，不能将其解释为未装箱的原始值后再次装箱。
+                     */
+                    instResult = builder->CreateLoad(
+                        llvm::PointerType::getUnqual(*context),
+                        instResult,
+                        "deref.value");
                 }
 
                 bind(ins, instResult);
@@ -496,6 +521,14 @@ namespace sakuraE::Codegen {
                          static_cast<IR::IRRefType*>(refSource->arg(0)->getType())->getElementType()->isArray()) {
                     instResult = builder->CreateLoad(
                         llvm::PointerType::getUnqual(*context), addr, "load.ref.boxed.element");
+                }
+                else if (auto* derefSource = dynamic_cast<IR::Instruction*>(ins->arg(0));
+                         derefSource && derefSource->getKind() == IR::OpKind::deref) {
+                    // A deref instruction preserves the address of the
+                    // referenced language slot. Its load result is already a
+                    // boxed RuntimeValue* (or an array payload pointer).
+                    instResult = builder->CreateLoad(
+                        llvm::PointerType::getUnqual(*context), addr, "load.deref.boxed");
                 }
                 else if (auto* stringSource = dynamic_cast<IR::Instruction*>(ins->arg(0));
                          stringSource && stringSource->getKind() == IR::OpKind::indexing &&

@@ -1,0 +1,7 @@
+func main() -> i32 {
+    let value = 42;
+    let pointer = &value;
+
+    println(pointer);
+    println(*pointer);
+}
