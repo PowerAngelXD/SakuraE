@@ -140,7 +140,7 @@
 			"patterns": [
 				{
 					"name": "storage.type.sak",
-					"match": "\\b(i32|i64|f32|f64|char|string)\\b"
+					"match": "\\b(i32|i64|f32|f64|char|string|void|bool|type)\\b"
 				}
 			]
 		},
