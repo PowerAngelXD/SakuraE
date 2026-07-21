@@ -102,7 +102,7 @@ module.exports = grammar({
                 PREC.MUL,
                 seq(
                     choice($.mul_expr, $.prim_expr),
-                    choice("*", "/"),
+                    choice("*", "/", "%"),
                     choice($.mul_expr, $.prim_expr),
                 ),
             ),
