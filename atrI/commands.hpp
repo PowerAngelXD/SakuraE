@@ -114,7 +114,7 @@ namespace atri::cmds {
         }
 
         auto currentTime = std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::system_clock::now());
-        auto logPath = fzlib::String("log-" + std::string(currentTime.c_str()) + ".txt");
+        auto logPath = executableDirectory() / ("log-" + std::string(currentTime.c_str()) + ".txt");
         if (isDebug) writeFile(logPath, log.str());
 
         llvm::InitializeNativeTarget();
