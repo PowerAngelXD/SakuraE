@@ -51,6 +51,7 @@ add_executable(
     Runtime/gc.cpp
     Runtime/print.cpp
     Runtime/raw_string.cpp
+    Runtime/rttype.cpp
 )
 
 target_include_directories(

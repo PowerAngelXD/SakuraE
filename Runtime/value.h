@@ -11,6 +11,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "rttype.h"
+
 namespace sakuraE::runtime {
     enum class RuntimeType : std::uint8_t {
         I8,
@@ -25,7 +27,8 @@ namespace sakuraE::runtime {
         String,
         Array,
         Struct,
-        Pointer
+        Pointer,
+        TypeInfo
     };
 
     struct RuntimeString {

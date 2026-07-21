@@ -466,6 +466,8 @@ namespace sakuraE::runtime {
                 __gc_register(payload);
                 return;
             }
+            case RuntimeType::TypeInfo:
+                return;
             default:
                 return;
         }
@@ -503,6 +505,8 @@ namespace sakuraE::runtime {
                 return;
             case RuntimeType::Pointer:
                 __gc_scan_unlocked(value->data.pointer);
+                return;
+            case RuntimeType::TypeInfo:
                 return;
             default:
                 return;
