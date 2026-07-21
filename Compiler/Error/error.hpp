@@ -27,6 +27,10 @@ namespace sakuraE {
         SakuraError(OccurredTerm t, fzlib::String c, PositionInfo pinfo): 
             term(t), content(c), info(pinfo) {}
         
+        OccurredTerm occurredTerm() const { return term; }
+        const fzlib::String& message() const { return content; }
+        const PositionInfo& position() const { return info; }
+        
         const fzlib::String toString() {
             std::ostringstream oss;
             oss << "During term: " << magic_enum::enum_name(term) << ", An Error Occurred:\n"

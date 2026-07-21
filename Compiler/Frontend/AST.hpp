@@ -110,6 +110,10 @@ namespace sakuraE {
             return result;
         }
 
+        const std::vector<std::pair<ASTTag, NodePtr>>& getTaggedChildren() const {
+            return children;
+        }
+
         fzlib::String toString() {
             std::ostringstream oss;
             oss << "" << magic_enum::enum_name(tag) << ":";
