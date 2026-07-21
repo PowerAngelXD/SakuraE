@@ -34,6 +34,9 @@ namespace atri {
                     fzlib::String line;
                     std::cout << ">> ";
                     getline(std::cin, line);
+
+                    if (line.isEmpty()) continue;
+
                     auto list = line.split(' ');
                     std::vector<fzlib::String> args;
                     for (std::size_t i = 1; i < list.size(); i ++) {
