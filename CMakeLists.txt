@@ -49,6 +49,7 @@ add_executable(
     Compiler/LLVMCodegen/LLVMCodegenerator.cpp
     Runtime/alloc.cpp
     Runtime/gc.cpp
+    Runtime/input.cpp
     Runtime/print.cpp
     Runtime/raw_string.cpp
     Runtime/rttype.cpp

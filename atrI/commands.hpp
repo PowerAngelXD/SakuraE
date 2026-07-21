@@ -21,6 +21,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include "Runtime/alloc.h"
 #include "Runtime/gc.h"
+#include "Runtime/input.h"
 #include "Runtime/raw_string.h"
 #include "Runtime/print.h"
 #include "Runtime/rttype.h"
@@ -134,6 +135,8 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("concat_string")] = { llvm::orc::ExecutorAddr::fromPtr(&concat_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("print")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::print), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("println")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::println), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("input")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::input), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("inputc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::inputc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_alloc_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_alloc_value), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_basic")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_basic), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_pointer")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_pointer), llvm::JITSymbolFlags::Exported };
