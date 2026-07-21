@@ -5,3 +5,13 @@ schema_version = 1
 authors = ["FZSGBall"]
 description = "SakuraE language support for Zed."
 repository = "https://github.com/PowerAngelXD/SakuraE"
+languages = ["languages/sakurae"]
+
+[grammars.sakurae]
+repository = "https://github.com/PowerAngelXD/SakuraE"
+rev = "master"
+path = "sakurae-tree-sitter"
+
+[language_servers.sakurae-language-server]
+language = "SakuraE"
+languages = []

@@ -10,10 +10,7 @@
 (boolean) @constant.builtin.boolean
 
 (func_define_stmt (identifier) @function)
-
-(calling_op) @function.call
-(identifier_expr (identifier) @function.call)
-
+(atom_identifier_expr (identifier) @function.call (calling_op))
 (identifier) @variable
 
 (type_modifier) @type
@@ -22,12 +19,12 @@
 [
   "==" "!=" ">" "<" "<=" ">="
   "||" "&&" "!"
-  "+" "-" "*" "/"
+  "+" "-" "*" "/" "%"
   "=" "+=" "-=" "/=" "*="
   "->" "&" "++" "--"
 ] @operator
 
-[ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
-[ ";" "," ":" "." ] @punctuation.delimiter
+["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+[";" "," ":" "."] @punctuation.delimiter
 
 (comment) @comment
