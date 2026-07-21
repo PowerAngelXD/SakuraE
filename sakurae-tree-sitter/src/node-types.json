@@ -23,6 +23,21 @@
     }
   },
   {
+    "type": "array_expr",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "whole_expr",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "assign_expr",
     "named": true,
     "fields": {},
@@ -199,7 +214,7 @@
       "required": true,
       "types": [
         {
-          "type": "declare_stmt",
+          "type": "range_for_clause",
           "named": true
         },
         {
@@ -207,7 +222,7 @@
           "named": true
         },
         {
-          "type": "whole_expr",
+          "type": "traditional_for_clause",
           "named": true
         }
       ]
@@ -349,6 +364,29 @@
     }
   },
   {
+    "type": "match_stmt",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_stmt",
+          "named": true
+        },
+        {
+          "type": "identifier_expr",
+          "named": true
+        },
+        {
+          "type": "whole_expr",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "mul_expr",
     "named": true,
     "fields": {},
@@ -376,11 +414,76 @@
       "required": true,
       "types": [
         {
+          "type": "array_expr",
+          "named": true
+        },
+        {
           "type": "identifier_expr",
           "named": true
         },
         {
           "type": "literal",
+          "named": true
+        },
+        {
+          "type": "whole_expr",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "range_expr",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "array_expr",
+          "named": true
+        },
+        {
+          "type": "identifier_expr",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "range_for_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "range_expr",
+          "named": true
+        },
+        {
+          "type": "type_modifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "repeat_stmt",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "block_stmt",
           "named": true
         },
         {
@@ -462,11 +565,42 @@
           "named": true
         },
         {
+          "type": "match_stmt",
+          "named": true
+        },
+        {
+          "type": "repeat_stmt",
+          "named": true
+        },
+        {
           "type": "return_stmt",
           "named": true
         },
         {
           "type": "while_stmt",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "traditional_for_clause",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "binary_expr",
+          "named": true
+        },
+        {
+          "type": "declare_stmt",
+          "named": true
+        },
+        {
+          "type": "whole_expr",
           "named": true
         }
       ]
@@ -650,6 +784,10 @@
     "named": false
   },
   {
+    "type": "=>",
+    "named": false
+  },
+  {
     "type": ">",
     "named": false
   },
@@ -688,6 +826,10 @@
   },
   {
     "type": "continue",
+    "named": false
+  },
+  {
+    "type": "default",
     "named": false
   },
   {
@@ -731,8 +873,24 @@
     "named": false
   },
   {
+    "type": "match",
+    "named": false
+  },
+  {
     "type": "number",
     "named": true
+  },
+  {
+    "type": "range",
+    "named": false
+  },
+  {
+    "type": "ref",
+    "named": false
+  },
+  {
+    "type": "repeat",
+    "named": false
   },
   {
     "type": "return",
@@ -756,6 +914,10 @@
   },
   {
     "type": "ui64",
+    "named": false
+  },
+  {
+    "type": "void",
     "named": false
   },
   {
