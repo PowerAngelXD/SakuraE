@@ -568,7 +568,9 @@ sakuraE::NodePtr sakuraE::ReturnStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ReturnStmtNode);
     root->setInfo(std::get<0>(getTuple())->token->info);
 
-    (*root)[ASTTag::HeadExpr] = std::get<1>(getTuple())->genResource();
+    auto retContent = std::get<1>(getTuple())->getClosure();
+    if (retContent.empty()); 
+    else (*root)[ASTTag::HeadExpr] = std::get<1>(getTuple())->getClosure().at(0)->genResource();
 
     return root;
 }

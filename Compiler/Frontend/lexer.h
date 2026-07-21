@@ -51,6 +51,7 @@ namespace sakuraE {
         TYPE_I32, TYPE_I64, TYPE_F32,
         TYPE_F64, TYPE_CHAR, TYPE_BOOL,
         TYPE_STRING, TYPE_UI32, TYPE_UI64,
+        TYPE_VOID,
 
         _EOF_,
         UNKNOWN
@@ -91,7 +92,7 @@ namespace sakuraE {
         };
 
         const std::vector<fzlib::String> typeFields = {
-            "i32", "i64", "f32", "f64", "ui32", "ui64", "bool", "char", "string"
+            "i32", "i64", "f32", "f64", "ui32", "ui64", "bool", "char", "string", "void"
         };
 
         char peek(int offset = 0) const;

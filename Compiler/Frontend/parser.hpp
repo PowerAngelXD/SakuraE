@@ -459,7 +459,8 @@ namespace sakuraE {
         TokenParser<TokenType::TYPE_F32>,
         TokenParser<TokenType::TYPE_F64>,
         TokenParser<TokenType::TYPE_BOOL>,
-        TokenParser<TokenType::TYPE_STRING>
+        TokenParser<TokenType::TYPE_STRING>,
+        TokenParser<TokenType::TYPE_VOID>
     >;
     class BasicTypeModifierParser: public ResourceFetcher, public BasicTypeModifierParserRule {
     public:
@@ -854,7 +855,7 @@ namespace sakuraE {
     using ReturnStmtParserRule =
     ConnectionParser<
         TokenParser<TokenType::KEYWORD_RETURN>,
-        WholeExprParser,
+        ClosureParser<WholeExprParser>,
         TokenParser<TokenType::STMT_END>
     >;
     class ReturnStmtParser: public ResourceFetcher, public ReturnStmtParserRule {
