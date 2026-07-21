@@ -15,8 +15,8 @@
 #include "value.h"
 
 
-extern "C" void __print(const sakuraE::runtime::RuntimeValue* value);
-extern "C" void __println(const sakuraE::runtime::RuntimeValue* value);
+extern "C" void print(const sakuraE::runtime::RuntimeValue* value);
+extern "C" void println(const sakuraE::runtime::RuntimeValue* value);
 
 
 #endif

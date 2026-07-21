@@ -132,7 +132,7 @@ namespace sakuraE::IR {
 
                 auto symbol = curModule()->lookup(mangledName);
                 IRValue* callee = nullptr;
-                if (!symbol && (name == "__print" || name == "__println")) {
+                if (!symbol) {
                     // Printing is a generic RuntimeValue API. Its IR
                     // declaration is represented by the string overload, but
                     // the LLVM ABI is RuntimeValue* for every source type.
@@ -157,6 +157,7 @@ namespace sakuraE::IR {
                         "Unknown identifier: " + mangledName,
                         node->getPosInfo());
                 }
+
                 currentAddr = symbol->address;
                 currentAddr = visitCallingOpNode(currentAddr, ops[0], argValues);
 
@@ -1035,7 +1036,7 @@ namespace sakuraE::IR {
             ->block(prepareBlockExitIndex)
             ->createBr(condBlock);
         //
-        
+
         curFunc()->leaveLoop();
         curFunc()->fnScope().leave();
         curFunc()->moveCursor(mergeBlockIndex);
@@ -1046,7 +1047,7 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitMatchStmtNode(NodePtr node) {
         IRValue* identifier = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
         IRValue* idenValue = createLoad(identifier, node->getPosInfo());
-        
+
         std::vector<IRValue*> caseBlocks;
         std::vector<std::tuple<int, IRValue*, IRValue*>> caseBlockPairs;
         IRValue* defaultThenBlock = nullptr;
@@ -1061,7 +1062,7 @@ namespace sakuraE::IR {
         bool hasDefault = false;
         for (std::size_t i = 0; i < cases.size(); i ++) {
             static int matchCaseIndex = 0;
-            
+
             auto cs = cases[i];
             if (cs->hasNode(ASTTag::Default)) {
                 if (i != cases.size() - 1) {
@@ -1093,9 +1094,9 @@ namespace sakuraE::IR {
 
                 IRValue* thenBlock = visitBlockStmtNode((*cs)[ASTTag::Block], "match.then." + std::to_string(matchCaseIndex));
                 int thenBlockExitIndex = curFunc()->cur();
-                
+
                 caseBlockPairs.emplace_back(caseBlockExitIndex, condResult, thenBlock);
-                    
+
                 curFunc()
                     ->block(thenBlockExitIndex)
                     ->createBr(mergeBlock);
@@ -1137,7 +1138,7 @@ namespace sakuraE::IR {
         }
 
         curFunc()->moveCursor(mergeBlockExitIndex);
-        
+
         return mergeBlock;
     }
 

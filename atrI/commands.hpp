@@ -131,8 +131,8 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("create_string")] = { llvm::orc::ExecutorAddr::fromPtr(&create_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("free_string")] = { llvm::orc::ExecutorAddr::fromPtr(&free_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("concat_string")] = { llvm::orc::ExecutorAddr::fromPtr(&concat_string), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__print")] = { llvm::orc::ExecutorAddr::fromPtr(&__print), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__println")] = { llvm::orc::ExecutorAddr::fromPtr(&__println), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("print")] = { llvm::orc::ExecutorAddr::fromPtr(&print), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("println")] = { llvm::orc::ExecutorAddr::fromPtr(&println), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_alloc_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_alloc_value), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
