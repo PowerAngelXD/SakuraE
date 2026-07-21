@@ -10,6 +10,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(SAKURAE_ENABLE_ASAN "Enable AddressSanitizer for debug-style builds" ON)
 
 find_package(LLVM REQUIRED CONFIG)
+find_package(Threads REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -53,6 +55,67 @@ add_executable(
     Runtime/print.cpp
     Runtime/raw_string.cpp
     Runtime/rttype.cpp
+)
+
+add_executable(
+    sakurae-language-server
+    LanguageServer/main.cpp
+    LanguageServer/json_rpc.cpp
+    LanguageServer/document_store.cpp
+    LanguageServer/symbol_table.cpp
+    LanguageServer/analyzer.cpp
+    LanguageServer/server.cpp
+    Compiler/Frontend/lexer.cpp
+    Compiler/Frontend/parser.cpp
+)
+
+target_include_directories(
+    sakurae-language-server
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_features(sakurae-language-server PRIVATE cxx_std_23)
+
+target_compile_options(
+    sakurae-language-server
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
+
+target_link_libraries(
+    sakurae-language-server
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+)
+
+add_executable(
+    sakurae-language-server-tests
+    LanguageServer/tests.cpp
+    LanguageServer/json_rpc.cpp
+    LanguageServer/document_store.cpp
+    LanguageServer/symbol_table.cpp
+    LanguageServer/analyzer.cpp
+    Compiler/Frontend/lexer.cpp
+    Compiler/Frontend/parser.cpp
+)
+
+target_include_directories(
+    sakurae-language-server-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_features(sakurae-language-server-tests PRIVATE cxx_std_23)
+
+target_link_libraries(
+    sakurae-language-server-tests
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        Threads::Threads
 )
 
 target_include_directories(
