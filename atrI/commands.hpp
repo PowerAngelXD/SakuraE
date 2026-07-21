@@ -23,6 +23,7 @@
 #include "Runtime/gc.h"
 #include "Runtime/raw_string.h"
 #include "Runtime/print.h"
+#include "Runtime/rttype.h"
 
 
 #include "Compiler/Frontend/lexer.h"
@@ -134,6 +135,10 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("print")] = { llvm::orc::ExecutorAddr::fromPtr(&print), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("println")] = { llvm::orc::ExecutorAddr::fromPtr(&println), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_alloc_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_alloc_value), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_basic")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_basic), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_pointer")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_pointer), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_reference")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_reference), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_array")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_array), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_enter_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_enter_scope), llvm::JITSymbolFlags::Exported };

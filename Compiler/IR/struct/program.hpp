@@ -18,54 +18,54 @@ namespace sakuraE::IR {
             size_t targetSize = sizeof(void*) * 8;
             buildModule("__runtime", info, true);
             auto runtimeMod = curMod();
-            
+
             runtimeMod->declareRuntimeFunction(
-                "__alloc", 
-                IRType::getPointerTo(IRType::getVoidTy()), 
-                { {"size", IRType::getUIntNTy(targetSize)} }, 
+                "__alloc",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"size", IRType::getUIntNTy(targetSize)} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "__free", 
-                IRType::getVoidTy(), 
-                { {"ptr", IRType::getPointerTo(IRType::getVoidTy())} }, 
+                "__free",
+                IRType::getVoidTy(),
+                { {"ptr", IRType::getPointerTo(IRType::getVoidTy())} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "create_string", 
+                "create_string",
                 IRType::getStringTy(),
-                { {"literal", IRType::getPointerTo(IRType::getCharTy())} }, 
+                { {"literal", IRType::getPointerTo(IRType::getCharTy())} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "free_string", 
+                "free_string",
                 IRType::getVoidTy(),
                 { {"str", IRType::getStringTy()} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "concat_string", 
+                "concat_string",
                 IRType::getStringTy(),
-                { 
+                {
                     {"s1", IRType::getStringTy()},
                     {"s2", IRType::getStringTy()}
-                }, 
+                },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "__print", 
+                "print",
                 IRType::getVoidTy(),
                 { {"value", IRType::getStringTy()} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "__println", 
+                "println",
                 IRType::getVoidTy(),
                 { {"value", IRType::getStringTy()} },
                 info
@@ -78,22 +78,53 @@ namespace sakuraE::IR {
                 info
             );
 
-            // gc methods
             runtimeMod->declareRuntimeFunction(
-                "__gc_alloc", 
-                IRType::getPointerTo(IRType::getVoidTy()), 
-                {
-                    { "size", IRType::getUIntNTy(targetSize) },
-                    { "ty", IRType::getPointerTo(IRType::getVoidTy()) },
-                    { "member_count", IRType::getUInt64Ty() }
-                }, 
+                "__runtime_type_info_basic",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"kind", IRType::getUIntNTy(8)} },
                 info
             );
 
             runtimeMod->declareRuntimeFunction(
-                "__gc_register", 
-                IRType::getVoidTy(), 
-                { {"addr", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} }, 
+                "__runtime_type_info_pointer",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"element", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_type_info_reference",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"element", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_type_info_array",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {
+                    {"element", IRType::getPointerTo(IRType::getVoidTy())},
+                    {"count", IRType::getUInt64Ty()}
+                },
+                info
+            );
+
+            // gc methods
+            runtimeMod->declareRuntimeFunction(
+                "__gc_alloc",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {
+                    { "size", IRType::getUIntNTy(targetSize) },
+                    { "ty", IRType::getPointerTo(IRType::getVoidTy()) },
+                    { "member_count", IRType::getUInt64Ty() }
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_register",
+                IRType::getVoidTy(),
+                { {"addr", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} },
                 info
             );
 
@@ -126,16 +157,16 @@ namespace sakuraE::IR {
             );
 
             runtimeMod->declareRuntimeFunction(
-                "__gc_pop", 
-                IRType::getVoidTy(), 
-                { {"times", IRType::getUInt32Ty()} }, 
+                "__gc_pop",
+                IRType::getVoidTy(),
+                { {"times", IRType::getUInt32Ty()} },
                 info
             );
-            
+
             runtimeMod->declareRuntimeFunction(
-                "__gc_collect", 
-                IRType::getVoidTy(), 
-                {}, 
+                "__gc_collect",
+                IRType::getVoidTy(),
+                {},
                 info
             );
 

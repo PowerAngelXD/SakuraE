@@ -44,7 +44,7 @@ namespace sakuraE::IR {
         if (it != refTypeIDPool.end())
             return it->second;
         
-        TypeInfo* info = new TypeInfo(Pointer, typeID);
+        TypeInfo* info = new TypeInfo(Ref, typeID);
         refTypeIDPool.emplace(typeID, info);
 
         return info;
