@@ -1,2 +1,2 @@
-(func_define_stmt (identifier) @name) @definition.function
-(declare_stmt (identifier) @name) @definition.variable
+(func_define_stmt (identifier) @name) @item
+(declare_stmt (identifier) @name) @item
