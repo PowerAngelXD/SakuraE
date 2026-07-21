@@ -134,6 +134,15 @@ namespace sakuraE::IR {
             return nullptr;
         }
 
+        IRValue* createReturn() {
+            return createInstruction(OpKind::ret,
+                                    IRType::getVoidTy(),
+                                    {},
+                                    "ret");
+
+            return nullptr;
+        }
+
         IRValue* createEnterScope() {
             return createInstruction(OpKind::enter_scope,
                                     IRType::getVoidTy(),

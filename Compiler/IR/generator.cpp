@@ -704,6 +704,8 @@ namespace sakuraE::IR {
     }
 
     IRValue* IRGenerator::visitWholeExprNode(NodePtr node) {
+        if (!node) return nullptr;
+
         if (node->hasNode(ASTTag::AddExprNode)) {
             return visitAddExprNode((*node)[ASTTag::AddExprNode]);
         }
@@ -1190,23 +1192,58 @@ namespace sakuraE::IR {
 
         visitBlockStmtNode((*node)[ASTTag::Block], "fn." + fnName, initBlockIndex);
 
+        if (!curFunc()->getReturnChecker()) {
+            throw SakuraError(
+                OccurredTerm::IR_GENERATING,
+                "A Function must have a return statement",
+                (*node)[ASTTag::HeadExpr]->getPosInfo()
+            );
+        }
         return fn;
     };
 
     IRValue* IRGenerator::visitReturnStmtNode(NodePtr node) {
-        IRValue* retValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
-
-        if (!retValue->getType()->isEqual(curFunc()->getReturnType())) {
+        if (!node->hasNode(ASTTag::HeadExpr)) {
+            if (!curFunc()->getReturnType()->isEqual(IRType::getVoidTy())) {
+                throw SakuraError(
+                    OccurredTerm::IR_GENERATING,
+                    "A non-void function must return a value of its declared return type.",
+                    (*node)[ASTTag::HeadExpr]->getPosInfo()
+                );
+            }
+        }
+        else if (node->hasNode(ASTTag::HeadExpr) && curFunc()->getReturnType()->isEqual(IRType::getVoidTy())) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
-                "The type of the value in a return statement must match the function's return type.",
+                "A function with a void return type cannot return a value of any type.",
                 (*node)[ASTTag::HeadExpr]->getPosInfo()
             );
+        }     
+            
+        if (node->hasNode(ASTTag::HeadExpr)) {
+            IRValue* retValue = nullptr;
+            retValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
+            if (!retValue->getType()->isEqual(curFunc()->getReturnType())) {
+                throw SakuraError(
+                    OccurredTerm::IR_GENERATING,
+                    "The type of the value in a return statement must match the function's return type. Function's return type is: " + 
+                        curFunc()->getReturnType()->toString() + 
+                        ", but your given type is: " + 
+                        (retValue?retValue->getType()->toString():"void type"),
+                    (*node)[ASTTag::HeadExpr]->getPosInfo()
+                );
+            }
+            curFunc()->setReturnChecker(true);
+            return curFunc()
+                        ->curBlock()
+                        ->createReturn(retValue);
         }
-
-        return curFunc()
-                    ->curBlock()
-                    ->createReturn(retValue);
+        else {
+            curFunc()->setReturnChecker(true);
+            return curFunc()
+                        ->curBlock()
+                        ->createReturn();
+        }
     }
 
     IRValue* IRGenerator::visitBreakStmtNode(NodePtr node) {

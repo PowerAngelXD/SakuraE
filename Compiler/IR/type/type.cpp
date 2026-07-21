@@ -280,7 +280,8 @@ namespace sakuraE::IR {
     }
 
     fzlib::String IRIntegerType::toString() {
-        return "i" + std::to_string(bitWidth) ;
+        if (bitWidth == 8) return "char";
+        else return "i" + std::to_string(bitWidth) ;
     }
 
     fzlib::String IRTypeInfoType::toString() {

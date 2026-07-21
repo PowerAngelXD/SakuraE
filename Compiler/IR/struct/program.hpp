@@ -72,6 +72,20 @@ namespace sakuraE::IR {
             );
 
             runtimeMod->declareRuntimeFunction(
+                "input",
+                IRType::getStringTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "inputc",
+                IRType::getCharTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
                 "__runtime_alloc_value",
                 IRType::getPointerTo(IRType::getVoidTy()),
                 {},

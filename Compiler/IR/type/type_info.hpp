@@ -20,6 +20,7 @@ namespace sakuraE::IR {
         Float64,
         Bool,
         Char,
+        Void,
         String,
         Null,
         Custom,
@@ -50,6 +51,8 @@ namespace sakuraE::IR {
             return IRType::getBoolTy();
         case TypeID::String:
             return IRType::getStringTy();
+        case TypeID::Void:
+            return IRType::getVoidTy();
         default:
             throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Unknown type id to convert to IRType",

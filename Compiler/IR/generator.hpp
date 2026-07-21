@@ -118,7 +118,7 @@ namespace sakuraE::IR {
         IRValue* createAlloca(fzlib::String n, IRType* ty, IRValue* initVal, PositionInfo info) {
             if (initVal && !ty->isEqual(initVal->getType())) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Cannot declare a variable with a type that differs from the assigned value's type.",
+                                "Cannot declare a variable with a type that differs from the assigned value's type. Target is: " + ty->toString() + ", but actually is: " + initVal->getType()->toString(),
                                 info);
             }
 
@@ -238,6 +238,10 @@ namespace sakuraE::IR {
                     }
                     case TokenType::TYPE_STRING: {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::String);
+                        break;
+                    }
+                    case TokenType::TYPE_VOID: {
+                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Void);
                         break;
                     }
                     default:

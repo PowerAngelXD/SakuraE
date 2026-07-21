@@ -31,6 +31,9 @@ namespace sakuraE::IR {
             IRValue* breakTarget;
         };
 
+        // Return Checker
+        bool hasReturn = false;
+
         std::stack<LoopInfo> loopStack;
 
         Module* parent;
@@ -99,6 +102,14 @@ namespace sakuraE::IR {
                     return result;
                 }()
             ));
+        }
+
+        void setReturnChecker(bool state) {
+            hasReturn = state;
+        }
+
+        bool getReturnChecker() {
+            return hasReturn;
         }
 
         Module* getParent() {
