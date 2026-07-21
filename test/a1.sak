@@ -1,0 +1,49 @@
+func input(s: string) -> string {
+    print(s);
+    return input();
+}
+
+func a1() -> void {
+    println("hello");
+    return;
+}
+
+func a1(s: string) -> void {
+    println(concat_string("k: ", s));
+    return;
+}
+
+func main() -> i32 {
+    println("你好");
+    let counter: i32 = 0;
+    let list: string[5];
+    while (true) {
+        let ln = input("[[这是输入框，对]]>> ");
+        
+        list[counter] = ln;
+        counter ++;
+
+        match (ln) {
+            "hello" => {
+                println("world");
+            }
+            "exit" => {
+                println("拜拜了您嘞");
+                break;
+            }
+            "wtf" => {
+                println("wtf???");
+            }
+            default => {
+                println(concat_string("your input: ", ln));
+            }
+        }
+    }
+
+    println("历史记录：");
+    for (let i = 0; i < 5; i ++) {
+        println(list[i]);
+    }
+
+    return 0;
+}

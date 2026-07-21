@@ -1,0 +1,7 @@
+func main() -> i32 {
+    let line = input();
+    println(concat_string("your input is: ", line));
+
+    let ch: char = inputc();
+    println(ch);
+}
