@@ -1,8 +1,8 @@
 [
   "if" "else" "while" "for" "func"
-  "return" "let" "const" "range"
+  "return" "let" "range"
   "break" "continue" "match" "repeat"
-  "struct" "impl" "is" "typeof" "ref" "default" "sizeof"
+  "ref" "default"
 ] @keyword
 
 [
@@ -15,9 +15,6 @@
 (boolean) @constant.builtin.boolean
 
 (identifier) @variable
-
-((identifier) @keyword
-  (#match? @keyword "^(const|struct|impl|is|typeof|sizeof)$"))
 
 (func_define_stmt "func" @keyword)
 (func_define_stmt (identifier) @function)
