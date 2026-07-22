@@ -42,3 +42,22 @@ resolves to the local build:
 
 The server currently analyzes one open document at a time. It does not yet
 resolve modules or definitions across files.
+
+## Build the Zed extension
+
+The extension includes a minimal Rust WASM entry point because Zed requires
+`extension.wasm` even when the extension only provides a grammar and language
+server declaration. From the extension directory, install the WASM target
+provided by your Rust toolchain and build the release artifact:
+
+```bash
+cd sakurae-zed
+rustup target add wasm32-wasip1
+cargo build --release --target wasm32-wasip1
+cp target/wasm32-wasip1/release/sakurae_zed.wasm extension.wasm
+```
+
+Then install `sakurae-zed` as a development extension in Zed. For a WSL
+remote project, build and install the extension from the WSL filesystem so
+the remote extension host receives the Linux-side `extension.wasm` and can
+register `sakurae-language-server` there.
