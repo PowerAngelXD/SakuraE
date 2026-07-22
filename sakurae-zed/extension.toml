@@ -13,7 +13,7 @@ version = "0.7.0"
 
 [grammars.sakurae]
 repository = "https://github.com/PowerAngelXD/SakuraE"
-rev = "698b331e06ee5757773ab45e741bdbbc73d3fdd6"
+rev = "425ac4203920783e0cf05fc75031003773e5442c"
 path = "sakurae-tree-sitter"
 
 [language_servers.sakurae-language-server]
