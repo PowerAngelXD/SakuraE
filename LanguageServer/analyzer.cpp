@@ -1,14 +1,26 @@
 #include "LanguageServer/analyzer.hpp"
 
 #include <algorithm>
-#include <array>
-#include <optional>
-#include <unordered_set>
 
 #include "Compiler/Frontend/lexer.h"
 #include "Compiler/Frontend/parser.hpp"
 
 namespace sakurae::lsp {
+
+    const std::vector<std::string> &runtimeFunctionNames() {
+        static const std::vector<std::string> names = {
+            "__alloc", "__free", "create_string", "free_string", "concat_string",
+            "print", "println", "__println", "input", "inputc",
+            "__runtime_alloc_value", "__runtime_check_array_bounds", "__runtime_array_bounds_error",
+            "__runtime_type_info_basic", "__runtime_type_info_pointer", "__runtime_type_info_reference",
+            "__runtime_type_info_array", "__gc_alloc", "__gc_register", "__gc_register_value",
+            "__gc_register_value_slot", "__gc_enter_scope", "__gc_leave_scope", "__gc_pop",
+            "__gc_collect", "__gc_get_atomic_type", "__gc_get_array_type",
+            "__gc_get_array_type_with_length", "__gc_get_runtime_value_array_type", "__gc_get_struct_type",
+        };
+        return names;
+    }
+
     namespace {
 
         using sakuraE::Token;
@@ -20,6 +32,43 @@ namespace sakurae::lsp {
 
         std::string typeName(const Token &token) {
             return text(token);
+        }
+
+        std::string typeModifierName(const std::vector<Token> &tokens, std::size_t start, std::size_t &end) {
+            if (start >= tokens.size()) {
+                end = start;
+                return {};
+            }
+
+            std::string name = typeName(tokens[start]);
+            std::size_t cursor = start + 1;
+            while (cursor < tokens.size()) {
+                if (tokens[cursor].type == TokenType::MUL) {
+                    name += '*';
+                    ++cursor;
+                    continue;
+                }
+                if (tokens[cursor].type == TokenType::AND) {
+                    name += '&';
+                    ++cursor;
+                    continue;
+                }
+                if (tokens[cursor].type == TokenType::LEFT_SQUARE_BRACKET && cursor + 2 < tokens.size() &&
+                    tokens[cursor + 2].type == TokenType::RIGHT_SQUARE_BRACKET) {
+                    name += '[' + text(tokens[cursor + 1]) + ']';
+                    cursor += 3;
+                    continue;
+                }
+                break;
+            }
+            end = cursor;
+            return name;
+        }
+
+        void markTypeContext(std::vector<bool> &typeContext, std::size_t begin, std::size_t end) {
+            end = std::min(end, typeContext.size());
+            for (std::size_t index = begin; index < end; ++index)
+                typeContext[index] = true;
         }
 
         TypeInfo literalType(const Token &token) {
@@ -50,9 +99,10 @@ namespace sakurae::lsp {
         }
 
         bool isBuiltin(const std::string &name) {
-            static const std::unordered_set<std::string> values = {"print",  "println", "input",
-                                                                   "inputc", "true",    "false"};
-            return values.contains(name);
+            if (name == "true" || name == "false")
+                return true;
+            const auto &runtimeNames = runtimeFunctionNames();
+            return std::find(runtimeNames.begin(), runtimeNames.end(), name) != runtimeNames.end();
         }
 
         bool isInside(const Range &range, Position position) {
@@ -144,23 +194,31 @@ namespace sakurae::lsp {
                         std::string parameterName = text(tokens[cursor]);
                         TypeInfo parameterType;
                         if (cursor + 2 < tokens.size() && tokens[cursor + 1].type == TokenType::CONSTRAINT_OP) {
-                            parameterType = {typeName(tokens[cursor + 2]), true};
-                            typeContext[cursor + 2] = true;
+                            std::size_t typeEnd = cursor + 2;
+                            parameterType = {typeModifierName(tokens, cursor + 2, typeEnd), true};
+                            markTypeContext(typeContext, cursor + 2, typeEnd);
+                            cursor = typeEnd;
+                        } else {
+                            ++cursor;
                         }
-                        auto parameterRange = tokenRange(tokens[cursor]);
+                        auto parameterRange = tokenRange(tokens[parameterIndex]);
                         parameters.emplace_back(parameterIndex, Symbol{parameterName, SymbolKind::Parameter,
                                                                        parameterType, parameterRange, parameterRange,
                                                                        parameterType.name, 0, functionIndex});
                         declaration[parameterIndex] = true;
-                        ++cursor;
+                        if (cursor < tokens.size() && tokens[cursor].type == TokenType::COMMA)
+                            ++cursor;
+                        continue;
                     }
                     ++cursor;
                 }
                 std::string returnType = "unknown";
                 for (; cursor < tokens.size() && tokens[cursor].type != TokenType::LEFT_BRACKET; ++cursor) {
                     if (tokens[cursor].type == TokenType::ARROW && cursor + 1 < tokens.size()) {
-                        returnType = text(tokens[cursor + 1]);
-                        typeContext[cursor + 1] = true;
+                        std::size_t typeEnd = cursor + 1;
+                        returnType = typeModifierName(tokens, cursor + 1, typeEnd);
+                        markTypeContext(typeContext, cursor + 1, typeEnd);
+                        cursor = typeEnd;
                     }
                 }
                 result.index.symbols[functionIndex].type = {returnType, returnType != "unknown"};
@@ -176,15 +234,32 @@ namespace sakurae::lsp {
                 TypeInfo variableType;
                 std::size_t cursor = nameIndex + 1;
                 if (cursor + 1 < tokens.size() && tokens[cursor].type == TokenType::CONSTRAINT_OP) {
-                    variableType = {text(tokens[cursor + 1]), true};
-                    typeContext[cursor + 1] = true;
-                    cursor += 2;
+                    std::size_t typeEnd = cursor + 1;
+                    variableType = {typeModifierName(tokens, cursor + 1, typeEnd), true};
+                    markTypeContext(typeContext, cursor + 1, typeEnd);
+                    cursor = typeEnd;
                 }
                 while (cursor < tokens.size() && tokens[cursor].type != TokenType::ASSIGN_OP &&
                        tokens[cursor].type != TokenType::STMT_END)
                     ++cursor;
-                if (!variableType.known && cursor + 1 < tokens.size())
-                    variableType = literalType(tokens[cursor + 1]);
+                if (!variableType.known && cursor + 1 < tokens.size()) {
+                    const std::size_t expression = cursor + 1;
+                    variableType = literalType(tokens[expression]);
+                    if (!variableType.known && expression + 1 < tokens.size() &&
+                        (tokens[expression].type == TokenType::AND || tokens[expression].type == TokenType::MUL) &&
+                        tokens[expression + 1].type == TokenType::IDENTIFIER) {
+                        const int sourceIndex = result.index.lookup(text(tokens[expression + 1]), currentScope);
+                        if (sourceIndex >= 0) {
+                            const std::string &sourceType = result.index.symbols[sourceIndex].type.name;
+                            if (result.index.symbols[sourceIndex].type.known && tokens[expression].type == TokenType::AND)
+                                variableType = {sourceType + '*', true};
+                            else if (result.index.symbols[sourceIndex].type.known &&
+                                     sourceType.size() > 1 && sourceType.back() == '*' &&
+                                     tokens[expression].type == TokenType::MUL)
+                                variableType = {sourceType.substr(0, sourceType.size() - 1), true};
+                        }
+                    }
+                }
                 auto range = tokenRange(tokens[nameIndex]);
                 addSymbol(
                     {name, SymbolKind::Variable, variableType, range, range, variableType.name, currentScope, -1});

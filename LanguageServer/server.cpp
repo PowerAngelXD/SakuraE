@@ -127,12 +127,16 @@ namespace sakurae::lsp {
         if (method == "textDocument/completion") {
             nlohmann::json items = nlohmann::json::array();
             std::unordered_set<std::string> names;
-            for (const char *keyword : {"if", "else", "for", "while", "return", "break", "continue", "let", "func"}) {
+            for (const char *keyword : {"if", "else", "while", "for", "func", "return", "let", "const",
+                                        "range", "break", "continue", "match", "repeat", "struct", "impl",
+                                        "is", "typeof", "ref", "default", "sizeof"}) {
                 items.push_back({{"label", keyword}, {"kind", 14}});
             }
-            for (const char *type : {"i32", "i64", "ui32", "ui64", "f32", "f64", "bool", "char", "string"}) {
+            for (const char *type : {"i32", "i64", "ui32", "ui64", "f32", "f64", "bool", "char", "string", "void"}) {
                 items.push_back({{"label", type}, {"kind", 25}});
             }
+            for (const auto &runtimeName : runtimeFunctionNames())
+                items.push_back({{"label", runtimeName}, {"kind", 3}, {"detail", "SakuraE runtime function"}});
             const int scope = analyzer.scopeAt(analysis, position);
             for (const int index : analysis.index.visibleSymbols(scope)) {
                 if (index < 0 || index >= static_cast<int>(analysis.index.symbols.size()))

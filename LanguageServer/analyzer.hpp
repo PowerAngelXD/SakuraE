@@ -9,6 +9,8 @@
 
 namespace sakurae::lsp {
 
+    const std::vector<std::string> &runtimeFunctionNames();
+
     struct AnalysisResult {
         std::vector<Diagnostic> diagnostics;
         SymbolIndex index;
