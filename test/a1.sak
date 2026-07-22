@@ -13,16 +13,22 @@ func a1(s: string) -> void {
     return;
 }
 
+func fib(n: i32) -> i32 {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
 func main() -> i32 {
-    println("你好");
+    println("应用程序:");
     let counter: i32 = 0;
     let list: string[5];
+
     while (true) {
         let ln = input("[[这是输入框，对]]>> ");
-        
         list[counter] = ln;
         counter ++;
-
         match (ln) {
             "hello" => {
                 println("world");

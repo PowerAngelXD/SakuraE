@@ -2,18 +2,18 @@ func main() -> i32 {
     let a = 10;
     match (a) {
         1 => {
-            __println("wtf");
+            println("wtf");
         }
         110 => {
-            __println("hello world");
+            println("hello world");
         }
         default => {
-            __println("no");
+            println("no");
         }
     }
 
     repeat(5) {
-        __println("say hi");
+        println("say hi");
     }
     return 0;
 }

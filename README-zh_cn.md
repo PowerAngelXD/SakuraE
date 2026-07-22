@@ -143,7 +143,7 @@ SakuraE/
    }
    
    func main() -> i32 {
-        __println(\"Hello world, check fib(21):\");
+        println(\"Hello world, check fib(21):\");
         return fib(21);
    }" >> test.sak
    ```

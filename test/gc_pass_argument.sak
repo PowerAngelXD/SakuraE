@@ -9,6 +9,6 @@ func main() -> i32 {
         value = duplicate("arg");
     }
 
-    __println(value);
+    println(value);
     return 0;
 }

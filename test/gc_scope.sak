@@ -6,6 +6,6 @@ func main() -> i32 {
         keep = concat_string(words[0], words[1]);
     }
 
-    __println(keep);
+    println(keep);
     return 0;
 }

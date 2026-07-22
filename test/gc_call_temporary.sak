@@ -9,6 +9,6 @@ func main() -> i32 {
         value = concat_string(make_word("A"), make_word("B"));
     }
 
-    __println(value);
+    println(value);
     return 0;
 }

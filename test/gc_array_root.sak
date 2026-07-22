@@ -6,6 +6,6 @@ func main() -> i32 {
         chosen = items[1];
     }
 
-    __println(chosen);
+    println(chosen);
     return 0;
 }

@@ -9,6 +9,6 @@ func main() -> i32 {
         current = make_word();
     }
 
-    __println(current);
+    println(current);
     return 0;
 }
