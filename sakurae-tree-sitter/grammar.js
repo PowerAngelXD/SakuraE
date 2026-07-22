@@ -34,7 +34,7 @@ module.exports = grammar({
             ),
 
         number: ($) =>
-            token(/\d+(\.\d+)?[f]?|0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+/),
+            token(/\d+(\.\d+)?(UL|U|L|f)?|0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+/),
         string: ($) => token(seq('"', repeat(/[^"\\]|\\./), '"')),
         char: ($) => token(/'([^'\\\\]|\\.)'/),
         boolean: ($) => choice("true", "false"),
