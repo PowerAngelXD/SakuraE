@@ -29,6 +29,7 @@ namespace sakuraE {
         LEFT_SQUARE_BRACKET, RIGHT_SQUARE_BRACKET, // []
         LEFT_BRACKET, RIGHT_BRACKET, // {}
         ASSIGN_OP, ADD_ASSIGN, SUB_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, // =, +=, -=, *=, /=
+
         AUTO_INC, AUTO_DEC, // ++, --
         CONSTRAINT_OP, // :
         ARROW,           // ->
@@ -46,7 +47,8 @@ namespace sakuraE {
         KEYWORD_RETURN, KEYWORD_CONST, KEYWORD_RANGE,
         KEYWORD_BREAK, KEYWORD_CONTINUE, KEYWORD_REF,
         KEYWORD_STRUCT, KEYWORD_IMPL, KEYWORD_REPEAT,
-        KEYWORD_MATCH, KEYWORD_DEFAULT,
+        KEYWORD_MATCH, KEYWORD_DEFAULT, KEYWORD_TYPEOF,
+        KEYWORD_SIZEOF,
 
         TYPE_I32, TYPE_I64, TYPE_F32,
         TYPE_F64, TYPE_CHAR, TYPE_BOOL,
@@ -56,6 +58,8 @@ namespace sakuraE {
         _EOF_,
         UNKNOWN
     };
+
+    fzlib::String tokenTypeToString(TokenType type);
 
     class Token {
     public:
@@ -88,7 +92,8 @@ namespace sakuraE {
             "if", "else", "while", "for", "func",
             "return", "let", "const", "range", "true",
             "false", "break", "continue", "match", "repeat",
-            "struct", "impl", "is", "typeof", "ref", "default"
+            "struct", "impl", "is", "typeof", "ref", "default",
+            "typeof", "sizeof"
         };
 
         const std::vector<fzlib::String> typeFields = {

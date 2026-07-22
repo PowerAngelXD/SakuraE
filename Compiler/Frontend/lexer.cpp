@@ -9,9 +9,91 @@ sakuraE::Token::Token(TokenType t, const fzlib::String& c, int l, int col, const
     info.details = det;
 }
 
+fzlib::String sakuraE::tokenTypeToString(TokenType type) {
+    switch (type) {
+    case TokenType::IDENTIFIER: return "identifier";
+    case TokenType::KEYWORD: return "keyword";
+    case TokenType::INT_N: return "integer literal";
+    case TokenType::FLOAT_N: return "floating-point literal";
+    case TokenType::STRING: return "string literal";
+    case TokenType::CHAR: return "character literal";
+    case TokenType::BOOL_CONST: return "boolean literal";
+    case TokenType::ADD: return "'+'";
+    case TokenType::SUB: return "'-'";
+    case TokenType::MUL: return "'*'";
+    case TokenType::DIV: return "'/'";
+    case TokenType::MOD: return "'%'";
+    case TokenType::OR: return "'|'";
+    case TokenType::AND: return "'&'";
+    case TokenType::LGC_NOT: return "'!'";
+    case TokenType::LGC_NOT_EQU: return "'!='";
+    case TokenType::LGC_AND: return "'&&'";
+    case TokenType::LGC_OR: return "'||'";
+    case TokenType::LGC_EQU: return "'=='";
+    case TokenType::LGC_MR_THAN: return "'>'";
+    case TokenType::LGC_LS_THAN: return "'<'";
+    case TokenType::LGC_MREQU_THAN: return "'>='";
+    case TokenType::LGC_LSEQU_THAN: return "'<='";
+    case TokenType::LEFT_PAREN: return "'('";
+    case TokenType::RIGHT_PAREN: return "')'";
+    case TokenType::LEFT_SQUARE_BRACKET: return "'['";
+    case TokenType::RIGHT_SQUARE_BRACKET: return "']'";
+    case TokenType::LEFT_BRACKET: return "'{'";
+    case TokenType::RIGHT_BRACKET: return "'}'";
+    case TokenType::ASSIGN_OP: return "'='";
+    case TokenType::ADD_ASSIGN: return "'+='";
+    case TokenType::SUB_ASSIGN: return "'-='";
+    case TokenType::MUL_ASSIGN: return "'*='";
+    case TokenType::DIV_ASSIGN: return "'/='";
+    case TokenType::AUTO_INC:
+    case TokenType::AINC: return "'++'";
+    case TokenType::AUTO_DEC:
+    case TokenType::SDEC: return "'--'";
+    case TokenType::CONSTRAINT_OP: return "':'";
+    case TokenType::ARROW: return "'->'";
+    case TokenType::BIG_ARROW: return "'=>'";
+    case TokenType::SPACE_SHIP: return "'<=>'";
+    case TokenType::DOT: return "'.'";
+    case TokenType::COMMA: return "','";
+    case TokenType::STMT_END: return "';'";
+    case TokenType::FN_OP: return "'|>'";
+    case TokenType::KEYWORD_LET: return "'let'";
+    case TokenType::KEYWORD_IF: return "'if'";
+    case TokenType::KEYWORD_ELSE: return "'else'";
+    case TokenType::KEYWORD_WHILE: return "'while'";
+    case TokenType::KEYWORD_FOR: return "'for'";
+    case TokenType::KEYWORD_FUNC: return "'func'";
+    case TokenType::KEYWORD_RETURN: return "'return'";
+    case TokenType::KEYWORD_CONST: return "'const'";
+    case TokenType::KEYWORD_RANGE: return "'range'";
+    case TokenType::KEYWORD_BREAK: return "'break'";
+    case TokenType::KEYWORD_CONTINUE: return "'continue'";
+    case TokenType::KEYWORD_REF: return "'ref'";
+    case TokenType::KEYWORD_STRUCT: return "'struct'";
+    case TokenType::KEYWORD_IMPL: return "'impl'";
+    case TokenType::KEYWORD_REPEAT: return "'repeat'";
+    case TokenType::KEYWORD_MATCH: return "'match'";
+    case TokenType::KEYWORD_DEFAULT: return "'default'";
+    case TokenType::KEYWORD_TYPEOF: return "'typeof'";
+    case TokenType::KEYWORD_SIZEOF: return "'sizeof'";
+    case TokenType::TYPE_I32: return "'i32'";
+    case TokenType::TYPE_I64: return "'i64'";
+    case TokenType::TYPE_F32: return "'f32'";
+    case TokenType::TYPE_F64: return "'f64'";
+    case TokenType::TYPE_CHAR: return "'char'";
+    case TokenType::TYPE_BOOL: return "'bool'";
+    case TokenType::TYPE_STRING: return "'string'";
+    case TokenType::TYPE_UI32: return "'ui32'";
+    case TokenType::TYPE_UI64: return "'ui64'";
+    case TokenType::TYPE_VOID: return "'void'";
+    case TokenType::_EOF_: return "EOF";
+    case TokenType::UNKNOWN: return "unknown token";
+    }
+    return "unknown token";
+}
+
 fzlib::String sakuraE::Token::typeToString() const {
-    fzlib::String s = magic_enum::enum_name(type);
-    return fzlib::String(s);
+    return tokenTypeToString(type);
 }
 
 fzlib::String sakuraE::Token::toString() const {

@@ -109,7 +109,7 @@ namespace sakuraE {
 
     using AtomIdentifierExprParserRule = ConnectionParser<
         OptionsParser<
-            TokenParser<TokenType::IDENTIFIER>,
+        TokenParser<TokenType::IDENTIFIER>,
             ConnectionParser<
                 TokenParser<TokenType::LEFT_PAREN>,
                 IdentifierExprParser,
@@ -190,9 +190,39 @@ namespace sakuraE {
         NodePtr genResource() override;
     };
 
+    using InnerCallableOpExprParserRule = ConnectionParser<
+        OptionsParser<
+            TokenParser<TokenType::KEYWORD_TYPEOF>,
+            TokenParser<TokenType::KEYWORD_SIZEOF>
+        >,
+        CallingOpParser
+    >;
+    class InnerCallableOpExprParser: public ResourceFetcher, public InnerCallableOpExprParserRule {
+    public:
+        InnerCallableOpExprParser(InnerCallableOpExprParserRule&& base) : InnerCallableOpExprParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return InnerCallableOpExprParserRule::check(begin, end);
+        }
+
+        static Result<InnerCallableOpExprParser> parse(TokenIter begin, TokenIter end) {
+            auto result = InnerCallableOpExprParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
+            }
+
+            return {result.status,
+                    std::make_shared<InnerCallableOpExprParser>(std::move(*result.val)),
+                    result.end};
+        }
+
+        NodePtr genResource() override;
+    };
+
     using PrimExprParserRule = OptionsParser<
         LiteralParser,
         IdentifierExprParser,
+        InnerCallableOpExprParser,
         ConnectionParser<
             TokenParser<TokenType::LEFT_PAREN>,
             WholeExprParser,
@@ -551,8 +581,8 @@ namespace sakuraE {
     using TypeModifierParserRule =
     ConnectionParser<
         OptionsParser<
-            BasicTypeModifierParser,
-            ArrayTypeModifierParser
+            ArrayTypeModifierParser,
+            BasicTypeModifierParser
         >,
         OptionsParser<
             ClosureParser<TokenParser<TokenType::MUL>>,

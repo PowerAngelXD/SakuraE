@@ -61,7 +61,7 @@ namespace sakuraE {
             if (check(begin, end))
                 return Result<TokenParser>(ParseStatus::SUCCESS, std::make_shared<TokenParser>(std::make_shared<Token>(*begin)), begin + 1);
             else {
-                fzlib::String msg = "Expected " + fzlib::String(magic_enum::enum_name(T)) + ", but got ";
+                fzlib::String msg = "Expected " + tokenTypeToString(T) + ", but got ";
                 if (begin == end) msg += "EOF";
                 else msg += begin->typeToString();
                 

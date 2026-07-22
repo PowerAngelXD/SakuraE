@@ -22,7 +22,7 @@ namespace sakuraE {
         IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
         LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode,
         BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
-        AssignExprNode, RangeExprNode,
+        AssignExprNode, RangeExprNode, InnerCallabeOpExprNode,
         // Stmt Header
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
@@ -33,7 +33,9 @@ namespace sakuraE {
         // Branches
         HeadExpr, Exprs, Op, Ops, PreOp,
         Types, Args, Type, AssignTerm,
-        Condition, Block, Default, Cases, Case, Stmts
+        Condition, Block, Default, Cases, Case, Stmts,
+        // Keywords
+        Typeof, Sizeof
     };
 
     using NodePtr = std::shared_ptr<Node>;

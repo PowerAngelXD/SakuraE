@@ -128,6 +128,25 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     return root;
 }
 
+sakuraE::NodePtr sakuraE::InnerCallableOpExprParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::InnerCallabeOpExprNode);
+    std::visit([&](auto& var) {
+        using VarType = std::decay_t<decltype(var)>;
+
+        if constexpr (std::is_same_v<VarType, std::shared_ptr<TokenParser<TokenType::KEYWORD_TYPEOF>>>) {
+            (*root)[ASTTag::Typeof];
+            root->setInfo((*root)[ASTTag::Typeof]->getPosInfo());
+        }
+        else if constexpr (std::is_same_v<VarType, std::shared_ptr<TokenParser<TokenType::KEYWORD_SIZEOF>>>) {
+            (*root)[ASTTag::Sizeof];
+            root->setInfo((*root)[ASTTag::Sizeof]->getPosInfo());
+        }
+    }, std::get<0>(getTuple())->option());
+
+    root->addChild(std::get<1>(getTuple())->genResource());
+
+    return root;
+}
 sakuraE::NodePtr sakuraE::PrimExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::PrimExprNode);
 
@@ -141,6 +160,10 @@ sakuraE::NodePtr sakuraE::PrimExprParser::genResource() {
         else if constexpr (std::is_same_v<VarType, std::shared_ptr<IdentifierExprParser>>) {
             (*root)[ASTTag::Identifier] = var->genResource();
             root->setInfo((*root)[ASTTag::Identifier]->getPosInfo());
+        }
+        else if constexpr (std::is_same_v<VarType, std::shared_ptr<InnerCallableOpExprParser>>) {
+            (*root)[ASTTag::InnerCallabeOpExprNode] = var->genResource();
+            root->setInfo((*root)[ASTTag::InnerCallabeOpExprNode]->getPosInfo());
         }
         else {
             root->setInfo(std::get<0>(var->getTuple())->token->info);
@@ -569,7 +592,7 @@ sakuraE::NodePtr sakuraE::ReturnStmtParser::genResource() {
     root->setInfo(std::get<0>(getTuple())->token->info);
 
     auto retContent = std::get<1>(getTuple())->getClosure();
-    if (retContent.empty()); 
+    if (retContent.empty());
     else (*root)[ASTTag::HeadExpr] = std::get<1>(getTuple())->getClosure().at(0)->genResource();
 
     return root;
