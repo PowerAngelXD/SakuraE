@@ -2,6 +2,7 @@
 #include "LanguageServer/document_store.hpp"
 #include "LanguageServer/json_rpc.hpp"
 #include "Compiler/Frontend/lexer.h"
+#include "Compiler/Frontend/parser.hpp"
 
 #include <cassert>
 #include <sstream>
@@ -75,6 +76,19 @@ int main() {
     assert(literalTokens[1].type == sakuraE::TokenType::INT_N);
     assert(literalTokens[2].type == sakuraE::TokenType::INT_N);
     assert(literalTokens[3].type == sakuraE::TokenType::FLOAT_N);
+
+    assert(sakuraE::tokenTypeToString(sakuraE::TokenType::STMT_END) == "';'");
+    assert(sakuraE::tokenTypeToString(sakuraE::TokenType::KEYWORD_RETURN) == "'return'");
+    assert(sakuraE::tokenTypeToString(sakuraE::TokenType::TYPE_I32) == "'i32'");
+    assert(sakuraE::tokenTypeToString(sakuraE::TokenType::IDENTIFIER) == "identifier");
+
+    sakuraE::Lexer missingTerminatorLexer(fzlib::String("let value = 1"));
+    const auto missingTerminatorTokens = missingTerminatorLexer.tokenize();
+    auto missingTerminator = sakuraE::StatementParser::parse(missingTerminatorTokens.cbegin(),
+                                                              missingTerminatorTokens.cend());
+    assert(missingTerminator.status == sakuraE::ParseStatus::FAILED);
+    assert(missingTerminator.err != nullptr);
+    assert(std::string(missingTerminator.err->message().c_str()).find("Expected ';'") != std::string::npos);
 
     std::stringstream input;
     const std::string body = R"({"jsonrpc":"2.0","id":1,"method":"shutdown"})";
