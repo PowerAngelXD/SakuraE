@@ -164,7 +164,7 @@ namespace sakuraE::IR {
 
         // Runtime functions keep a source-level raw name while their IR name
         // carries the parameter types. This lookup supports runtime APIs such
-        // as __println, whose implementation accepts every boxed value.
+        // as println, whose implementation accepts every boxed value.
         Function* lookupRuntimeFunction(fzlib::String rawName) {
             for (auto* fn: fnList) {
                 if (fn->getRawName() == rawName) {

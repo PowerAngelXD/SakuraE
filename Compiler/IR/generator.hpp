@@ -187,6 +187,58 @@ namespace sakuraE::IR {
             );
         }
 
+        std::uint64_t getArrayDimension(NodePtr node) {
+            if (node && node->getTag() == ASTTag::LiteralNode) {
+                auto token = (*node)[ASTTag::Literal]->getToken();
+                if (token.type != TokenType::INT_N) {
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "Array dimension must be an integer literal.",
+                        token.info
+                    );
+                }
+
+                auto constant = Constant::getFromToken(token);
+                switch (constant->getType()->getIRTypeID()) {
+                    case IRTypeID::Integer32TyID: {
+                        auto value = constant->getContentValue<std::int32_t>();
+                        if (value > 0) return static_cast<std::uint64_t>(value);
+                        break;
+                    }
+                    case IRTypeID::Integer64TyID: {
+                        auto value = constant->getContentValue<std::int64_t>();
+                        if (value > 0) return static_cast<std::uint64_t>(value);
+                        break;
+                    }
+                    case IRTypeID::UInteger32TyID:
+                        return constant->getContentValue<std::uint32_t>();
+                    case IRTypeID::UInteger64TyID:
+                        return constant->getContentValue<std::uint64_t>();
+                    default:
+                        break;
+                }
+
+                throw SakuraError(
+                    OccurredTerm::IR_GENERATING,
+                    "Array dimension must be greater than zero.",
+                    token.info
+                );
+            }
+
+            if (node) {
+                auto children = node->getChildren();
+                if (children.size() == 1) {
+                    return getArrayDimension(children[0]);
+                }
+            }
+
+            throw SakuraError(
+                OccurredTerm::IR_GENERATING,
+                "Array dimension must be a compile-time integer literal.",
+                node ? node->getPosInfo() : PositionInfo{0, 0, "Array dimension"}
+            );
+        }
+
         TypeInfo* getTypeInfoFromNode(sakuraE::NodePtr node) {
             TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Null);
 
@@ -255,9 +307,10 @@ namespace sakuraE::IR {
 
                 TypeInfo* currentType = headType;
                 for (auto it = dims.rbegin(); it != dims.rend(); it ++) {
-                    std::vector<TypeInfo*> elements;
-                    elements.push_back(currentType);
-                    currentType = TypeInfo::makeArrayTypeID(elements);
+                    currentType = TypeInfo::makeArrayTypeID(
+                        currentType,
+                        getArrayDimension(*it)
+                    );
                 }
 
                 resultTyInfo = currentType;
@@ -293,6 +346,148 @@ namespace sakuraE::IR {
                 result += "_" + ty->toString();
             }
             return result;
+        }
+
+        bool isSizeofSupportedType(IRType* ty) {
+            if (!ty) return false;
+
+            switch (ty->getIRTypeID()) {
+                case IRTypeID::CharTyID:
+                case IRTypeID::BoolTyID:
+                case IRTypeID::Integer32TyID:
+                case IRTypeID::Integer64TyID:
+                case IRTypeID::UInteger32TyID:
+                case IRTypeID::UInteger64TyID:
+                case IRTypeID::Float32TyID:
+                case IRTypeID::Float64TyID:
+                case IRTypeID::PointerTyID:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        void validateSizeofType(IRType* ty, PositionInfo info) {
+            if (!isSizeofSupportedType(ty)) {
+                throw SakuraError(
+                    OccurredTerm::IR_GENERATING,
+                    "'sizeof' only supports char, i32, i64, ui32, ui64, bool, f32, f64, and pointer types.",
+                    info
+                );
+            }
+        }
+
+        IRType* inferExprType(NodePtr node, PositionInfo info = {0, 0, "sizeof"}) {
+            if (!node) {
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                  "Cannot infer the type of an empty expression.",
+                                  info);
+            }
+
+            if (node->getTag() == ASTTag::WholeExprNode) {
+                if (node->hasNode(ASTTag::AddExprNode))
+                    return inferExprType((*node)[ASTTag::AddExprNode], info);
+                if (node->hasNode(ASTTag::BinaryExprNode))
+                    return inferExprType((*node)[ASTTag::BinaryExprNode], info);
+                if (node->hasNode(ASTTag::ArrayExprNode))
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
+                                      "'sizeof' does not support array expressions.",
+                                      node->getPosInfo());
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                  "'sizeof' does not support assignment expressions.",
+                                  node->getPosInfo());
+            }
+
+            if (node->getTag() == ASTTag::AddExprNode ||
+                node->getTag() == ASTTag::MulExprNode) {
+                auto exprs = (*node)[ASTTag::Exprs]->getChildren();
+                IRType* result = inferExprType(exprs.front(), info);
+                for (std::size_t i = 1; i < exprs.size(); ++i) {
+                    auto rhs = inferExprType(exprs[i], info);
+                    auto lhsRank = rankList.find(result->getIRTypeID());
+                    auto rhsRank = rankList.find(rhs->getIRTypeID());
+                    if (lhsRank == rankList.end() || rhsRank == rankList.end()) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                          "'sizeof' expression contains an unsupported arithmetic type.",
+                                          node->getPosInfo());
+                    }
+                    switch (std::max(lhsRank->second, rhsRank->second)) {
+                        case 1: result = IRType::getBoolTy(); break;
+                        case 2: result = IRType::getCharTy(); break;
+                        case 3: result = IRType::getUInt32Ty(); break;
+                        case 4: result = IRType::getInt32Ty(); break;
+                        case 5: result = IRType::getUInt64Ty(); break;
+                        case 6: result = IRType::getInt64Ty(); break;
+                        case 7: result = IRType::getFloat32Ty(); break;
+                        case 8: result = IRType::getFloat64Ty(); break;
+                        default:
+                            throw SakuraError(OccurredTerm::IR_GENERATING,
+                                              "Internal error: unhandled sizeof expression type.",
+                                              node->getPosInfo());
+                    }
+                }
+                return result;
+            }
+
+            if (node->getTag() == ASTTag::LogicExprNode ||
+                node->getTag() == ASTTag::BinaryExprNode) {
+                auto exprs = (*node)[ASTTag::Exprs]->getChildren();
+                IRType* result = inferExprType(exprs.front(), info);
+                if (node->hasNode(ASTTag::Ops)) {
+                    for (auto expr : exprs)
+                        inferExprType(expr, info);
+                    return IRType::getBoolTy();
+                }
+                return result;
+            }
+
+            if (node->getTag() == ASTTag::PrimExprNode) {
+                if (node->hasNode(ASTTag::Literal)) {
+                    auto literal = Constant::getFromToken(
+                        (*(*node)[ASTTag::Literal])[ASTTag::Literal]->getToken());
+                    return literal->getType();
+                }
+                if (node->hasNode(ASTTag::Identifier)) {
+                    auto identifier = (*node)[ASTTag::Identifier];
+                    if (identifier->hasNode(ASTTag::PreOp) ||
+                        identifier->hasNode(ASTTag::Op)) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                          "'sizeof' does not evaluate side-effecting expressions.",
+                                          identifier->getPosInfo());
+                    }
+                    auto chain = (*identifier)[ASTTag::Exprs]->getChildren();
+                    if (chain.size() != 1) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                          "'sizeof' only supports a single variable expression.",
+                                          identifier->getPosInfo());
+                    }
+                    auto atom = chain[0];
+                    if (atom->hasNode(ASTTag::Ops) &&
+                        !(*atom)[ASTTag::Ops]->getChildren().empty()) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                          "'sizeof' does not support indexed or called variables.",
+                                          identifier->getPosInfo());
+                    }
+                    if (!atom->hasNode(ASTTag::Identifier)) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                          "'sizeof' could not resolve the variable identifier.",
+                                          identifier->getPosInfo());
+                    }
+                    return lookup((*atom)[ASTTag::Identifier]->getToken().content,
+                                  identifier->getPosInfo())->getType();
+                }
+                if (node->hasNode(ASTTag::InnerCallabeOpExprNode)) {
+                    auto inner = (*node)[ASTTag::InnerCallabeOpExprNode];
+                    if (inner->hasNode(ASTTag::Sizeof))
+                        return IRType::getUInt64Ty();
+                    return IRType::getTypeInfoTy();
+                }
+                return inferExprType((*node)[ASTTag::HeadExpr], info);
+            }
+
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                              "'sizeof' cannot infer the type of this expression.",
+                              node->getPosInfo());
         }
 
         // Used to obtain the type of the result from a non-logical binary operation
@@ -386,6 +581,7 @@ namespace sakuraE::IR {
         IRValue* visitCallingOpNode(IRValue* addr, NodePtr node);
         IRValue* visitAtomIdentifierNode(NodePtr node);
         IRValue* visitIdentifierExprNode(NodePtr node);
+        IRValue* visitInnerCallableExprNode(NodePtr node);
         IRValue* visitPrimExprNode(NodePtr node);
         IRValue* visitMulExprNode(NodePtr node);
         IRValue* visitAddExprNode(NodePtr node);

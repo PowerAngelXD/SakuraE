@@ -1,0 +1,6 @@
+func main() -> i32 {
+    let values: string[5];
+    values[0] = "ok";
+    println(values[0]);
+    return 0;
+}

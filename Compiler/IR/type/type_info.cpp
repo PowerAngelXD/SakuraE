@@ -2,7 +2,7 @@
 
 namespace sakuraE::IR {
     static std::map<TypeID, TypeInfo*> primaryTypeIDPool;
-    static std::map<std::vector<TypeInfo*>, TypeInfo*> arrayTypeIDPool;
+    static std::map<std::pair<TypeInfo*, std::uint64_t>, TypeInfo*> arrayTypeIDPool;
     static std::map<TypeInfo*, TypeInfo*> pointerTypeIDPool;
     static std::map<TypeInfo*, TypeInfo*> refTypeIDPool;
 
@@ -17,13 +17,14 @@ namespace sakuraE::IR {
         return info;
     }
 
-    TypeInfo* TypeInfo::makeArrayTypeID(std::vector<TypeInfo*> tArray) {
-        auto it = arrayTypeIDPool.find(tArray);
+    TypeInfo* TypeInfo::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
+        auto key = std::make_pair(element, count);
+        auto it = arrayTypeIDPool.find(key);
         if (it != arrayTypeIDPool.end())
             return it->second;
         
-        TypeInfo* info = new TypeInfo(tArray);
-        arrayTypeIDPool.emplace(tArray, info);
+        TypeInfo* info = new TypeInfo(element, count);
+        arrayTypeIDPool.emplace(key, info);
 
         return info;
     }

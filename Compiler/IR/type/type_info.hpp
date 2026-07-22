@@ -63,12 +63,14 @@ namespace sakuraE::IR {
     class TypeInfo;
 
     class ArrayTypeInfo {
-        std::vector<TypeInfo*> elementTypes;
+        TypeInfo* elementType;
+        std::uint64_t elementCount;
     public:
-        ArrayTypeInfo(std::vector<TypeInfo*> elements): elementTypes(elements) {}
+        ArrayTypeInfo(TypeInfo* element, std::uint64_t count):
+            elementType(element), elementCount(count) {}
         
-        std::size_t length() { return elementTypes.size(); }
-        TypeInfo* getElementTy() { return elementTypes[0]; }
+        std::uint64_t length() const { return elementCount; }
+        TypeInfo* getElementTy() const { return elementType; }
     };
 
     class PointerTypeInfo {
@@ -99,8 +101,8 @@ namespace sakuraE::IR {
     public:
         TypeInfo(TypeID tid): typeID(tid) {}
 
-        TypeInfo(std::vector<TypeInfo*> tids): 
-            typeID(Array), complexTypeInfo(ArrayTypeInfo(tids)) {}
+        TypeInfo(TypeInfo* element, std::uint64_t count):
+            typeID(Array), complexTypeInfo(ArrayTypeInfo(element, count)) {}
         
         TypeInfo(TypeID id, TypeInfo* elemntTid): 
             typeID(id), complexTypeInfo([&]() -> std::variant<std::monostate, ArrayTypeInfo, PointerTypeInfo, RefTypeInfo> {
@@ -135,7 +137,7 @@ namespace sakuraE::IR {
         }
 
         static TypeInfo* makeBasicTypeID(TypeID typeID);
-        static TypeInfo* makeArrayTypeID(std::vector<TypeInfo*> tArray);
+        static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
         static TypeInfo* makePointerTypeID(TypeInfo* typeID);
         static TypeInfo* makeRefTypeID(TypeInfo* typeID);
         static void clearAll();

@@ -105,7 +105,7 @@ namespace sakuraE::IR {
                     case 64: return IRTypeID::Float64TyID;
                     default: return IRTypeID::FloatNTyID;
                 }
-            }()) {}
+            }()), bitWidth(bw) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;

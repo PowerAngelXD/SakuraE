@@ -21,7 +21,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 namespace sakuraE::Codegen {
-    // LLVM Module
+    // LLVM 模块
     void LLVMCodeGenerator::LLVMModule::impl(IR::Module* source) {
         content = new llvm::Module(ID.c_str(), *codegenContext.context);
 
@@ -89,7 +89,7 @@ namespace sakuraE::Codegen {
         }
     }
 
-    // LLVM Function
+    // LLVM 函数
     void LLVMCodeGenerator::LLVMFunction::impl(IR::Function* source) {
         sourceFn = source;
 
@@ -115,7 +115,7 @@ namespace sakuraE::Codegen {
         }
 
         codegenContext.builder->SetInsertPoint(entryBlock);
-        // 函数级 root scope 覆盖参数、局部变量和所有临时 root。
+        // 函数级 root scope 覆盖参数、局部变量和所有临时 root
         gcEnterScope();
 
         std::size_t i = 0;
@@ -128,9 +128,9 @@ namespace sakuraE::Codegen {
 
             codegenContext.builder->CreateStore(&arg, argAlloca);
 
-            // 参数如果承载的是 GC 托管对象引用，需要在函数入口立即注册进 root stack。
+            // 参数如果承载的是 GC 托管对象引用，需要在函数入口立即注册进 root stack
             if (shouldRegisterSlotAsGCRoot(irParams[i].second)) {
-                gcRegisterValueRoot(argAlloca);
+                gcRegisterManagedSlot(argAlloca, irParams[i].second);
             }
 
             scope.declare(irParams[i].first, argAlloca, nullptr);
@@ -148,9 +148,9 @@ namespace sakuraE::Codegen {
             }
         }
 
-        // Permit a fall-through main body. The source language requires main
-        // to return i32, while the LLVM ABI returns a boxed RuntimeValue*.
-        // This is useful for small runtime demos whose only purpose is output.
+        /* 允许 main 函数自然结束，源语言要求 main 返回 i32，而 LLVM ABI 返回装箱后的
+         * RuntimeValue*，这对只用于输出结果的小型运行时示例很有用
+         */
         if (sourceFn->getName() == "main") {
             for (auto& block: *content) {
                 if (block.getTerminator()) {
@@ -165,7 +165,7 @@ namespace sakuraE::Codegen {
         }
     }
 
-    // Instruction generation
+    // 指令生成
     llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins, LLVMFunction* curFn) {
         llvm::Value* instResult = nullptr;
         if (hasLLVMValue(ins)) return toLLVMValue(ins, curFn);
@@ -246,12 +246,27 @@ namespace sakuraE::Codegen {
                 if (initVal) {
                     builder->CreateStore(toLLVMValue(initVal, curFn), alloca);
                 }
+                else if (ins->getType()->isArray()) {
+                    auto* sourceArrayType = static_cast<IR::IRArrayType*>(ins->getType());
+                    auto arrayType = llvm::ArrayType::get(
+                        llvm::PointerType::getUnqual(*context),
+                        sourceArrayType->getNumElements());
+                    auto elementType = arrayType->getArrayElementType();
+                    auto* gcType = curFn->parent->getRuntimeValueArrayGCType(
+                        static_cast<uint32_t>(curFn->parent->content->getDataLayout().getTypeAllocSize(elementType)),
+                            sourceArrayType->getNumElements());
+                    auto* arrayPtr = curFn->createHeapAlloc(
+                        arrayType,
+                        gcType,
+                        builder->getInt64(sourceArrayType->getNumElements()));
+                    builder->CreateStore(arrayPtr, alloca);
+                }
                 else {
                     builder->CreateStore(llvm::Constant::getNullValue(identifierType), alloca);
                 }
 
                 if (curFn->shouldRegisterSlotAsGCRoot(ins->getType())) {
-                    curFn->gcRegisterValueRoot(alloca);
+                    curFn->gcRegisterManagedSlot(alloca, ins->getType());
                 }
 
                 bind(ins, alloca);
@@ -270,8 +285,7 @@ namespace sakuraE::Codegen {
                     else if (auto* destination = dynamic_cast<IR::Instruction*>(ins->arg(0));
                              destination && destination->getKind() == IR::OpKind::indexing &&
                              destination->arg(0)->getType()->isArray()) {
-                        // Managed arrays contain RuntimeValue* elements, so an
-                        // indexed assignment replaces the wrapper pointer.
+                        // 托管数组的元素是 RuntimeValue*，因此索引赋值需要替换包装指针
                         builder->CreateStore(srcVal, destAddr);
                     }
                     else {
@@ -305,25 +319,29 @@ namespace sakuraE::Codegen {
                             openedTempScope = true;
                         }
 
-                        auto* rootedSlot = curFn->createRootedTemporary(elementValue, "gc.array.elem");
+                        auto* rootedSlot = curFn->createRootedTemporary(
+                            elementValue,
+                            "gc.array.elem",
+                            element->getType());
                         elementValue = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "array.elem.rooted");
                     }
 
                     arrayContent.push_back(elementValue);
                 }
-                // Full boxing stores every array element as RuntimeValue*,
-                // regardless of the source element type. Use the boxed layout
-                // for both allocation size and element addressing.
+                /* 完全装箱模式下，数组的每个元素都存储为 RuntimeValue*，与源元素类型无关
+                 * 分配大小和元素寻址都必须使用装箱后的布局
+                 */
                 auto* sourceArrayType = static_cast<IR::IRArrayType*>(ins->getType());
                 auto arrayType = llvm::ArrayType::get(
                     llvm::PointerType::getUnqual(*context),
                     sourceArrayType->getNumElements());
                 auto elementType = arrayType->getArrayElementType();
 
-                // array object 的 payload 是实际数组内容，header 中只记录扫描规则与元素个数。
-                // 元素求值阶段先建立临时 root，确保构造数组期间的嵌套对象不会被回收。
-                // Array elements are RuntimeValue* under full boxing. The GC
-                // must inspect each wrapper before following its payload.
+                /* array 对象的 payload 是实际数组内容，header 中只记录扫描规则与元素个数
+                 * 元素求值阶段先建立临时 root，确保构造数组期间的嵌套对象不会被回收
+                 * 完全装箱模式下数组元素是 RuntimeValue*，GC 必须先检查每个包装对象，
+                 * 再继续追踪其中的 payload
+                 */
                 llvm::Value* gcType = curFn->parent->getRuntimeValueArrayGCType(
                     static_cast<uint32_t>(curFn->parent->content->getDataLayout().getTypeAllocSize(elementType)),
                     irArray->getSize());
@@ -342,7 +360,10 @@ namespace sakuraE::Codegen {
                 }
 
                 if (curFn->shouldTrackAsGCRoot(ins)) {
-                    auto* protectedSlot = curFn->createRootedTemporary(arrayPtr, "gc.array.result");
+                    auto* protectedSlot = curFn->createRootedTemporary(
+                        arrayPtr,
+                        "gc.array.result",
+                        ins->getType());
                     protectValue(ins, protectedSlot);
                 }
 
@@ -362,12 +383,34 @@ namespace sakuraE::Codegen {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.array.base");
                     }
-                    // Full boxing stores RuntimeValue* elements in managed arrays.
-                    // Indexing such an array returns the wrapper directly.
+                    auto* arrayType = static_cast<IR::IRArrayType*>(addrIRType);
+                    bool isUnsigned = false;
+                    switch (ins->arg(1)->getType()->getIRTypeID()) {
+                        case IR::IRTypeID::UInteger32TyID:
+                        case IR::IRTypeID::UInteger64TyID:
+                        case IR::IRTypeID::UIntegerNTyID:
+                            isUnsigned = true;
+                            break;
+                        default:
+                            break;
+                    }
+                    auto* index64 = builder->CreateIntCast(
+                        indexVal,
+                        llvm::Type::getInt64Ty(*context),
+                        !isUnsigned,
+                        "index.i64");
+                    auto* boundsCheck = curFn->parent->lookup("__runtime_check_array_bounds");
+                    builder->CreateCall(boundsCheck->content, {
+                        index64,
+                        builder->getInt64(arrayType->getNumElements())
+                    });
+                    /* 完全装箱模式下，托管数组存储 RuntimeValue* 元素
+                     * 对此类数组进行索引会直接返回包装对象
+                     */
                     auto* boxedElement = builder->CreateGEP(
-                        llvm::PointerType::getUnqual(*context), addr, {indexVal}, "indexing.boxed.array");
-                    // Keep the element slot as the l-value. A later load
-                    // obtains the RuntimeValue* stored in that slot.
+                        llvm::PointerType::getUnqual(*context), addr, {index64}, "indexing.boxed.array");
+                    /* 保留元素槽位作为左值，后续 load 会取得其中存储的 RuntimeValue*
+                     */
                     instResult = boxedElement;
                     bind(ins, instResult);
                     break;
@@ -376,8 +419,7 @@ namespace sakuraE::Codegen {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.string.base");
                     }
-                    // A language string is a RuntimeValue*; indexing operates
-                    // on its underlying character payload.
+                    // 语言层字符串是 RuntimeValue*，索引操作作用于其底层字符 payload
                     addr = unboxRaw(addr, IR::IRType::getStringTy(), curFn);
                     elementType = IR::IRType::getCharTy()->toLLVMType(*context);
                 }
@@ -397,8 +439,7 @@ namespace sakuraE::Codegen {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.ptr.base");
                     }
-                    // Pointer variables store boxed pointer values. Indexing
-                    // needs the actual address held by RuntimeValue::Pointer.
+                    // 指针变量存储装箱后的指针值，索引操作需要取得 RuntimeValue::Pointer 中的实际地址
                     addr = unboxRaw(addr, addrIRType, curFn);
                     elementType = pointeeTy->toLLVMType(*context);
                 }
@@ -467,13 +508,31 @@ namespace sakuraE::Codegen {
                 bind(ins, realAddr);
                 break;
             }
+            case IR::OpKind::_typeof: {
+                break;
+            }
+            case IR::OpKind::_sizeof: {
+                auto* sourceType = ins->getTypeOperand();
+                if (!sourceType) {
+                    throw std::runtime_error("sizeof instruction is missing its source type.");
+                }
+
+                auto* llvmType = sourceType->toLLVMType(*context);
+                auto size = curFn->parent->content->getDataLayout().getTypeAllocSize(llvmType);
+                instResult = boxRaw(
+                    builder->getInt64(static_cast<std::uint64_t>(size)),
+                    ins->getType(),
+                    curFn
+                );
+                bind(ins, instResult);
+                break;
+            }
             case IR::OpKind::gaddr: {
                 auto* address = toLLVMValue(ins->arg(0), curFn);
 
-                // A first-class pointer is a boxed RuntimeValue. The payload
-                // is the actual address represented by the address-of
-                // expression; the storage slot itself is not passed as a
-                // RuntimeValue*.
+                /* 一等指针是装箱后的 RuntimeValue，payload 是取地址表达式表示的实际地址
+                 * 传递的不是存储槽位本身的 RuntimeValue*
+                 */
                 if (ins->getType()->isPointer()) {
                     bind(ins, boxRaw(address, ins->getType(), curFn));
                 }
@@ -486,14 +545,15 @@ namespace sakuraE::Codegen {
                 instResult = toLLVMValue(ins->arg(0), curFn);
 
                 if (ins->arg(0)->getType()->isPointer()) {
-                    // Pointer expressions are boxed at the language-value
-                    // boundary. Dereference operates on the stored address.
+                    /* 指针表达式在语言值边界处进行装箱
+                     * 解引用操作作用于其中存储的地址
+                     */
                     instResult = unboxRaw(instResult, ins->arg(0)->getType(), curFn);
                 }
                 else if (ins->arg(0)->getType()->isRef()) {
-                    /* 引用指向语言层的存储槽位。这些槽位中存放的可能是RuntimeValue*（标量/字符串），
+                    /* 引用指向语言层的存储槽位，这些槽位中存放的可能是RuntimeValue*（标量/字符串）
                      * 也可能是托管对象的payload 指针（数组），
-                     * 因此解引用时必须直接加载指针，不能将其解释为未装箱的原始值后再次装箱。
+                     * 因此解引用时必须直接加载指针，不能将其解释为未装箱的原始值后再次装箱
                      */
                     instResult = builder->CreateLoad(
                         llvm::PointerType::getUnqual(*context),
@@ -524,17 +584,17 @@ namespace sakuraE::Codegen {
                 }
                 else if (auto* derefSource = dynamic_cast<IR::Instruction*>(ins->arg(0));
                          derefSource && derefSource->getKind() == IR::OpKind::deref) {
-                    // A deref instruction preserves the address of the
-                    // referenced language slot. Its load result is already a
-                    // boxed RuntimeValue* (or an array payload pointer).
+                    /* deref 指令保留被引用语言槽位的地址
+                     * 它的 load 结果已经是装箱后的 RuntimeValue*，或数组 payload 指针
+                     */
                     instResult = builder->CreateLoad(
                         llvm::PointerType::getUnqual(*context), addr, "load.deref.boxed");
                 }
                 else if (auto* stringSource = dynamic_cast<IR::Instruction*>(ins->arg(0));
                          stringSource && stringSource->getKind() == IR::OpKind::indexing &&
                          stringSource->arg(0)->getType()->isString()) {
-                    // String indexing points into the raw character payload;
-                    // load the character and box it as the expression value.
+                    /* 字符串索引指向原始字符 payload；加载字符后，将其装箱为表达式值
+                     */
                     instResult = boxRaw(
                         builder->CreateLoad(llvm::Type::getInt8Ty(*context), addr, "load.char"),
                         ins->getType(), curFn);
@@ -605,15 +665,19 @@ namespace sakuraE::Codegen {
                         argVal = builder->CreateLoad(allocatedType, allocaInst, "call.arg.load");
                     }
 
-                    // 某个参数如果是 GC 对象引用，而后面还有新的参数求值或 callee 内部分配，
-                    // 就必须先 spill 到一个已注册 root 的临时槽位里，避免它在调用期间被误回收。
+                    /* 如果某个参数是 GC 对象引用，而后面还有新的参数求值或被调用者内部发生分配
+                     * 就必须先 spill 到已注册 root 的临时槽位中，避免它在调用期间被误回收
+                     */
                     if (curFn->shouldTrackAsGCRoot(arguments[i])) {
                         if (!openedTempScope) {
                             curFn->gcEnterScope();
                             openedTempScope = true;
                         }
 
-                        auto* rootedSlot = curFn->createRootedTemporary(argVal, "gc.call.arg");
+                        auto* rootedSlot = curFn->createRootedTemporary(
+                            argVal,
+                            "gc.call.arg",
+                            arguments[i]->getType());
                         argVal = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "call.arg.rooted");
                     }
 
@@ -630,7 +694,10 @@ namespace sakuraE::Codegen {
                 }
 
                 if (instResult && curFn->shouldTrackAsGCRoot(ins)) {
-                    auto* protectedSlot = curFn->createRootedTemporary(instResult, "gc.call.result");
+                    auto* protectedSlot = curFn->createRootedTemporary(
+                        instResult,
+                        "gc.call.result",
+                        ins->getType());
                     protectValue(ins, protectedSlot);
                 }
 
@@ -653,7 +720,7 @@ namespace sakuraE::Codegen {
         return instResult;
     }
 
-    // LLVMCodegen start
+    // LLVMCodegen 开始
     void LLVMCodeGenerator::start() {
         auto irModList = program->getMods();
         for (auto mod: irModList) {
@@ -676,7 +743,7 @@ namespace sakuraE::Codegen {
         }
     }
 
-    // Debug print
+    // 调试输出
     void LLVMCodeGenerator::print() {
         for (auto mod: modules) {
             mod->content->print(llvm::outs(), nullptr);

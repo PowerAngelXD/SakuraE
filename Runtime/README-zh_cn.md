@@ -21,8 +21,8 @@ SakuraE 编译器的运行时库，提供内存管理、字符串处理及基础
 
 ### 3. 基础 I/O
 *   **[`print.cpp`](Runtime/print.cpp)**:
-    *   `__print(char* str)`: 打印字符串到标准输出。
-    *   `__println(char* str)`: 打印字符串并换行。
+    *   `print(char* str)`: 打印字符串到标准输出。
+    *   `println(char* str)`: 打印字符串并换行。
 
 ## 编译与链接
 这些文件通常被编译为目标文件或静态库，并在 LLVM 后端生成代码后，与用户程序链接以提供运行时支持。

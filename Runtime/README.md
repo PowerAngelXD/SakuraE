@@ -21,8 +21,8 @@ The runtime library for the SakuraE compiler, providing memory management, strin
 
 ### 3. Basic I/O
 *   **[`print.cpp`](Runtime/print.cpp)**:
-    *   `__print(char* str)`: Prints a string to standard output.
-    *   `__println(char* str)`: Prints a string followed by a newline.
+    *   `print(char* str)`: Prints a string to standard output.
+    *   `println(char* str)`: Prints a string followed by a newline.
 
 ## Compilation and Linking
 These files are typically compiled into object files or a static library and linked with the user program after LLVM code generation to provide essential runtime support.

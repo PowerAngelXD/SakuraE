@@ -229,7 +229,7 @@ Consider this SakuraE program:
 func main() -> i32 {
     let words = ["gc", "safe"];
     let result = concat_string(words[0], words[1]);
-    __println(result);
+    println(result);
     return 0;
 }
 ```

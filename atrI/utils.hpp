@@ -10,6 +10,8 @@
 #include "Compiler/IR/value/array.hpp"
 #include "Compiler/IR/value/constant.hpp"
 #include "includes/String.hpp"
+#include "Runtime/errors.h"
+#include "Runtime/gc.h"
 
 namespace atri {
     inline void clearCompilerSessionState() {
@@ -21,6 +23,13 @@ namespace atri {
     struct CompilerSessionGuard {
         ~CompilerSessionGuard() {
             clearCompilerSessionState();
+        }
+    };
+
+    struct RuntimeSessionGuard {
+        ~RuntimeSessionGuard() {
+            sakuraE::runtime::__gc_reset();
+            sakuraE::runtime::__runtime_reset_error();
         }
     };
 

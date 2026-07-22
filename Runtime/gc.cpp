@@ -548,8 +548,7 @@ namespace sakuraE::runtime {
         gc_collecting = false;
     }
 
-    struct GCCleaner {
-        ~GCCleaner() {
+    extern "C" void __gc_reset() {
             for (auto* value: runtime_values) {
                 std::free(value);
             }
@@ -581,6 +580,14 @@ namespace sakuraE::runtime {
 
             complex_gc_type_pool.clear();
             type_name_pool.clear();
+            allocated_bytes = 0;
+            gc_collecting = false;
+            refresh_limit_after_collect();
+    }
+
+    struct GCCleaner {
+        ~GCCleaner() {
+            __gc_reset();
         }
     };
 

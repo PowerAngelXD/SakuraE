@@ -1,0 +1,5 @@
+func main() -> i32 {
+    let values: string[2];
+    values[2] = "bad";
+    return 0;
+}

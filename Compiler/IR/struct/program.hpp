@@ -93,6 +93,26 @@ namespace sakuraE::IR {
             );
 
             runtimeMod->declareRuntimeFunction(
+                "__runtime_check_array_bounds",
+                IRType::getVoidTy(),
+                {
+                    {"index", IRType::getInt64Ty()},
+                    {"length", IRType::getUInt64Ty()}
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_array_bounds_error",
+                IRType::getVoidTy(),
+                {
+                    {"index", IRType::getInt64Ty()},
+                    {"length", IRType::getUInt64Ty()}
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
                 "__runtime_type_info_basic",
                 IRType::getPointerTo(IRType::getVoidTy()),
                 { {"kind", IRType::getUIntNTy(8)} },

@@ -44,6 +44,7 @@ namespace atri {
                     }
 
                     parseCommand(list[0], args);
+                    if (cmds::exitRequested) break;
 #else
                     std::cout << "RUNNING DEBUG MODE, TEST PROGRAM: " << std::endl;
                     parseCommand("run", {"test4.sak", "-sakir", "-llvmir"});

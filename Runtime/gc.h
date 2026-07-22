@@ -104,6 +104,7 @@ namespace sakuraE::runtime {
     extern "C" void   __gc_scan(void* ptr);
     extern "C" void   __gc_scan_value(const RuntimeValue* value);
     extern "C" void   __gc_collect();
+    extern "C" void   __gc_reset();
 }
 
 #endif // SakuraE 运行时 GC 头文件保护

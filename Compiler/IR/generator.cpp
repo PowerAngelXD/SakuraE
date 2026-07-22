@@ -12,6 +12,7 @@
 #include "Compiler/Utils/Logger.hpp"
 #include "includes/magic_enum.hpp"
 #include <string>
+#include <variant>
 
 namespace sakuraE::IR {
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
@@ -379,9 +380,69 @@ namespace sakuraE::IR {
         return resultValue;
     }
 
+    IRValue* IRGenerator::visitInnerCallableExprNode(NodePtr node) {
+        auto callingNode = (*node)[ASTTag::CallingOpNode];
+
+        if (node->hasNode(ASTTag::Sizeof)) {
+            auto exprs = (*callingNode)[ASTTag::Exprs]->getChildren();
+            if (exprs.size() != 1) {
+                throw SakuraError(
+                    OccurredTerm::IR_GENERATING,
+                    "'sizeof' operator requires exactly one argument!",
+                    node->getPosInfo()
+                );
+            }
+
+            auto argType = inferExprType(exprs.front(), exprs.front()->getPosInfo());
+            validateSizeofType(argType, exprs.front()->getPosInfo());
+            auto sizeofValue = curFunc()->
+                curBlock()->
+                createInstruction(
+                    OpKind::_sizeof,
+                    IRType::getUInt64Ty(),
+                    {},
+                    "sizeof." + argType->toString()
+                );
+            static_cast<Instruction*>(sizeofValue)->setTypeOperand(argType);
+            return sizeofValue;
+        }
+
+        std::vector<IRValue*> args;
+        for (auto argNode: (*callingNode)[ASTTag::Exprs]->getChildren()) {
+            args.push_back(visitWholeExprNode(argNode));
+        }
+
+        if (node->hasNode(ASTTag::Typeof)) {
+            if (args.size() > 1) {
+                throw SakuraError(
+                    OccurredTerm::IR_GENERATING,
+                    "'typeof' Operator only support one argument!",
+                    node->getPosInfo()
+                );
+            }
+
+            return curFunc()->
+                curBlock()->
+                createInstruction(
+                    OpKind::_typeof,
+                    IRType::getTypeInfoTy(),
+                    args,
+                    "typeof"
+                );
+        }
+        else throw SakuraError(
+            OccurredTerm::IR_GENERATING,
+            "Unknown InnerCallable Operator",
+            node->getPosInfo()
+        );
+    }
+
     IRValue* IRGenerator::visitPrimExprNode(NodePtr node) {
         if (node->hasNode(ASTTag::Literal)) {
             return visitLiteralNode((*node)[ASTTag::Literal]);
+        }
+        else if (node->hasNode(ASTTag::InnerCallabeOpExprNode)) {
+            return visitInnerCallableExprNode((*node)[ASTTag::InnerCallabeOpExprNode]);
         }
         else if (node->hasNode(ASTTag::Identifier)) {
             auto result = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
@@ -1218,17 +1279,17 @@ namespace sakuraE::IR {
                 "A function with a void return type cannot return a value of any type.",
                 (*node)[ASTTag::HeadExpr]->getPosInfo()
             );
-        }     
-            
+        }
+
         if (node->hasNode(ASTTag::HeadExpr)) {
             IRValue* retValue = nullptr;
             retValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
             if (!retValue->getType()->isEqual(curFunc()->getReturnType())) {
                 throw SakuraError(
                     OccurredTerm::IR_GENERATING,
-                    "The type of the value in a return statement must match the function's return type. Function's return type is: " + 
-                        curFunc()->getReturnType()->toString() + 
-                        ", but your given type is: " + 
+                    "The type of the value in a return statement must match the function's return type. Function's return type is: " +
+                        curFunc()->getReturnType()->toString() +
+                        ", but your given type is: " +
                         (retValue?retValue->getType()->toString():"void type"),
                     (*node)[ASTTag::HeadExpr]->getPosInfo()
                 );

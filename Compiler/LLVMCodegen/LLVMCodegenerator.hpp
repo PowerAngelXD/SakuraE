@@ -47,38 +47,38 @@ namespace sakuraE::Codegen {
         llvm::LLVMContext* context;
         llvm::IRBuilder<>* builder;
     private:
-        // Struct Definition ==================================================
+        // 结构体定义 =========================================================
         enum class FunctionType {
             Definition,
             ExternalLinkage
         };
 
         struct LLVMModule;
-        // Represent LLVM Function Instance
+        // LLVM 函数实例
         struct LLVMFunction {
-            // Function Type
+            // 函数类型
             FunctionType type;
-            // Function linkage name
+            // 函数链接名称
             fzlib::String linkageName;
-            // Function Name
+            // 函数名称
             fzlib::String name;
-            // LLVM IR Function represent
+            // LLVM IR 函数表示
             llvm::Function* content = nullptr;
-            // Function Return Type
+            // 函数返回类型
             llvm::Type* returnType = nullptr;
-            // Function Formal Params
+            // 函数形式参数
             std::vector<std::pair<fzlib::String, llvm::Type*>> formalParams;
-            // Scope for current Function
+            // 当前函数的作用域
             IR::Scope<llvm::Value*> scope;
-            // Parent Module
+            // 父模块
             LLVMModule* parent = nullptr;
-            // Parent LLVMCodeGenerator
+            // 父级 LLVMCodeGenerator
             LLVMCodeGenerator& codegenContext;
-            // Params Alloca Map
+            // 参数 Alloca 映射
             std::map<fzlib::String, llvm::AllocaInst*> paramAllocaMap;
-            // Active GC scope depth for the current function
+            // 当前函数的活动 GC 作用域深度
             uint32_t gcScopeDepth = 0;
-            // SAK IR Function
+            // SAK IR 函数
             IR::Function* sourceFn;
 
             LLVMFunction(FunctionType ty,
@@ -101,7 +101,7 @@ namespace sakuraE::Codegen {
                 type(ty), linkageName(lkn), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
             void gcEnterScope() {
-                // 进入函数或临时表达式作用域，后续注册的 root 会按栈序撤销。
+                // 进入函数或临时表达式作用域，后续注册的 root 会按栈序撤销
                 auto fn = parent->lookup("__gc_enter_scope");
                 codegenContext.builder->CreateCall(fn->content, {});
                 gcScopeDepth ++;
@@ -121,7 +121,7 @@ namespace sakuraE::Codegen {
             }
 
             llvm::Value* gcAlloc(llvm::Value* size, llvm::Value* gcTy, llvm::Value* elemCount = nullptr) {
-                // 所有托管对象都通过统一入口分配，GC 可据此维护对象链表和类型信息。
+                // 所有托管对象都通过统一入口分配，GC 可据此维护对象链表和类型信息
                 auto fn = parent->lookup("__gc_alloc");
 
                 if (!elemCount) {
@@ -147,7 +147,7 @@ namespace sakuraE::Codegen {
             }
 
             void gcRegisterRoot(llvm::Value* addr) {
-                // addr 指向 LLVM alloca 槽位，运行时会在收集时读取槽位中的最新对象指针。
+                // addr 指向 LLVM alloca 槽位，运行时会在收集时读取槽位中的最新对象指针
                 auto fn = parent->lookup("__gc_register");
                 auto ptr = codegenContext.builder->CreateBitCast(addr, llvm::PointerType::getUnqual(*codegenContext.context));
 
@@ -161,6 +161,15 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {ptr});
             }
 
+            void gcRegisterManagedSlot(llvm::Value* addr, IR::IRType* irType) {
+                if (irType && irType->isArray()) {
+                    gcRegisterRoot(addr);
+                }
+                else {
+                    gcRegisterValueRoot(addr);
+                }
+            }
+
             void gcPop(size_t times) {
                 if (times == 0) return;
                 auto fn = parent->lookup("__gc_pop");
@@ -172,10 +181,11 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {});
             }
 
-            // 当前 GC 只把“真正的托管对象引用”纳入 root stack：
-            // 1. string object
-            // 2. array object，语义上对应 heap-allocated array payload
-            // ref / address-of / indexing 这类派生地址不视作 GC root。
+            /* 当前 GC 只把“真正的托管对象引用”纳入 root stack：
+             * 1. string 对象
+             * 2. array 对象，语义上对应堆分配的数组 payload
+             * ref、取地址和索引等派生地址不视作 GC root
+             */
             bool isManagedStringType(IR::IRType* ty) const {
                 return ty && ty->isString();
             }
@@ -231,11 +241,14 @@ namespace sakuraE::Codegen {
                 return isManagedHeapType(ty);
             }
 
-            llvm::AllocaInst* createRootedTemporary(llvm::Value* value, const fzlib::String& slotName) {
-                // 将 SSA 值落到 entry block 的槽位，避免后续分配发生时值无法作为 root 被扫描。
+            llvm::AllocaInst* createRootedTemporary(
+                llvm::Value* value,
+                const fzlib::String& slotName,
+                IR::IRType* irType) {
+                // 将 SSA 值落到 entry block 的槽位，避免后续分配发生时值无法作为 root 被扫描
                 auto* slot = createAlloca(value->getType(), nullptr, slotName);
                 codegenContext.builder->CreateStore(value, slot);
-                gcRegisterValueRoot(slot);
+                gcRegisterManagedSlot(slot, irType);
                 return slot;
             }
 
@@ -252,7 +265,7 @@ namespace sakuraE::Codegen {
             }
 
             llvm::Value* createHeapAlloc(llvm::Type* t, llvm::Value* gcTy, llvm::Value* elemCount) {
-                // 数组 payload 不包含 header；header 由 Runtime::__gc_alloc 在 payload 前方创建。
+                // 数组 payload 不包含 header；header 由 Runtime::__gc_alloc 在 payload 前方创建
                 size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
                 llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
                 llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
@@ -268,13 +281,14 @@ namespace sakuraE::Codegen {
             }
 
             llvm::BasicBlock* entryBlock = nullptr;
-            // Instantiates an LLVM Function, performing the transformation from IR Function to LLVM Function.
-            // Note: This call resets the insertion point to the entry block of the current function.
+            /* 创建 LLVM 函数，并将 IR 函数转换为 LLVM 函数
+             * 注意：此调用会将当前插入点重置到当前函数的 entry 基本块
+             */
             void impl(IR::Function* source);
-            // Start LLVM IR Code generation
+            // 开始生成 LLVM IR
             void codegen();
         };
-        // Represent LLVM Module Instance
+        // LLVM 模块实例
         struct LLVMModule {
             fzlib::String ID;
             llvm::Module* content = nullptr;
@@ -321,7 +335,7 @@ namespace sakuraE::Codegen {
             }
 
             llvm::Value* getArrayGCType(bool isPtr, uint32_t memberSize, llvm::Value* memTy, uint64_t length = 0) {
-                // 将 LLVM 数组布局转换为运行时扫描描述符，length 用于嵌入式数组递归扫描。
+                // 将 LLVM 数组布局转换为运行时扫描描述符，length 用于嵌入式数组递归扫描
                 auto callee = content->getOrInsertFunction(
                     "__gc_get_array_type_with_length",
                     llvm::FunctionType::get(
@@ -416,10 +430,10 @@ namespace sakuraE::Codegen {
                 throw std::runtime_error(fzlib::String("Try to call a unknown function: \"" + n + "\"").c_str());
             }
 
-            // Instantiates an LLVM Module, performing the transformation from IR Module to LLVM Module.
+            // 创建 LLVM 模块，并将 IR 模块转换为 LLVM 模块
             void impl(IR::Module* source);
 
-            // Start LLVM IR Code generation
+            // 开始生成 LLVM IR
             void codegen();
         };
 
@@ -430,7 +444,7 @@ namespace sakuraE::Codegen {
             if (existing) return existing;
 
             auto* padding = llvm::ArrayType::get(llvm::Type::getInt8Ty(*context), 7);
-            // RawValue is 32 bytes with 8-byte alignment on the C++ ABI.
+            // RawValue 在 C++ ABI 下占用 32 字节，并按 8 字节对齐
             auto* data = llvm::ArrayType::get(llvm::Type::getInt64Ty(*context), 4);
             return llvm::StructType::create(*context,
                 {llvm::Type::getInt8Ty(*context), padding, data},
@@ -444,7 +458,10 @@ namespace sakuraE::Codegen {
             if (name == "__gc_alloc" || name == "__alloc" || name == "__free" ||
                 name == "__gc_register" || name == "__gc_register_value" ||
                 name == "__gc_pop" || name == "__gc_get_struct_type" ||
-                name == "__runtime_type_info_basic") {
+                name == "__runtime_type_info_basic" ||
+                name == "__runtime_type_info_array" ||
+                name == "__runtime_check_array_bounds" ||
+                name == "__runtime_array_bounds_error") {
                 return type->toLLVMType(*context);
             }
             return llvm::PointerType::getUnqual(*context);
@@ -575,15 +592,15 @@ namespace sakuraE::Codegen {
             }
         }
 
-        // Instruction Referring ==============================================
+        // 指令引用 ============================================================
         std::map<IR::IRValue*, llvm::Value*> instructionMap;
         std::map<IR::IRValue*, llvm::AllocaInst*> protectedValueSlots;
-        // Get IRValue to llvm Value reference
+        // 获取 IRValue 对应的 LLVM Value 引用
         inline llvm::Value* getRef(IR::IRValue* sakIRVal) {
             return instructionMap[sakIRVal];
         }
 
-        // Create a new IRValue to llvm Value reference
+        // 创建新的 IRValue 到 LLVM Value 的引用
         inline void bind(IR::IRValue* sakIRVal, llvm::Value* llvmIRVal) {
             instructionMap[sakIRVal] = llvmIRVal;
         }
@@ -593,11 +610,11 @@ namespace sakuraE::Codegen {
         }
         // =====================================================================
 
-        // Module ==============================================================
+        // 模块 =================================================================
         std::vector<LLVMModule*> modules;
         // =====================================================================
 
-        // State Tools =========================================================
+        // 状态工具 ============================================================
         IR::Module* curIRModule() {
             return program->curMod();
         }
@@ -606,14 +623,14 @@ namespace sakuraE::Codegen {
             return curIRModule()->curFunc();
         }
 
-        // Look up an identifier matching the target name in the current active IR-function's scope.
+        // 在当前活动 IR 函数的作用域中查找指定名称的标识符
         template<typename T>
         IR::Symbol<T>* IRScopeLookup(fzlib::String n) {
             return curIRFunc()->fnScope().lookup(n);
         }
         // =====================================================================
 
-        // Resources ===========================================================
+        // 资源 =================================================================
         // =====================================================================
     public:
         LLVMCodeGenerator()=default;
@@ -622,7 +639,7 @@ namespace sakuraE::Codegen {
             context = new llvm::LLVMContext();
             builder = new llvm::IRBuilder<>(*context);
 
-            // Reset, for the state managing
+            // 重置状态管理器
             program->reset();
         }
         ~LLVMCodeGenerator() {
@@ -649,7 +666,7 @@ namespace sakuraE::Codegen {
     private:
         llvm::Value* instgen(IR::Instruction* ins, LLVMFunction* curFn);
 
-        // Tool Methods =========================================================
+        // 工具方法 ============================================================
         llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
             if (constant->getType()->getIRTypeID() != IR::IRTypeID::StringTyID) {
                 return boxConstant(constant, curFn);
@@ -686,7 +703,7 @@ namespace sakuraE::Codegen {
         }
         // =====================================================================
 
-        // Calculation =========================================================
+        // 计算 =================================================================
 
     private:
         llvm::Type* promote(llvm::Value*& lhs, llvm::Value*& rhs) {
@@ -798,7 +815,7 @@ namespace sakuraE::Codegen {
                     case IR::OpKind::lgc_eq_ls_than:   pred = llvm::FCmpInst::FCMP_OLE; break;
                     default: return nullptr;
                 }
-                // Correcting the typo FCInst to FCmpInst
+                // 修正 FCInst 到 FCmpInst 的类型名称错误
                 return builder->CreateFCmp(pred, lhs, rhs, "fcmp.tmp");
             }
 
@@ -831,7 +848,7 @@ namespace sakuraE::Codegen {
 
         // =====================================================================
 
-        // Optimizer ===========================================================
+        // 优化器 ===============================================================
         void moduleOptimize(llvm::Module* mod) {
             llvm::LoopAnalysisManager LAM;
             llvm::FunctionAnalysisManager FAM;
@@ -865,4 +882,4 @@ namespace sakuraE::Codegen {
     };
 }
 
-#endif // !SAKURAE_LLVMCODEGENERATOR_HPP
+#endif /* !SAKURAE_LLVMCODEGENERATOR_HPP */

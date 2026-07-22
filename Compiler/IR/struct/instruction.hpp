@@ -31,6 +31,8 @@ namespace sakuraE::IR {
         param,
         enter_scope,
         leave_scope,
+        _typeof,
+        _sizeof,
         // terminal op
         br,
         cond_br,
@@ -42,6 +44,7 @@ namespace sakuraE::IR {
     class Instruction: public IRValue {
         OpKind kind = OpKind::empty;
         std::vector<IRValue*> args;
+        IRType* typeOperand = nullptr;
 
         Block* parent = nullptr;
     public:
@@ -100,6 +103,14 @@ namespace sakuraE::IR {
 
         const OpKind& getKind() {
             return kind;
+        }
+
+        void setTypeOperand(IRType* type) {
+            typeOperand = type;
+        }
+
+        IRType* getTypeOperand() const {
+            return typeOperand;
         }
 
         IRValue* operator[] (std::size_t pos) {

@@ -1,0 +1,24 @@
+func main() -> i32 {
+    let a = sizeof(1);
+    let b = sizeof(1.0);
+    let c = sizeof(true);
+    let d = sizeof('a');
+    let i: i32 = 1;
+    let e = sizeof(i);
+    let f = sizeof(1L);
+    let g = sizeof(1U);
+    let h = sizeof(1UL);
+    let j = sizeof(1.0f);
+    let value = 42;
+    let pointer = &value;
+    let pointer_size = sizeof(pointer);
+    println(a);
+    println(b);
+    println(c);
+    println(d);
+    println(h);
+    println(j);
+    println(pointer_size);
+
+    return 0;
+}

@@ -12,6 +12,8 @@
 #include <memory>
 #include <stdexcept>
 #include <chrono>
+#include <thread>
+#include <sstream>
 
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -20,6 +22,7 @@
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/TargetSelect.h>
 #include "Runtime/alloc.h"
+#include "Runtime/errors.h"
 #include "Runtime/gc.h"
 #include "Runtime/input.h"
 #include "Runtime/raw_string.h"
@@ -36,17 +39,20 @@
 #include "config/config.hpp"
 
 namespace atri::cmds {
+    inline bool exitRequested = false;
+
     inline void cmdHelp(std::vector<fzlib::String> args) {
         auto content = readSourceFile("./help.txt");
         std::cout << content << std::endl;
     }
 
     inline void cmdExit(std::vector<fzlib::String> args) {
-        exit(0);
+        exitRequested = true;
     }
 
     inline void cmdRun(std::vector<fzlib::String> args) {
         CompilerSessionGuard compilerSessionGuard;
+        RuntimeSessionGuard runtimeSessionGuard;
 
         if (args.size() < 1) {
             fzlib::String content = "Invalid argument for command: 'run': ";
@@ -138,6 +144,8 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("input")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::input), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("inputc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::inputc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_alloc_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_alloc_value), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_check_array_bounds")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_check_array_bounds), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_array_bounds_error")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_array_bounds_error), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_basic")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_basic), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_pointer")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_pointer), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_reference")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_reference), llvm::JITSymbolFlags::Exported };
@@ -183,8 +191,24 @@ namespace atri::cmds {
 
         auto mainSymbol = llvm::cantFail(JIT->lookup("main"));
         auto sakuraMain = mainSymbol.toPtr<sakuraE::runtime::RuntimeValue*(*)()>();
-        auto resultVal = sakuraMain();
-        (void)resultVal;
+        sakuraE::runtime::__runtime_reset_error();
+        std::thread jitThread([sakuraMain]() {
+            sakuraMain();
+        });
+        jitThread.join();
+
+        sakuraE::runtime::RuntimeErrorInfo runtimeError;
+        const bool hasRuntimeError = sakuraE::runtime::__runtime_take_error(&runtimeError);
+        sakuraE::runtime::__gc_reset();
+        if (hasRuntimeError) {
+            std::ostringstream message;
+            message << "array index out of bounds: index=" << runtimeError.index
+                    << ", length=" << runtimeError.length;
+            throw sakuraE::SakuraError(
+                sakuraE::OccurredTerm::RUNTIME,
+                fzlib::String(message.str()),
+                {0, 0, "runtime array bounds check"});
+        }
     }
 }
 

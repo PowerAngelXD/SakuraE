@@ -52,6 +52,7 @@ add_executable(
     Runtime/alloc.cpp
     Runtime/gc.cpp
     Runtime/input.cpp
+    Runtime/errors.cpp
     Runtime/print.cpp
     Runtime/raw_string.cpp
     Runtime/rttype.cpp
@@ -174,6 +175,7 @@ target_link_libraries(
     ${PROJECT_NAME}
     PRIVATE
         ${LLVM_LINK_FLAGS}
+        Threads::Threads
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
