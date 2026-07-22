@@ -7,6 +7,10 @@ description = "SakuraE language support for Zed."
 repository = "https://github.com/PowerAngelXD/SakuraE"
 languages = ["languages/sakurae"]
 
+[lib]
+kind = "Rust"
+version = "0.7.0"
+
 [grammars.sakurae]
 repository = "https://github.com/PowerAngelXD/SakuraE"
 rev = "698b331e06ee5757773ab45e741bdbbc73d3fdd6"
