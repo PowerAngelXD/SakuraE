@@ -1,15 +1,12 @@
 #include "type.hpp"
+#include "Compiler/IR/context.hpp"
+#include <Compiler/Error/error.hpp>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/LLVMContext.h>
 #include <llvm/Support/Casting.h>
 #include <stdexcept>
 
 namespace sakuraE::IR {
-    static std::map<unsigned, IRIntegerType> IRIntegerTypes;
-    static std::map<unsigned, IRIntegerType> IRUIntegerTypes;
-    static std::map<IRType*, IRPointerType> IRPointerTypes;
-    static std::map<IRType*, IRRefType> IRRefTypes;
-    static std::map<std::pair<IRType*, uint64_t>, IRArrayType> arrayTypes;
-    static std::map<std::pair<IRType*, std::vector<IRType*>>, IRFunctionType> funcTypes;
-
     IRType* IRType::unwrapPointer() {
         if (!isPointer()) return this;
         else {
@@ -92,123 +89,74 @@ namespace sakuraE::IR {
     }
 
     IRType* IRType::getVoidTy() {
-        static IRVoidType voidSingle;
-        return &voidSingle;
+        return IRContext::current().getVoidTy();
     }
 
     IRType* IRType::getBoolTy() {
-        static IRIntegerType boolSingle(1);
-        return &boolSingle;
+        return IRContext::current().getBoolTy();
     }
 
     IRType* IRType::getCharTy() {
-        static IRIntegerType charSingle(8);
-        return &charSingle;
+        return IRContext::current().getCharTy();
     }
 
     IRType* IRType::getInt32Ty() {
-        static IRIntegerType i32Single(32);
-        return &i32Single;
+        return IRContext::current().getInt32Ty();
     }
 
     IRType* IRType::getInt64Ty() {
-        static IRIntegerType i64Single(64);
-        return &i64Single;
+        return IRContext::current().getInt64Ty();
     }
 
     IRType* IRType::getIntNTy(unsigned bitWidth) {
-        auto it = IRIntegerTypes.find(bitWidth);
-        if (it != IRIntegerTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth));
-        return &newEntry.first->second;
+        return IRContext::current().getIntNTy(bitWidth);
     }
 
     IRType* IRType::getUInt32Ty() {
-        static IRIntegerType ui32Single(32, false);
-        return &ui32Single;
+        return IRContext::current().getUInt32Ty();
     }
     IRType* IRType::getUInt64Ty() {
-        static IRIntegerType ui64Single(64, false);
-        return &ui64Single;
+        return IRContext::current().getUInt64Ty();
     }
     IRType* IRType::getUIntNTy(unsigned bitWidth) {
-        auto it = IRUIntegerTypes.find(bitWidth);
-        if (it != IRUIntegerTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRUIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth, false));
-        return &newEntry.first->second;
+        return IRContext::current().getUIntNTy(bitWidth);
     }
 
     IRType* IRType::getTypeInfoTy() {
-        static IRTypeInfoType tinfoSingle;
-        return &tinfoSingle;
+        return IRContext::current().getTypeInfoTy();
     }
 
     IRType* IRType::getStringTy() {
-        static IRStringType stringSingle;
-        return &stringSingle;
+        return IRContext::current().getStringTy();
     }
 
     IRType* IRType::getFloat32Ty() {
-        static IRFloatType float32Single(32);
-        return &float32Single;
+        return IRContext::current().getFloat32Ty();
     }
 
     IRType* IRType::getFloat64Ty() {
-        static IRFloatType float64Single(64);
-        return &float64Single;
+        return IRContext::current().getFloat64Ty();
     }
 
     IRType* IRType::getPointerTo(IRType* elementType) {
-        auto it = IRPointerTypes.find(elementType);
-        if (it != IRPointerTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRPointerTypes.emplace(elementType, IRPointerType(elementType));
-        return &newEntry.first->second;
+        return IRContext::current().getPointerTo(elementType);
     }
 
     IRType* IRType::getRefTo(IRType* elementType) {
-        auto it = IRRefTypes.find(elementType);
-        if (it != IRRefTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRRefTypes.emplace(elementType, IRRefType(elementType));
-        return &newEntry.first->second;
+        return IRContext::current().getRefTo(elementType);
     }
 
     IRType* IRType::getArrayTy(IRType* elementType, uint64_t numElements) {
-        auto key = std::make_pair(elementType, numElements);
-        auto it = arrayTypes.find(key);
-        if (it != arrayTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = arrayTypes.emplace(key, IRArrayType(elementType, numElements));
-
-        return &newEntry.first->second;
+        return IRContext::current().getArrayTy(elementType, numElements);
     }
 
     IRType* IRType::getBlockTy() {
-        static IRBlockType blockIndexSingle;
-
-        return &blockIndexSingle;
+        return IRContext::current().getBlockTy();
     }
 
     IRType* IRType::getFunctionTy(IRType* returnType, std::vector<IRType*> params) {
-        auto key = std::make_pair(returnType, params);
-        auto it = funcTypes.find(key);
-
-        if (it != funcTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = funcTypes.emplace(key, IRFunctionType(returnType, params));
-
-        return &newEntry.first->second;
+        return IRContext::current().getFunctionTy(returnType, std::move(params));
     }
-
 
     llvm::Type* IRVoidType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::Type::getVoidTy(ctx);
@@ -316,4 +264,5 @@ namespace sakuraE::IR {
 
         return result;
     }
+
 }

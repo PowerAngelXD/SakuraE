@@ -2,14 +2,18 @@
 #define SAKURAE_TYPE_INFO_HPP
 
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <variant>
 
+#include "Compiler/Error/error.hpp"
 #include "Compiler/Utils/Logger.hpp"
 #include "type.hpp"
-#include "Compiler/Error/error.hpp"
 
 namespace sakuraE::IR {
+    class IRContext;
+    class TypeInfo;
+
     enum TypeID {
         // 词法单元
         Int32,
@@ -30,111 +34,75 @@ namespace sakuraE::IR {
         Ref
     };
 
-    inline IRType* tid2IRType(TypeID tid) {
-        switch (tid)
-        {
-        case TypeID::Int32:
-            return IRType::getInt32Ty();
-        case TypeID::Int64:
-            return IRType::getInt64Ty();
-        case TypeID::UInt32:
-            return IRType::getUInt32Ty();
-        case TypeID::UInt64:
-            return IRType::getUInt64Ty();
-        case TypeID::Float32:
-            return IRType::getFloat32Ty();
-        case TypeID::Float64:
-            return IRType::getFloat64Ty();
-        case TypeID::Char:
-            return IRType::getCharTy();
-        case TypeID::Bool:
-            return IRType::getBoolTy();
-        case TypeID::String:
-            return IRType::getStringTy();
-        case TypeID::Void:
-            return IRType::getVoidTy();
-        default:
-            throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Unknown type id to convert to IRType",
-                                {0, 0, "InsideError"});
-        }
-    }
-
-    class TypeInfo;
-
     class ArrayTypeInfo {
         TypeInfo* elementType;
         std::uint64_t elementCount;
+
     public:
         ArrayTypeInfo(TypeInfo* element, std::uint64_t count):
             elementType(element), elementCount(count) {}
-        
+
         std::uint64_t length() const { return elementCount; }
         TypeInfo* getElementTy() const { return elementType; }
     };
 
     class PointerTypeInfo {
         TypeInfo* elementType;
-    public:
-        PointerTypeInfo(TypeInfo* element): elementType(element) {}
 
-        TypeInfo* getElementTy() { return elementType; }
+    public:
+        explicit PointerTypeInfo(TypeInfo* element): elementType(element) {}
+
+        TypeInfo* getElementTy() const { return elementType; }
     };
 
     class RefTypeInfo {
         TypeInfo* elementType;
-    public:
-        RefTypeInfo(TypeInfo* element): elementType(element) {}
 
-        TypeInfo* getElementTy() { return elementType; }
+    public:
+        explicit RefTypeInfo(TypeInfo* element): elementType(element) {}
+
+        TypeInfo* getElementTy() const { return elementType; }
     };
 
     class TypeInfo {
+        friend class TypeInfoPool;
+
+        IRContext& context;
         TypeID typeID;
-        
         std::variant<
             std::monostate,
             ArrayTypeInfo,
             PointerTypeInfo,
             RefTypeInfo
         > complexTypeInfo;
-    public:
-        TypeInfo(TypeID tid): typeID(tid) {}
 
-        TypeInfo(TypeInfo* element, std::uint64_t count):
-            typeID(Array), complexTypeInfo(ArrayTypeInfo(element, count)) {}
-        
-        TypeInfo(TypeID id, TypeInfo* elemntTid): 
-            typeID(id), complexTypeInfo([&]() -> std::variant<std::monostate, ArrayTypeInfo, PointerTypeInfo, RefTypeInfo> {
+        TypeInfo(IRContext& ctx, TypeID tid): context(ctx), typeID(tid) {}
+
+        TypeInfo(IRContext& ctx, TypeInfo* element, std::uint64_t count):
+            context(ctx), typeID(Array),
+            complexTypeInfo(ArrayTypeInfo(element, count)) {}
+
+        TypeInfo(IRContext& ctx, TypeID id, TypeInfo* elementType):
+            context(ctx), typeID(id),
+            complexTypeInfo([&]() -> std::variant<std::monostate, ArrayTypeInfo, PointerTypeInfo, RefTypeInfo> {
                 switch (id) {
-                    case Pointer: return PointerTypeInfo(elemntTid);
-                    case Ref: return RefTypeInfo(elemntTid);
-                    default: throw std::runtime_error("Cannot use other typeid to create single element typeinfo");
+                    case Pointer: return PointerTypeInfo(elementType);
+                    case Ref: return RefTypeInfo(elementType);
+                    default:
+                        throw std::runtime_error(
+                            "Cannot use this TypeID to create a single-element TypeInfo");
                 }
             }()) {}
-        
-        ~TypeInfo()=default;
 
-        bool isArray() { return typeID == Array; }
-        bool isPointer() { return typeID == Pointer; }
-        bool isRef() { return typeID == Ref; }
-        const TypeID& getTypeID() { return typeID; }
+    public:
+        ~TypeInfo() = default;
 
-        IRType* toIRType() {
-            if (isArray()) {
-                auto arrTy = std::get<ArrayTypeInfo>(complexTypeInfo);
-                return IRType::getArrayTy(arrTy.getElementTy()->toIRType(), arrTy.length());
-            }
-            else if (isPointer()) {
-                auto ptrTy = std::get<PointerTypeInfo>(complexTypeInfo);
-                return IRType::getPointerTo(ptrTy.getElementTy()->toIRType());
-            }
-            else if (isRef()) {
-                auto refTy = std::get<RefTypeInfo>(complexTypeInfo);
-                return IRType::getPointerTo(refTy.getElementTy()->toIRType());
-            }
-            else return tid2IRType(typeID);
-        }
+        bool isArray() const { return typeID == Array; }
+        bool isPointer() const { return typeID == Pointer; }
+        bool isRef() const { return typeID == Ref; }
+        const TypeID& getTypeID() const { return typeID; }
+
+        IRType* toIRType() const;
 
         static TypeInfo* makeBasicTypeID(TypeID typeID);
         static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
@@ -142,6 +110,26 @@ namespace sakuraE::IR {
         static TypeInfo* makeRefTypeID(TypeInfo* typeID);
         static void clearAll();
     };
+
+    class TypeInfoPool {
+        IRContext& context;
+        std::map<TypeID, std::unique_ptr<TypeInfo>> primaryTypes;
+        std::map<std::pair<TypeInfo*, std::uint64_t>, std::unique_ptr<TypeInfo>> arrayTypes;
+        std::map<TypeInfo*, std::unique_ptr<TypeInfo>> pointerTypes;
+        std::map<TypeInfo*, std::unique_ptr<TypeInfo>> refTypes;
+
+    public:
+        explicit TypeInfoPool(IRContext& ctx): context(ctx) {}
+
+        TypeInfoPool(const TypeInfoPool&) = delete;
+        TypeInfoPool& operator=(const TypeInfoPool&) = delete;
+
+        TypeInfo* makeBasicTypeID(TypeID typeID);
+        TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
+        TypeInfo* makePointerTypeID(TypeInfo* typeID);
+        TypeInfo* makeRefTypeID(TypeInfo* typeID);
+        void clear();
+    };
 }
 
-#endif /* !SAKURAE_TYPE_INFO_HPP */
+#endif

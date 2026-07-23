@@ -2,11 +2,13 @@
 #define SAKURAE_PROGRAM_HPP
 
 #include "Compiler/Error/error.hpp"
+#include "Compiler/IR/context.hpp"
 #include "module.hpp"
 #include <cstddef>
 
 namespace sakuraE::IR {
     class Program {
+        IRContext context;
         fzlib::String ID;
 
         std::vector<Module*> moduleList;
@@ -250,6 +252,10 @@ namespace sakuraE::IR {
 
         fzlib::String getID() {
             return ID;
+        }
+
+        IRContext& getContext() {
+            return context;
         }
 
         std::vector<Module*> getMods() {

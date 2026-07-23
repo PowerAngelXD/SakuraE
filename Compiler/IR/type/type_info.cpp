@@ -1,67 +1,125 @@
 #include "type_info.hpp"
 
+#include "Compiler/IR/context.hpp"
+
 namespace sakuraE::IR {
-    static std::map<TypeID, TypeInfo*> primaryTypeIDPool;
-    static std::map<std::pair<TypeInfo*, std::uint64_t>, TypeInfo*> arrayTypeIDPool;
-    static std::map<TypeInfo*, TypeInfo*> pointerTypeIDPool;
-    static std::map<TypeInfo*, TypeInfo*> refTypeIDPool;
+    namespace {
+        IRType* tid2IRType(IRContext& context, TypeID typeID) {
+            switch (typeID) {
+                case TypeID::Int32:
+                    return context.getInt32Ty();
+                case TypeID::Int64:
+                    return context.getInt64Ty();
+                case TypeID::UInt32:
+                    return context.getUInt32Ty();
+                case TypeID::UInt64:
+                    return context.getUInt64Ty();
+                case TypeID::Float32:
+                    return context.getFloat32Ty();
+                case TypeID::Float64:
+                    return context.getFloat64Ty();
+                case TypeID::Char:
+                    return context.getCharTy();
+                case TypeID::Bool:
+                    return context.getBoolTy();
+                case TypeID::String:
+                    return context.getStringTy();
+                case TypeID::Void:
+                    return context.getVoidTy();
+                default:
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
+                                      "Unknown TypeID to convert to IRType",
+                                      {0, 0, "InsideError"});
+            }
+        }
+    }
+
+    IRType* TypeInfo::toIRType() const {
+        if (isArray()) {
+            const auto& arrayType = std::get<ArrayTypeInfo>(complexTypeInfo);
+            return context.getArrayTy(
+                arrayType.getElementTy()->toIRType(),
+                arrayType.length());
+        }
+
+        if (isPointer()) {
+            const auto& pointerType = std::get<PointerTypeInfo>(complexTypeInfo);
+            return context.getPointerTo(pointerType.getElementTy()->toIRType());
+        }
+
+        if (isRef()) {
+            const auto& refType = std::get<RefTypeInfo>(complexTypeInfo);
+            return context.getRefTo(refType.getElementTy()->toIRType());
+        }
+
+        return tid2IRType(context, typeID);
+    }
+
+    TypeInfo* TypeInfoPool::makeBasicTypeID(TypeID typeID) {
+        auto it = primaryTypes.find(typeID);
+        if (it == primaryTypes.end()) {
+            it = primaryTypes.emplace(
+                typeID,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, typeID))).first;
+        }
+        return it->second.get();
+    }
+
+    TypeInfo* TypeInfoPool::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
+        const auto key = std::make_pair(element, count);
+        auto it = arrayTypes.find(key);
+        if (it == arrayTypes.end()) {
+            it = arrayTypes.emplace(
+                key,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, element, count))).first;
+        }
+        return it->second.get();
+    }
+
+    TypeInfo* TypeInfoPool::makePointerTypeID(TypeInfo* typeID) {
+        auto it = pointerTypes.find(typeID);
+        if (it == pointerTypes.end()) {
+            it = pointerTypes.emplace(
+                typeID,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, Pointer, typeID))).first;
+        }
+        return it->second.get();
+    }
+
+    TypeInfo* TypeInfoPool::makeRefTypeID(TypeInfo* typeID) {
+        auto it = refTypes.find(typeID);
+        if (it == refTypes.end()) {
+            it = refTypes.emplace(
+                typeID,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, Ref, typeID))).first;
+        }
+        return it->second.get();
+    }
+
+    void TypeInfoPool::clear() {
+        refTypes.clear();
+        pointerTypes.clear();
+        arrayTypes.clear();
+        primaryTypes.clear();
+    }
 
     TypeInfo* TypeInfo::makeBasicTypeID(TypeID typeID) {
-        auto it = primaryTypeIDPool.find(typeID);
-        if (it != primaryTypeIDPool.end())
-            return it->second;
-        
-        TypeInfo* info = new TypeInfo(typeID);
-        primaryTypeIDPool.emplace(typeID, info);
-
-        return info;
+        return IRContext::current().typeInfoPool().makeBasicTypeID(typeID);
     }
 
     TypeInfo* TypeInfo::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
-        auto key = std::make_pair(element, count);
-        auto it = arrayTypeIDPool.find(key);
-        if (it != arrayTypeIDPool.end())
-            return it->second;
-        
-        TypeInfo* info = new TypeInfo(element, count);
-        arrayTypeIDPool.emplace(key, info);
-
-        return info;
+        return IRContext::current().typeInfoPool().makeArrayTypeID(element, count);
     }
 
     TypeInfo* TypeInfo::makePointerTypeID(TypeInfo* typeID) {
-        auto it = pointerTypeIDPool.find(typeID);
-        if (it != pointerTypeIDPool.end())
-            return it->second;
-        
-        TypeInfo* info = new TypeInfo(Pointer, typeID);
-        pointerTypeIDPool.emplace(typeID, info);
-
-        return info;
+        return IRContext::current().typeInfoPool().makePointerTypeID(typeID);
     }
 
     TypeInfo* TypeInfo::makeRefTypeID(TypeInfo* typeID) {
-        auto it = refTypeIDPool.find(typeID);
-        if (it != refTypeIDPool.end())
-            return it->second;
-        
-        TypeInfo* info = new TypeInfo(Ref, typeID);
-        refTypeIDPool.emplace(typeID, info);
-
-        return info;
+        return IRContext::current().typeInfoPool().makeRefTypeID(typeID);
     }
 
     void TypeInfo::clearAll() {
-        for (auto& pair : primaryTypeIDPool) delete pair.second;
-        primaryTypeIDPool.clear();
-
-        for (auto& pair : arrayTypeIDPool) delete pair.second;
-        arrayTypeIDPool.clear();
-
-        for (auto& pair : pointerTypeIDPool) delete pair.second;
-        pointerTypeIDPool.clear();
-
-        for (auto& pair : refTypeIDPool) delete pair.second;
-        refTypeIDPool.clear();
+        IRContext::current().typeInfoPool().clear();
     }
 }

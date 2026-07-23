@@ -45,6 +45,7 @@ add_executable(
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
     Compiler/IR/generator.cpp
+    Compiler/IR/context.cpp
     Compiler/IR/type/type.cpp
     Compiler/IR/type/type_info.cpp
     Compiler/IR/value/constant.cpp
@@ -102,6 +103,44 @@ add_executable(
     LanguageServer/analyzer.cpp
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
+)
+
+add_executable(
+    sakurae-ir-context-tests
+    Compiler/IR/tests/context_tests.cpp
+    Compiler/IR/type/type.cpp
+    Compiler/IR/type/type_info.cpp
+    Compiler/IR/context.cpp
+)
+
+target_include_directories(
+    sakurae-ir-context-tests
+    SYSTEM PRIVATE
+        ${LLVM_INCLUDE_DIRS}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_definitions(
+    sakurae-ir-context-tests
+    PRIVATE
+        ${LLVM_DEFINITIONS}
+)
+
+target_compile_features(sakurae-ir-context-tests PRIVATE cxx_std_23)
+
+target_compile_options(
+    sakurae-ir-context-tests
+    PRIVATE
+        -Wall
+        -Wpedantic
+        -Werror
+)
+
+target_link_libraries(
+    sakurae-ir-context-tests
+    PRIVATE
+        ${LLVM_LINK_FLAGS}
 )
 
 target_include_directories(

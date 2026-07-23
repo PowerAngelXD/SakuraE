@@ -1,14 +1,17 @@
 #ifndef SAKURAE_TYPE_HPP
 #define SAKURAE_TYPE_HPP
 
+#include <llvm/IR/LLVMContext.h>
 #include <map>
 
 #include <llvm/IR/Type.h>
 #include <llvm/IR/DerivedTypes.h>
+#include <optional>
 
 #include "includes/String.hpp"
 
 namespace sakuraE::IR {
+    class IRContext;
     enum IRTypeID {
         VoidTyID,
         Integer32TyID,
@@ -88,6 +91,7 @@ namespace sakuraE::IR {
 
     class IRVoidType : public IRType {
         friend class IRType;
+        friend class IRContext;
         IRVoidType() : IRType(VoidTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
@@ -96,9 +100,10 @@ namespace sakuraE::IR {
 
     class IRFloatType : public IRType {
         friend class IRType;
+        friend class IRContext;
         unsigned bitWidth;
 
-        IRFloatType(unsigned bw) 
+        IRFloatType(unsigned bw)
             : IRType([&]() -> IRTypeID{
                 switch (bw) {
                     case 32: return IRTypeID::Float32TyID;
@@ -113,10 +118,11 @@ namespace sakuraE::IR {
 
     class IRIntegerType : public IRType {
         friend class IRType;
+        friend class IRContext;
         bool isUnsigned = false;
         unsigned bitWidth;
 
-        explicit IRIntegerType(unsigned bw, bool sign = true): 
+        explicit IRIntegerType(unsigned bw, bool sign = true):
             IRType([&]()->IRTypeID {
                 if (sign) {
                     switch (bw) {
@@ -152,6 +158,7 @@ namespace sakuraE::IR {
 
     class IRTypeInfoType : public IRType {
         friend class IRType;
+        friend class IRContext;
         IRTypeInfoType() : IRType(TypeInfoTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
@@ -160,6 +167,7 @@ namespace sakuraE::IR {
 
     class IRStringType : public IRType {
         friend class IRType;
+        friend class IRContext;
         IRStringType() : IRType(StringTyID) {}
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
@@ -168,6 +176,7 @@ namespace sakuraE::IR {
 
     class IRPointerType : public IRType {
         friend class IRType;
+        friend class IRContext;
         IRType* elementType;
 
         explicit IRPointerType(IRType* elementTy) : IRType(PointerTyID), elementType(elementTy) {}
@@ -180,6 +189,7 @@ namespace sakuraE::IR {
 
     class IRRefType : public IRType {
         friend class IRType;
+        friend class IRContext;
         IRType* elementType;
 
         explicit IRRefType(IRType* elementTy) : IRType(RefTyID), elementType(elementTy) {}
@@ -192,11 +202,12 @@ namespace sakuraE::IR {
 
     class IRArrayType : public IRType {
         friend class IRType;
+        friend class IRContext;
         IRType* elementType;
         uint64_t numElements;
 
         // 私有构造函数
-        IRArrayType(IRType* elementTy, uint64_t num) 
+        IRArrayType(IRType* elementTy, uint64_t num)
             : IRType(ArrayTyID), elementType(elementTy), numElements(num) {}
 
     public:
@@ -209,6 +220,7 @@ namespace sakuraE::IR {
     // IR 内部实现
     class IRBlockType : public IRType {
         friend class IRType;
+        friend class IRContext;
 
         explicit IRBlockType() : IRType(BlockTyID) {}
     public:
@@ -218,6 +230,7 @@ namespace sakuraE::IR {
 
     class IRFunctionType : public IRType {
         friend class IRType;
+        friend class IRContext;
 
         std::vector<IRType*> paramsType;
         IRType* returnType;
@@ -229,6 +242,7 @@ namespace sakuraE::IR {
         fzlib::String toString() override;
         IRType* getReturnType() { return returnType; }
     };
-} 
+
+}
 
 #endif /* !SAKURAE_TYPE_HPP */

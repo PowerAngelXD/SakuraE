@@ -637,14 +637,13 @@ namespace sakuraE::Codegen {
         LLVMCodeGenerator()=default;
         LLVMCodeGenerator(IR::Program* p) {
             program = p;
-            context = new llvm::LLVMContext();
+            context = &program->getContext().llvmContext();
             builder = new llvm::IRBuilder<>(*context);
 
             // 重置状态管理器
             program->reset();
         }
         ~LLVMCodeGenerator() {
-            if (context) delete context;
             if (builder) delete builder;
 
             for (auto mod: modules) delete mod;
@@ -660,7 +659,7 @@ namespace sakuraE::Codegen {
         std::unique_ptr<llvm::LLVMContext> releaseContext() {
             if (!context) return nullptr;
 
-            auto ptr = std::unique_ptr<llvm::LLVMContext>(context);
+            auto ptr = program->getContext().releaseLLVMContext();
             context = nullptr;
             return ptr;
         }
