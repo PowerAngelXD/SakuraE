@@ -14,7 +14,7 @@ namespace sakuraE {
         fzlib::String details = "no details";
     };
 
-    // Point the term where occurred the error
+    // 指向错误发生的位置
     enum OccurredTerm {
         LEXER, PARSER, IR_GENERATING, COMPILING, RUNTIME, SYSTEM
     };

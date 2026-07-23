@@ -138,4 +138,4 @@ namespace sakuraE::IR {
 
 }
 
-#endif // !SAKURAE_CONSTANT_HPP
+#endif /* !SAKURAE_CONSTANT_HPP */

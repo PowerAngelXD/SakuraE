@@ -24,7 +24,7 @@ namespace sakuraE::IR {
         BoolTyID,
         TypeInfoTyID,
         StringTyID,
-        // ComplexType
+        // 复合类型
         RefTyID,
         PointerTyID,
         ArrayTyID,
@@ -195,7 +195,7 @@ namespace sakuraE::IR {
         IRType* elementType;
         uint64_t numElements;
 
-        // Private constructor
+        // 私有构造函数
         IRArrayType(IRType* elementTy, uint64_t num) 
             : IRType(ArrayTyID), elementType(elementTy), numElements(num) {}
 
@@ -206,7 +206,7 @@ namespace sakuraE::IR {
         fzlib::String toString() override;
     };
 
-    // IR Inside
+    // IR 内部实现
     class IRBlockType : public IRType {
         friend class IRType;
 
@@ -231,4 +231,4 @@ namespace sakuraE::IR {
     };
 } 
 
-#endif //! SAKURAE_TYPE_HPP
+#endif /* !SAKURAE_TYPE_HPP */

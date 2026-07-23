@@ -267,7 +267,7 @@ namespace sakuraE::IR {
         return llvm::PointerType::getUnqual(ctx);
     }
 
-    // toString
+    // 转换为字符串
 
     fzlib::String IRVoidType::toString() {
         return "void";

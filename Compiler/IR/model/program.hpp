@@ -10,7 +10,7 @@ namespace sakuraE::IR {
         fzlib::String ID;
 
         std::vector<Module*> moduleList;
-        // Indicates the current maximum index of moduleList
+        // moduleList 当前索引的最大值
         int cursor = -1;
     public:
         Program(fzlib::String id): ID(id) {
@@ -143,7 +143,7 @@ namespace sakuraE::IR {
                 info
             );
 
-            // gc methods
+            // GC 方法
             runtimeMod->declareRuntimeFunction(
                 "__gc_alloc",
                 IRType::getPointerTo(IRType::getVoidTy()),
@@ -224,7 +224,7 @@ namespace sakuraE::IR {
 
         Program& buildModule(fzlib::String id, PositionInfo info, bool isRuntime = false) {
             Module* module = new Module(id, info);
-            // Using runtime module
+            // 使用运行时模块
             if (!isRuntime)
                 module->use(mod(0));
             moduleList.emplace_back(module);
@@ -267,4 +267,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_PROGRAM_HPP
+#endif /* !SAKURAE_PROGRAM_HPP */

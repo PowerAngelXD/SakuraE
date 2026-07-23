@@ -66,4 +66,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_SCOPE_HPP
+#endif /* !SAKURAE_SCOPE_HPP */

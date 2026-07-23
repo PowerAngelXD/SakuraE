@@ -10,14 +10,12 @@
 #include "includes/String.hpp"
 
 namespace sakuraE {
-    // Forward declare
+    // 前向声明
     class AddExprParser;
     class WholeExprParser;
     class BlockStmtParser;
     class ElseStmtParser;
     class IdentifierExprParser;
-    //
-
     using LiteralParserRule = OptionsParser<
         TokenParser<TokenType::INT_N>,
         TokenParser<TokenType::FLOAT_N>,
@@ -612,7 +610,7 @@ namespace sakuraE {
         NodePtr genResource() override;
     };
 
-    // Statement parsers
+    // 语句解析器
     using DeclareStmtParserRule =
     ConnectionParser<
         TokenParser<TokenType::KEYWORD_LET>,

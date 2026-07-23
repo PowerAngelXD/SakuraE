@@ -10,16 +10,16 @@
 namespace sakuraE::IR {
     class Program;
 
-    // SakuraE Module
+    // SakuraE 模块
     class Module {
         fzlib::String ID = "$DefaultModule";
         PositionInfo createInfo;
 
-        // Storage module global identifiers
+        // 存储模块级全局标识符
         Scope<IRValue*> moduleScope;
 
         std::vector<Function*> fnList;
-        // Indicates the current maximum index of fnList
+        // fnList 当前索引的最大值
         long cursor = -1;
 
         std::vector<Module*> usingList;
@@ -162,9 +162,9 @@ namespace sakuraE::IR {
             return lookup(n, map);
         }
 
-        // Runtime functions keep a source-level raw name while their IR name
-        // carries the parameter types. This lookup supports runtime APIs such
-        // as println, whose implementation accepts every boxed value.
+        /* 运行时函数保留源语言层面的原始名称，而其 IR 名称会携带参数类型。
+         * 此查找机制用于支持 println 等运行时 API，因为这些 API 的实现接受任意装箱值。
+         */
         Function* lookupRuntimeFunction(fzlib::String rawName) {
             for (auto* fn: fnList) {
                 if (fn->getRawName() == rawName) {
@@ -205,4 +205,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_MODULE_HPP
+#endif /* !SAKURAE_MODULE_HPP */

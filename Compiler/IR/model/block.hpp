@@ -7,7 +7,7 @@
 
 namespace sakuraE::IR {
     class Function;
-    // SakuraE IR Block
+    // SakuraE IR 基本块
     class Block: public IRValue {
         std::vector<Instruction*> instructions;
         fzlib::String ID = "default-block";
@@ -177,4 +177,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_BLOCK_HPP
+#endif /* !SAKURAE_BLOCK_HPP */

@@ -11,7 +11,7 @@
 
 namespace sakuraE::IR {
     enum TypeID {
-        // Token
+        // 词法单元
         Int32,
         Int64,
         UInt32,
@@ -24,7 +24,7 @@ namespace sakuraE::IR {
         String,
         Null,
         Custom,
-        // Structure
+        // 结构
         Array,
         Pointer,
         Ref
@@ -144,4 +144,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_TYPE_INFO_HPP
+#endif /* !SAKURAE_TYPE_INFO_HPP */

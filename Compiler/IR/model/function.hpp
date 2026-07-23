@@ -12,7 +12,7 @@ namespace sakuraE::IR {
     using FormalParamsDefine = std::vector<std::pair<fzlib::String, IRType*>>;
     class Module;
 
-    // SakuraE Function
+    // SakuraE 函数
     class Function: public IRValue {
         fzlib::String rawName;
         IRType* returnType;
@@ -22,16 +22,16 @@ namespace sakuraE::IR {
         PositionInfo createInfo;
 
         std::vector<Block*> blocks;
-        // Indicates the current maximum index of blocks
+        // 当前代码块索引的最大值
         long cursor = -1;
 
-        // Break and Continue manager
+        // break 和 continue 管理器
         struct LoopInfo {
             IRValue* continueTarget;
             IRValue* breakTarget;
         };
 
-        // Return Checker
+        // 返回值检查器
         bool hasReturn = false;
 
         std::stack<LoopInfo> loopStack;
@@ -41,7 +41,7 @@ namespace sakuraE::IR {
         Function(fzlib::String n, IRType* retType, PositionInfo info):
             IRValue(IRType::getFunctionTy(retType, {}), n), returnType(retType), funcScope(info), createInfo(info) {}
 
-        // just for pre-defing
+        // 仅用于预声明
         Function(fzlib::String n, PositionInfo info):
             IRValue(nullptr, n), returnType(nullptr), formalParams({}), funcScope(info), createInfo(info) {}
 
@@ -149,7 +149,7 @@ namespace sakuraE::IR {
             return block;
         }
 
-        // Return current cursor
+        // 返回当前游标
         Block* curBlock() {
             return blocks[cursor];
         }
@@ -218,4 +218,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_FUNCTION_HPP
+#endif /* !SAKURAE_FUNCTION_HPP */

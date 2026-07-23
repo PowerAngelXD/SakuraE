@@ -71,9 +71,9 @@ sakuraE::NodePtr sakuraE::AtomIdentifierExprParser::genResource() {
     }, std::get<0>(getTuple())->option());
 
     auto closure = std::get<1>(getTuple());
-    if (closure->isEmpty()) return root; // No operator existing, return
+    if (closure->isEmpty()) return root; // 不存在运算符，直接返回
     else {
-        // Generating operators
+        // 生成运算符
         for (auto unit: closure->getClosure()) {
             auto op = std::visit([](auto& ptr) -> NodePtr {
                 return ptr->genResource();
@@ -89,7 +89,7 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::IdentifierExprNode);
     auto not_op = std::get<0>(getTuple());
 
-    // pre op
+    // 前置运算符
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
 
@@ -110,7 +110,7 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
         }
     }
 
-    // after op
+    // 后置运算符
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
 
@@ -398,7 +398,7 @@ sakuraE::NodePtr sakuraE::RangeExprParser::genResource() {
     return root;
 }
 
-// Stmt
+// 语句
 
 sakuraE::NodePtr sakuraE::DeclareStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::DeclareStmtNode);
@@ -406,7 +406,7 @@ sakuraE::NodePtr sakuraE::DeclareStmtParser::genResource() {
     bool hasTypeStriction = false;
 
     (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
-    // If type striction existed, generate it
+    // 如果存在类型约束，则生成对应节点
     if (!std::get<2>(getTuple())->isEmpty()) {
         (*root)[ASTTag::Type] = std::get<1>(std::get<2>(getTuple())->getClosure().at(0)->getTuple())->genResource();
         hasTypeStriction = true;

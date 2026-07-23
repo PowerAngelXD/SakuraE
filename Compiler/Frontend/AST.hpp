@@ -15,26 +15,26 @@ namespace sakuraE {
     class Node;
     using TokenPtr = std::shared_ptr<Token>;
     enum class ASTTag {
-        // Empty
+        // 空节点
         Empty, Token,
-        // Expr Header
+        // 表达式节点
         LiteralNode, IndexOpNode, CallingOpNode, AtomIdentifierNode,
         IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
         LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode,
         BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
         AssignExprNode, RangeExprNode, InnerCallabeOpExprNode,
-        // Stmt Header
+        // 语句节点
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
         RepeatStmtNode, MatchStmtNode,
         ReturnStmtNode, BreakStmtNode, ContinueStmtNode, Stmt,
-        // Token
+        // 词法单元
         Literal, Identifier, Symbol, Keyword,
-        // Branches
+        // 分支节点
         HeadExpr, Exprs, Op, Ops, PreOp,
         Types, Args, Type, AssignTerm,
         Condition, Block, Default, Cases, Case, Stmts,
-        // Keywords
+        // 关键字
         Typeof, Sizeof
     };
 

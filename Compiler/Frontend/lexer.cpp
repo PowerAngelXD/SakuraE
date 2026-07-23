@@ -170,7 +170,7 @@ sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
     fzlib::String content;
 
     if (!std::isalpha(peek()) && peek() != '_') {
-        // Should not happen if called correctly
+        // 如果调用方式正确，此处不应发生
         return Token(TokenType::UNKNOWN, "", start_line, start_column, "Expected identifier or keyword start.");
     }
 

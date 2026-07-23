@@ -46,7 +46,7 @@ namespace sakuraE::IR {
                         "An L-value is required as the left operand of an assignment.",
                         info);
                 }
-                // 这里不该进行对Pointer类型的Unwrap，否则会导致LLVM-IR生成store i32 i32的问题，导致非法赋值
+            // 这里不应对 Pointer 类型执行 Unwrap，否则会导致 LLVM IR 生成 store i32 i32，形成非法赋值
 
                 return curFunc()
                     ->curBlock()
@@ -139,8 +139,9 @@ namespace sakuraE::IR {
                 return false;
             }
 
-            // 这里明确区分语言层 string object 与原生 char*。
-            // 只有 GC 托管对象本身，才属于“不允许暴露稳定内部地址”的对象。
+            /* 这里明确区分语言层 string object 与原生 char*。
+             * 只有 GC 托管对象本身，才属于“不允许暴露稳定内部地址”的对象。
+             */
             if (ty->isString() || ty->isArray()) {
                 return true;
             }
@@ -164,8 +165,9 @@ namespace sakuraE::IR {
                     return isManagedHeapObjectType(inst->arg(0)->getType());
                 }
                 case OpKind::gmem: {
-                    // 预留给后续 struct object：
-                    // 一旦 gmem 的 base 成为 GC 托管对象，这里会统一拦截 field interior address。
+                    /* 预留给后续 struct object：
+                     * 一旦 gmem 的 base 成为 GC 托管对象，这里会统一拦截 field interior address。
+                     */
                     return isManagedHeapObjectType(inst->arg(0)->getType());
                 }
                 default:
@@ -316,14 +318,14 @@ namespace sakuraE::IR {
                 resultTyInfo = currentType;
             }
 
-            // Ptr or Ref
+            // 指针或引用
 
             if (node->hasNode(ASTTag::Op)) {
-                // Is ref type info
+                // 判断是否为引用类型信息
                 resultTyInfo = TypeInfo::makeRefTypeID(resultTyInfo);
             }
             else if (node->hasNode(ASTTag::Ops)) {
-                // Is ptr type info
+                // 判断是否为指针类型信息
                 auto ptrDepth = (*node)[ASTTag::Ops]->getChildren().size();
                 for (std::size_t i = 0; i < ptrDepth; i ++)
                     resultTyInfo = TypeInfo::makePointerTypeID(resultTyInfo);
@@ -490,7 +492,7 @@ namespace sakuraE::IR {
                               node->getPosInfo());
         }
 
-        // Used to obtain the type of the result from a non-logical binary operation
+        // 用于获取非逻辑二元运算的结果类型
         IRType* handleUnlogicalBinaryCalc(IRValue* lhs, IRValue* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
             auto lTy = lhs->getType();
             auto rTy = rhs->getType();
@@ -574,7 +576,7 @@ namespace sakuraE::IR {
             return result;
         }
 
-        // --- Visit Expressions ---
+        // --- 访问表达式 ---
         IRValue* visitLiteralNode(NodePtr node);
         IRValue* visitIndexOpNode(IRValue* addr, NodePtr node);
         IRValue* visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args);
@@ -591,10 +593,11 @@ namespace sakuraE::IR {
         IRValue* visitWholeExprNode(NodePtr node);
         IRValue* visitTypeModifierNode(NodePtr node);
         IRValue* visitAssignExprNode(NodePtr node);
-        // TODO: Range implement
-        // IRValue* visitRangeExprNode(NodePtr node);
+        /* TODO：实现范围表达式
+         * IRValue* visitRangeExprNode(NodePtr node);
+         */
 
-        // --- Visit Statements ---
+        // --- 访问语句 ---
         IRValue* visitDeclareStmtNode(NodePtr node);
         IRValue* visitExprStmtNode(NodePtr node);
         IRValue* visitIfStmtNode(NodePtr node);
@@ -611,4 +614,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_GENERATOR_HPP
+#endif /* !SAKURAE_GENERATOR_HPP */

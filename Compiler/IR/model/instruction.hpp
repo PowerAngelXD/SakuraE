@@ -33,7 +33,7 @@ namespace sakuraE::IR {
         leave_scope,
         _typeof,
         _sizeof,
-        // terminal op
+        // 终结操作
         br,
         cond_br,
         ret
@@ -137,4 +137,4 @@ namespace sakuraE::IR {
     };
 }
 
-#endif // !SAKURAE_INSTRUCTION_HPP
+#endif /* !SAKURAE_INSTRUCTION_HPP */

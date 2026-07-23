@@ -32,7 +32,7 @@ namespace sakuraE::IR {
         auto indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
         auto ty = addr->getType();
 
-        // check is lvalue
+        // 检查是否为左值
         if (ty->isArray()) {
             ty = static_cast<IRArrayType*>(ty)->getElementType();
         }
@@ -69,7 +69,7 @@ namespace sakuraE::IR {
             );
         }
 
-        // check is out of range
+        // 检查是否越界
 
         return curFunc()
             ->curBlock()
@@ -134,9 +134,9 @@ namespace sakuraE::IR {
                 auto symbol = curModule()->lookup(mangledName);
                 IRValue* callee = nullptr;
                 if (!symbol) {
-                    // Printing is a generic RuntimeValue API. Its IR
-                    // declaration is represented by the string overload, but
-                    // the LLVM ABI is RuntimeValue* for every source type.
+                    /* 打印是通用的 RuntimeValue API。其 IR 声明以字符串重载表示，
+                     * 但对于每一种源语言类型，LLVM ABI 都使用 RuntimeValue*。
+                     */
                     auto* runtimeFn = curModule()->lookupRuntimeFunction(name);
                     if (runtimeFn) {
                         callee = runtimeFn;
@@ -790,7 +790,7 @@ namespace sakuraE::IR {
                                 "constant");
     }
 
-    // Statements
+    // 语句
 
     IRValue* IRGenerator::visitDeclareStmtNode(NodePtr node) {
         auto identifier = (*node)[ASTTag::Identifier]->getToken();
@@ -863,12 +863,12 @@ namespace sakuraE::IR {
         IRValue* cond = visitBinaryExprNode((*node)[ASTTag::Condition]);
         int beforeBlockIndex = curFunc()->cur();
 
-        // if.then
+        // if.then：条件为真时执行的基本块
         IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "if.then");
         int thenExitBlockIndex = curFunc()->cur();
         //
 
-        // if.else
+        // if.else：条件为假时执行的基本块
         IRValue* elseBlock = nullptr;
         int elseExitBlockIndex = -1;
 
@@ -879,12 +879,12 @@ namespace sakuraE::IR {
         }
         //
 
-        // if.merge
+        // if.merge：条件分支汇合基本块
         IRValue* mergeBlock = curFunc()->buildBlock("if.merge");
         int mergeBlockIndex = curFunc()->cur();
         //
 
-        // before -> then or else?merge
+        // before -> then 或 else/merge
         curFunc()
             ->block(beforeBlockIndex)
             ->createCondBr(cond, thenBlock, (elseBlock?elseBlock:mergeBlock));
@@ -912,7 +912,7 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitWhileStmtNode(NodePtr node) {
         int beforeBlockIndex = curFunc()->cur();
 
-        // while.prep
+        // while.prep：循环条件准备基本块
         IRValue* prepareBlock = curFunc()->buildBlock("while.prep");
         int prepareBlockIndex = curFunc()->cur();
 
@@ -925,14 +925,14 @@ namespace sakuraE::IR {
         int prepareExitBlockIndex = curFunc()->cur();
         //
 
-        // while.merge
+        // while.merge：循环退出后的汇合基本块
         IRValue* mergeBlock = curFunc()->buildBlock("while.merge");
         int mergeBlockIndex = curFunc()->cur();
         //
 
         curFunc()->enterLoop(prepareBlock, mergeBlock);
 
-        // while.then
+        // while.then：循环体基本块
         IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "while.then");
         int thenExitBlockIndex = curFunc()->cur();
         //
@@ -944,7 +944,7 @@ namespace sakuraE::IR {
             ->createBr(prepareBlock);
         //
 
-        // prep -> merge or then
+        // prep -> merge 或 then
         curFunc()
             ->block(prepareExitBlockIndex)
             ->createCondBr(cond, thenBlock, mergeBlock);
@@ -957,30 +957,30 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitForStmtNode(NodePtr node) {
         curFunc()->fnScope().enter();
 
-        // for init (in beforeBlock)
+        // for 初始化（位于 beforeBlock 中）
         if (node->hasNode(ASTTag::DeclareStmtNode)) {
             visitDeclareStmtNode((*node)[ASTTag::DeclareStmtNode]);
         }
         int initExitIndex = curFunc()->cur();
 
-        // for.cond
+        // for.cond：循环条件基本块
         IRValue* condBlock = curFunc()->buildBlock("for.cond");
         IRValue* cond = visitBinaryExprNode((*node)[ASTTag::Condition]);
         int condBlockExitIndex = curFunc()->cur();
         //
 
-        // for.body
+        // for.body：循环体基本块
         IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "for.body");
         int thenBlockExitIndex = curFunc()->cur();
         //
 
-        // for.step
+        // for.step：循环步进基本块
         IRValue* stepBlock = curFunc()->buildBlock("for.step");
         visitWholeExprNode((*node)[ASTTag::HeadExpr]);
         int stepBlockExitIndex = curFunc()->cur();
         //
 
-        // for.merge
+        // for.merge：循环退出后的汇合基本块
         IRValue* mergeBlock = curFunc()->buildBlock("for.merge");
         int mergeBlockIndex = curFunc()->cur();
         //
@@ -993,7 +993,7 @@ namespace sakuraE::IR {
             ->createBr(condBlock);
         //
 
-        // cond -> body or merge
+        // cond -> body 或 merge
         curFunc()
             ->block(condBlockExitIndex)
             ->createCondBr(cond, thenBlock, mergeBlock);
@@ -1022,7 +1022,7 @@ namespace sakuraE::IR {
 
         int beforeBlockIndex = curFunc()->cur();
 
-        // repeat.prepare
+        // repeat.prepare：重复循环准备基本块
         IRValue* prepareBlock = curFunc()->buildBlock("repeat.prepare");
         static int repeat_counter = 1;
         IRValue* counter = createAlloca(
@@ -1034,7 +1034,7 @@ namespace sakuraE::IR {
         int prepareBlockExitIndex = curFunc()->cur();
         //
 
-        // repeat.cond
+        // repeat.cond：重复循环条件基本块
         IRValue* condBlock = curFunc()->buildBlock("repeat.cond");
         IRValue* counterLoadVal = createLoad(counter, node->getPosInfo());
         IRValue* condResult = curFunc()
@@ -1048,12 +1048,12 @@ namespace sakuraE::IR {
         int condBlockExitIndex = curFunc()->cur();
         //
 
-        // repeat.then
+        // repeat.then：重复循环体基本块
         IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.then");
         int thenBlockExitIndex = curFunc()->cur();
         //
 
-        // repeat.step
+        // repeat.step：重复循环步进基本块
         IRValue* stepBlock = curFunc()->buildBlock("repeat.step");
         IRValue* stepValue = curFunc()
             ->curBlock()
@@ -1069,7 +1069,7 @@ namespace sakuraE::IR {
             ->createBr(condBlock);
         //
 
-        // repeat.merge
+        // repeat.merge：重复循环退出后的汇合基本块
         IRValue* mergeBlock = curFunc()->buildBlock("repeat.merge");
         int mergeBlockIndex = curFunc()->cur();
         //
@@ -1082,7 +1082,7 @@ namespace sakuraE::IR {
             ->createBr(prepareBlock);
         //
 
-        // cond -> then or merge
+        // cond -> then 或 merge
         curFunc()
             ->block(condBlockExitIndex)
             ->createCondBr(condResult, thenBlock, mergeBlock);
@@ -1234,7 +1234,7 @@ namespace sakuraE::IR {
 
         IRValue* typeInfoIRValue = visitTypeModifierNode((*node)[ASTTag::Type]);
 
-        // Unboxing
+        // 解箱
         auto constInst = dynamic_cast<Instruction*>(typeInfoIRValue);
         auto typeInfoConstant = dynamic_cast<Constant*>(constInst->getOperands()[0]);
         TypeInfo* typeInfo = typeInfoConstant->getContentValue<TypeInfo*>();
