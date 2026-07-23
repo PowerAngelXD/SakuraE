@@ -20,7 +20,7 @@ flowchart TD
     RV --> PAYLOAD[GC 托管 payload]
 ```
 
-`IRValue` 是编译器 IR 表示，`llvm::Value` 是 Codegen 生成的 LLVM 表示，`RuntimeValue` 是 `__print` 等运行时调用使用的表示。`RuntimeValue` 不是 `llvm::Value` 的子类，也不与其继承。
+`IRValue` 是编译器 IR 表示，`llvm::Value` 是 Codegen 生成的 LLVM 表示，`RuntimeValue` 是 `print` 等运行时调用使用的表示。`RuntimeValue` 不是 `llvm::Value` 的子类，也不与其继承。
 
 ## 2. 编译期类型信息
 
@@ -45,11 +45,12 @@ enum TypeID {
 };
 
 class ArrayTypeInfo {
-    std::vector<TypeInfo*> elementTypes;
+    TypeInfo* elementType;
+    std::uint64_t elementCount;
 
 public:
-    ArrayTypeInfo(std::vector<TypeInfo*> elements);
-    std::size_t length();
+    ArrayTypeInfo(TypeInfo* element, std::uint64_t count);
+    std::uint64_t length() const;
     TypeInfo* getElementTy();
 };
 
@@ -80,7 +81,7 @@ class TypeInfo {
 
 public:
     TypeInfo(TypeID tid);
-    TypeInfo(std::vector<TypeInfo*> tids);
+    TypeInfo(TypeInfo* element, std::uint64_t count);
     TypeInfo(TypeID id, TypeInfo* elementType);
     ~TypeInfo() = default;
 
@@ -91,7 +92,7 @@ public:
     IRType* toIRType();
 
     static TypeInfo* makeBasicTypeID(TypeID typeID);
-    static TypeInfo* makeArrayTypeID(std::vector<TypeInfo*> types);
+    static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
     static TypeInfo* makePointerTypeID(TypeInfo* typeID);
     static TypeInfo* makeRefTypeID(TypeInfo* typeID);
     static void clearAll();

@@ -20,7 +20,7 @@ flowchart TD
     RV --> PAYLOAD[GC-managed payloads]
 ```
 
-`IRValue` is the compiler IR representation. `llvm::Value` is the LLVM representation produced by code generation. `RuntimeValue` is the runtime representation used by generated calls such as `__print`; it is not an LLVM subclass and does not inherit from `llvm::Value`.
+`IRValue` is the compiler IR representation. `llvm::Value` is the LLVM representation produced by code generation. `RuntimeValue` is the runtime representation used by generated calls such as `print`; it is not an LLVM subclass and does not inherit from `llvm::Value`.
 
 ## 2. Compile-time type information
 
@@ -45,11 +45,12 @@ enum TypeID {
 };
 
 class ArrayTypeInfo {
-    std::vector<TypeInfo*> elementTypes;
+    TypeInfo* elementType;
+    std::uint64_t elementCount;
 
 public:
-    ArrayTypeInfo(std::vector<TypeInfo*> elements);
-    std::size_t length();
+    ArrayTypeInfo(TypeInfo* element, std::uint64_t count);
+    std::uint64_t length() const;
     TypeInfo* getElementTy();
 };
 
@@ -80,7 +81,7 @@ class TypeInfo {
 
 public:
     TypeInfo(TypeID tid);
-    TypeInfo(std::vector<TypeInfo*> tids);
+    TypeInfo(TypeInfo* element, std::uint64_t count);
     TypeInfo(TypeID id, TypeInfo* elementType);
     ~TypeInfo() = default;
 
@@ -91,7 +92,7 @@ public:
     IRType* toIRType();
 
     static TypeInfo* makeBasicTypeID(TypeID typeID);
-    static TypeInfo* makeArrayTypeID(std::vector<TypeInfo*> types);
+    static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
     static TypeInfo* makePointerTypeID(TypeInfo* typeID);
     static TypeInfo* makeRefTypeID(TypeInfo* typeID);
     static void clearAll();
