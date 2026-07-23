@@ -10,6 +10,27 @@
 #include <vector>
 
 namespace sakuraE::IR {
+    class IRStructDecl;
+
+    class NamingContext {
+        fzlib::String moduleID;
+        std::map<fzlib::String, std::unique_ptr<IRStructDecl>> structDecls;
+
+    public:
+        explicit NamingContext(fzlib::String id);
+        ~NamingContext();
+
+        NamingContext(const NamingContext&) = delete;
+        NamingContext& operator=(const NamingContext&) = delete;
+
+        IRStructDecl* lookupStructDecl(const fzlib::String& name) const;
+        IRStructType* lookupStructType(const fzlib::String& name) const;
+        IRStructDecl* defineStruct(
+            fzlib::String name,
+            std::vector<std::pair<fzlib::String, IRType*>> fields,
+            PositionInfo info);
+    };
+
     class IRContext {
         std::unique_ptr<llvm::LLVMContext> llvmContext_;
 

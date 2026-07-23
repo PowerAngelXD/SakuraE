@@ -27,7 +27,6 @@ namespace sakuraE::IR {
         Void,
         String,
         Null,
-        Custom,
         // 结构
         Array,
         Pointer,

@@ -1,9 +1,50 @@
 #include "Compiler/IR/context.hpp"
 
+#include "Compiler/IR/model/struct.hpp"
+
 #include <stdexcept>
 
 namespace sakuraE::IR {
     thread_local IRContext* IRContext::activeContext = nullptr;
+
+    NamingContext::NamingContext(fzlib::String id): moduleID(std::move(id)) {}
+
+    NamingContext::~NamingContext() = default;
+
+    IRStructDecl* NamingContext::lookupStructDecl(const fzlib::String& name) const {
+        const auto it = structDecls.find(name);
+        return it == structDecls.end() ? nullptr : it->second.get();
+    }
+
+    IRStructType* NamingContext::lookupStructType(const fzlib::String& name) const {
+        auto* decl = lookupStructDecl(name);
+        return decl ? decl->getType() : nullptr;
+    }
+
+    IRStructDecl* NamingContext::defineStruct(
+        fzlib::String name,
+        std::vector<std::pair<fzlib::String, IRType*>> fields,
+        PositionInfo info) {
+        if (lookupStructDecl(name)) {
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                              "Duplicate struct definition: '" + name + "'",
+                              info);
+        }
+
+        std::vector<IRStructType::FieldInfo> typeFields;
+        typeFields.reserve(fields.size());
+        for (auto& field: fields) {
+            typeFields.push_back({std::move(field.first), field.second});
+        }
+
+        auto type = std::unique_ptr<IRStructType>(
+            new IRStructType(moduleID, name, std::move(typeFields)));
+        auto decl = std::make_unique<IRStructDecl>(
+            name, std::move(type), std::move(info));
+        auto* result = decl.get();
+        structDecls.emplace(std::move(name), std::move(decl));
+        return result;
+    }
 
     IRContext::IRContext():
         llvmContext_(std::make_unique<llvm::LLVMContext>()),

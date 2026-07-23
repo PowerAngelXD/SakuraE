@@ -298,8 +298,22 @@ namespace sakuraE::IR {
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Void);
                         break;
                     }
+                    case TokenType::IDENTIFIER: {
+                        auto* structType = curModule()->lookupStructType(token.content);
+                        if (!structType) {
+                            throw SakuraError(
+                                OccurredTerm::IR_GENERATING,
+                                "Unknown struct type: '" + token.content + "'",
+                                token.info);
+                        }
+                        resultTyInfo = TypeInfo::makeStructTypeID(structType);
+                        break;
+                    }
                     default:
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Custom);
+                        throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Unsupported type modifier: '" + token.content + "'",
+                            token.info);
                 }
             }
 

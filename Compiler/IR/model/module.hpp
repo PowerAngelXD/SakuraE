@@ -2,6 +2,7 @@
 #define SAKURAE_MODULE_HPP
 
 #include "Compiler/Error/error.hpp"
+#include "Compiler/IR/context.hpp"
 #include "Compiler/IR/model/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "function.hpp"
@@ -22,12 +23,14 @@ namespace sakuraE::IR {
         // fnList 当前索引的最大值
         long cursor = -1;
 
+        NamingContext namingContext;
+
         std::vector<Module*> usingList;
 
         Program* program;
     public:
         Module(fzlib::String id, PositionInfo info):
-            ID(id), createInfo(info), moduleScope(info) {
+            ID(std::move(id)), createInfo(info), moduleScope(info), namingContext(ID) {
             moduleScope.setParent(nullptr);
         }
 
@@ -79,6 +82,18 @@ namespace sakuraE::IR {
 
             func->fnScope().setParent(&moduleScope);
             return func;
+        }
+
+        IRStructDecl* lookupStruct(fzlib::String name) {
+            return namingContext.lookupStructDecl(name);
+        }
+
+        IRStructType* lookupStructType(const fzlib::String& name) const {
+            return namingContext.lookupStructType(name);
+        }
+
+        void decalareStruct(fzlib::String name, std::vector<std::pair<fzlib::String, IRType*>> fields, PositionInfo info) {
+            namingContext.defineStruct(std::move(name), std::move(fields), std::move(info));
         }
 
         Scope<IRValue*>& modScope() {
