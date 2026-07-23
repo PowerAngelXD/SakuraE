@@ -26,7 +26,7 @@ namespace sakuraE {
         // 语句节点
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
-        RepeatStmtNode, MatchStmtNode,
+        RepeatStmtNode, MatchStmtNode, StructDefineStmtNode, ImplDefineStmtNode,
         ReturnStmtNode, BreakStmtNode, ContinueStmtNode, Stmt,
         // 词法单元
         Literal, Identifier, Symbol, Keyword,
@@ -34,6 +34,7 @@ namespace sakuraE {
         HeadExpr, Exprs, Op, Ops, PreOp,
         Types, Args, Type, AssignTerm,
         Condition, Block, Default, Cases, Case, Stmts,
+        Members, MemberDef,
         // 关键字
         Typeof, Sizeof
     };

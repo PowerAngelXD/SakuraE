@@ -1027,10 +1027,78 @@ namespace sakuraE {
         NodePtr genResource() override;
     };
 
+    using StructMemberDefineParserRule =
+    ConnectionParser<
+        TokenParser<TokenType::IDENTIFIER>,
+        TokenParser<TokenType::CONSTRAINT_OP>,
+        TypeModifierParser,
+        OptionsParser<
+            ConnectionParser<
+                TokenParser<TokenType::ASSIGN_OP>,
+                WholeExprParser
+            >,
+            NullParser
+        >
+    >;
+    using StructDefineStmtParserRule =
+    ConnectionParser<
+        TokenParser<TokenType::KEYWORD_STRUCT>,
+        TokenParser<TokenType::IDENTIFIER>,
+        TokenParser<TokenType::LEFT_BRACKET>,
+        NullableSequenceParser<StructMemberDefineParserRule, TokenType::COMMA>,
+        TokenParser<TokenType::RIGHT_BRACKET>
+    >;
+    class StructDefineStmtParser: public ResourceFetcher, public StructDefineStmtParserRule {
+        public:
+        StructDefineStmtParser(StructDefineStmtParserRule&& base) : StructDefineStmtParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return StructDefineStmtParserRule::check(begin, end);
+        }
+
+        static Result<StructDefineStmtParser> parse(TokenIter begin, TokenIter end) {
+            auto result = StructDefineStmtParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
+            }
+            return {result.status, std::make_shared<StructDefineStmtParser>(std::move(*result.val)), result.end};
+        }
+
+        NodePtr genResource() override;
+    };
+
+    using ImplDefineStmtParserRule =
+    ConnectionParser<
+        TokenParser<TokenType::KEYWORD_IMPL>,
+        TokenParser<TokenType::IDENTIFIER>,
+        TokenParser<TokenType::LEFT_BRACKET>,
+        ClosureParser<FuncDefineStmtParser>,
+        TokenParser<TokenType::RIGHT_BRACKET>
+    >;
+    class ImplDefineStmtParser: public ResourceFetcher, public ImplDefineStmtParserRule {
+        public:
+        ImplDefineStmtParser(ImplDefineStmtParserRule&& base) : ImplDefineStmtParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return ImplDefineStmtParserRule::check(begin, end);
+        }
+
+        static Result<ImplDefineStmtParser> parse(TokenIter begin, TokenIter end) {
+            auto result = ImplDefineStmtParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
+            }
+            return {result.status, std::make_shared<ImplDefineStmtParser>(std::move(*result.val)), result.end};
+        }
+
+        NodePtr genResource() override;
+    };
 
     using StatementParserRule =
     OptionsParser<
         FuncDefineStmtParser,
+        StructDefineStmtParser,
+        ImplDefineStmtParser,
         DeclareStmtParser,
         ExprStmtParser,
         IfStmtParser,

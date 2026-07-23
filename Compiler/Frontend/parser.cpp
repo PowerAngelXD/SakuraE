@@ -587,6 +587,45 @@ sakuraE::NodePtr sakuraE::FuncDefineStmtParser::genResource() {
     return root;
 }
 
+sakuraE::NodePtr sakuraE::StructDefineStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::StructDefineStmtNode);
+
+    (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
+    if (std::get<3>(getTuple())->isMatch()) {
+        auto members = std::get<3>(getTuple())->getClosure();
+        for (auto& member: members) {
+            NodePtr memberDef = std::make_shared<Node>(ASTTag::MemberDef);
+            (*memberDef)[ASTTag::Identifier] = std::make_shared<Node>(std::get<0>(member->getTuple())->token);
+            memberDef->addChild(std::get<2>(member->getTuple())->genResource());
+            std::visit([&](auto& var) {
+                using VarType = std::decay_t<decltype(var)>;
+
+                if constexpr (std::is_same_v<VarType, ConnectionParser<TokenParser<TokenType::ASSIGN_OP>,WholeExprParser>>) {
+                    memberDef->addChild(std::get<1>(var->getTuple())->genResource());
+                }
+            }, std::get<3>(member->getTuple())->option());
+
+            (*root)[ASTTag::Members]->addChild(memberDef);
+        }
+    }
+
+    return root;
+}
+
+sakuraE::NodePtr sakuraE::ImplDefineStmtParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::ImplDefineStmtNode);
+
+    (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
+    if (!std::get<3>(getTuple())->isEmpty()) {
+        auto members = std::get<3>(getTuple())->getClosure();
+        for (auto& member: members) {
+            (*root)[ASTTag::Members]->addChild(member->genResource());
+        }
+    }
+
+    return root;
+}
+
 sakuraE::NodePtr sakuraE::ReturnStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::ReturnStmtNode);
     root->setInfo(std::get<0>(getTuple())->token->info);
