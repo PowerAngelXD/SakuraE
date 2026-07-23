@@ -31,9 +31,9 @@
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/generator.hpp"
-#include "Compiler/IR/struct/function.hpp"
-#include "Compiler/IR/struct/instruction.hpp"
-#include "Compiler/IR/struct/scope.hpp"
+#include "Compiler/IR/model/function.hpp"
+#include "Compiler/IR/model/instruction.hpp"
+#include "Compiler/IR/model/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/value/value.hpp"
 #include "includes/String.hpp"

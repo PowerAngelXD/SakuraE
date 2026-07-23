@@ -49,7 +49,7 @@ SakuraE/
 │   │   ├── generator.hpp           # IR generation utilities
 │   │   ├── README-zh_cn.md         # IR documentation (Chinese)
 │   │   ├── README.md               # IR documentation (English)
-│   │   ├── struct/                 # IR structural components
+│   │   ├── model/                  # IR structural components
 │   │   │   ├── block.hpp           # Basic block representation
 │   │   │   ├── function.hpp        # Function representation with scope management
 │   │   │   ├── instruction.hpp     # Instruction definitions and OpKind enum

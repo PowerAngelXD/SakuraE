@@ -2,7 +2,7 @@
 #define SAKURAE_MODULE_HPP
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/struct/scope.hpp"
+#include "Compiler/IR/model/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "function.hpp"
 #include <map>
