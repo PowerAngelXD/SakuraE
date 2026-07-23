@@ -11,7 +11,7 @@ sakuraE::NodePtr sakuraE::LiteralParser::genResource() {
 
     (*root)[ASTTag::Literal] = std::visit([&](auto& ptr) -> NodePtr {
         root->setInfo(ptr->token->info);
-        std::shared_ptr<Token> tok = ptr->token;
+        TokenPtr tok = ptr->token;
         return std::make_shared<Node>(tok);
     }, option());
 
