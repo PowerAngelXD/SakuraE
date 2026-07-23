@@ -31,7 +31,8 @@ namespace sakuraE::IR {
         // 结构
         Array,
         Pointer,
-        Ref
+        Ref,
+        Struct
     };
 
     class ArrayTypeInfo {
@@ -64,6 +65,15 @@ namespace sakuraE::IR {
         TypeInfo* getElementTy() const { return elementType; }
     };
 
+    class StructTypeInfo {
+        IRStructType* type;
+
+    public:
+        explicit StructTypeInfo(IRStructType* structType): type(structType) {}
+
+        IRStructType* getType() const { return type; }
+    };
+
     class TypeInfo {
         friend class TypeInfoPool;
 
@@ -73,7 +83,8 @@ namespace sakuraE::IR {
             std::monostate,
             ArrayTypeInfo,
             PointerTypeInfo,
-            RefTypeInfo
+            RefTypeInfo,
+            StructTypeInfo
         > complexTypeInfo;
 
         TypeInfo(IRContext& ctx, TypeID tid): context(ctx), typeID(tid) {}
@@ -84,7 +95,7 @@ namespace sakuraE::IR {
 
         TypeInfo(IRContext& ctx, TypeID id, TypeInfo* elementType):
             context(ctx), typeID(id),
-            complexTypeInfo([&]() -> std::variant<std::monostate, ArrayTypeInfo, PointerTypeInfo, RefTypeInfo> {
+            complexTypeInfo([&]() -> std::variant<std::monostate, ArrayTypeInfo, PointerTypeInfo, RefTypeInfo, StructTypeInfo> {
                 switch (id) {
                     case Pointer: return PointerTypeInfo(elementType);
                     case Ref: return RefTypeInfo(elementType);
@@ -94,12 +105,16 @@ namespace sakuraE::IR {
                 }
             }()) {}
 
+        TypeInfo(IRContext& ctx, IRStructType* structType):
+            context(ctx), typeID(Struct), complexTypeInfo(StructTypeInfo(structType)) {}
+
     public:
         ~TypeInfo() = default;
 
         bool isArray() const { return typeID == Array; }
         bool isPointer() const { return typeID == Pointer; }
         bool isRef() const { return typeID == Ref; }
+        bool isStruct() const { return typeID == Struct; }
         const TypeID& getTypeID() const { return typeID; }
 
         IRType* toIRType() const;
@@ -108,6 +123,7 @@ namespace sakuraE::IR {
         static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
         static TypeInfo* makePointerTypeID(TypeInfo* typeID);
         static TypeInfo* makeRefTypeID(TypeInfo* typeID);
+        static TypeInfo* makeStructTypeID(IRStructType* type);
         static void clearAll();
     };
 
@@ -117,6 +133,7 @@ namespace sakuraE::IR {
         std::map<std::pair<TypeInfo*, std::uint64_t>, std::unique_ptr<TypeInfo>> arrayTypes;
         std::map<TypeInfo*, std::unique_ptr<TypeInfo>> pointerTypes;
         std::map<TypeInfo*, std::unique_ptr<TypeInfo>> refTypes;
+        std::map<IRStructType*, std::unique_ptr<TypeInfo>> structTypes;
 
     public:
         explicit TypeInfoPool(IRContext& ctx): context(ctx) {}
@@ -128,6 +145,7 @@ namespace sakuraE::IR {
         TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
         TypeInfo* makePointerTypeID(TypeInfo* typeID);
         TypeInfo* makeRefTypeID(TypeInfo* typeID);
+        TypeInfo* makeStructTypeID(IRStructType* type);
         void clear();
     };
 }

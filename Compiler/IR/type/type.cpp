@@ -84,6 +84,12 @@ namespace sakuraE::IR {
                 }
                 return lFn->returnType->isEqual(rFn->returnType);
             }
+            case StructTyID: {
+                auto lStruct = static_cast<IRStructType*>(this);
+                auto rStruct = static_cast<IRStructType*>(ty);
+                return lStruct->parentModID == rStruct->parentModID &&
+                    lStruct->name == rStruct->name;
+            }
             default: return false;
         }
     }
@@ -192,6 +198,25 @@ namespace sakuraE::IR {
         return llvm::Type::getLabelTy(ctx);
     }
 
+    llvm::Type* IRStructType::toLLVMType(llvm::LLVMContext& ctx) {
+        fzlib::String structTypeName = "sakurae.struct." + parentModID + "." + name;
+        auto structType = llvm::StructType::getTypeByName(ctx, structTypeName.c_str());
+        if (!structType) {
+            structType = llvm::StructType::create(ctx, structTypeName.c_str());
+        }
+
+        if (structType->isOpaque()) {
+            std::vector<llvm::Type*> memberTypes;
+            memberTypes.reserve(fields.size());
+            for (auto& field: fields) {
+                memberTypes.push_back(field.type->toLLVMType(ctx));
+            }
+            structType->setBody(memberTypes, false);
+        }
+
+        return structType;
+    }
+
     llvm::Type* IRFunctionType::toLLVMType(llvm::LLVMContext& ctx) {
         std::vector<llvm::Type*> llvmParams;
         for (auto arg: paramsType) {
@@ -263,6 +288,32 @@ namespace sakuraE::IR {
         }
 
         return result;
+    }
+
+    fzlib::String IRStructType::toString() {
+        fzlib::String result = "struct {";
+        for (std::size_t i = 0; i < fields.size(); i ++) {
+            result += fields[i].type->toString();
+            if (i == fields.size() - 1);
+            else result += ", ";
+        }
+        result += "}";
+        return result;
+    }
+
+    const fzlib::String& IRStructType::getName() const { return name; }
+
+    std::size_t IRStructType::getCount() const { return fields.size(); }
+
+    const std::vector<IRStructType::FieldInfo>& IRStructType::getFields() const {
+        return fields;
+    }
+
+    std::optional<IRStructType::FieldInfo> IRStructType::findMember(
+        const fzlib::String& target) const {
+        const auto it = fieldIndices.find(target);
+        if (it == fieldIndices.end()) return std::nullopt;
+        return fields[it->second];
     }
 
 }

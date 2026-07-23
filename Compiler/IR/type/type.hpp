@@ -31,6 +31,7 @@ namespace sakuraE::IR {
         RefTyID,
         PointerTyID,
         ArrayTyID,
+        StructTyID,
 
         FunctionTyID,
         BlockTyID
@@ -62,7 +63,8 @@ namespace sakuraE::IR {
         bool isPointer() { return irTypeID == PointerTyID; }
         bool isRef() { return irTypeID == RefTyID; }
         bool isArray() { return irTypeID == ArrayTyID; }
-        bool isComplexType() { return isString() || isPointer() || isArray() || isRef(); }
+        bool isStruct() { return irTypeID == StructTyID; }
+        bool isComplexType() { return isString() || isPointer() || isArray() || isRef() || isStruct(); }
         bool isEqual(IRType* ty);
 
         virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
@@ -241,6 +243,38 @@ namespace sakuraE::IR {
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
         IRType* getReturnType() { return returnType; }
+    };
+
+    class IRStructType : public IRType {
+    public:
+        struct FieldInfo {
+            fzlib::String name;
+            IRType* type;
+        };
+
+        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
+        fzlib::String toString() override;
+
+        const fzlib::String& getName() const;
+        std::size_t getCount() const;
+        std::optional<FieldInfo> findMember(const fzlib::String& target) const;
+        const std::vector<FieldInfo>& getFields() const;
+    private:
+        friend class IRType;
+        friend class NamingContext;
+        friend class IRStructDecl;
+        explicit IRStructType(fzlib::String modID, fzlib::String n, std::vector<FieldInfo> list):
+            IRType(StructTyID), parentModID(modID), name(n), fields(std::move(list))
+        {
+            for (std::size_t i = 0; i < fields.size(); i ++) {
+                fieldIndices[fields[i].name] = i;
+            }
+        }
+
+        fzlib::String parentModID;
+        fzlib::String name;
+        std::map<fzlib::String, std::size_t> fieldIndices;
+        std::vector<FieldInfo> fields;
     };
 
 }

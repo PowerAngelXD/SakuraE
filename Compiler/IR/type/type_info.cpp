@@ -52,10 +52,18 @@ namespace sakuraE::IR {
             return context.getRefTo(refType.getElementTy()->toIRType());
         }
 
+        if (isStruct()) {
+            return std::get<StructTypeInfo>(complexTypeInfo).getType();
+        }
+
         return tid2IRType(context, typeID);
     }
 
     TypeInfo* TypeInfoPool::makeBasicTypeID(TypeID typeID) {
+        if (typeID == TypeID::Struct) {
+            throw std::runtime_error("A struct TypeInfo requires an IRStructType");
+        }
+
         auto it = primaryTypes.find(typeID);
         if (it == primaryTypes.end()) {
             it = primaryTypes.emplace(
@@ -96,10 +104,25 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
+    TypeInfo* TypeInfoPool::makeStructTypeID(IRStructType* type) {
+        if (!type) {
+            throw std::invalid_argument("Cannot create TypeInfo for a null IRStructType");
+        }
+
+        auto it = structTypes.find(type);
+        if (it == structTypes.end()) {
+            it = structTypes.emplace(
+                type,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, type))).first;
+        }
+        return it->second.get();
+    }
+
     void TypeInfoPool::clear() {
         refTypes.clear();
         pointerTypes.clear();
         arrayTypes.clear();
+        structTypes.clear();
         primaryTypes.clear();
     }
 
@@ -117,6 +140,10 @@ namespace sakuraE::IR {
 
     TypeInfo* TypeInfo::makeRefTypeID(TypeInfo* typeID) {
         return IRContext::current().typeInfoPool().makeRefTypeID(typeID);
+    }
+
+    TypeInfo* TypeInfo::makeStructTypeID(IRStructType* type) {
+        return IRContext::current().typeInfoPool().makeStructTypeID(type);
     }
 
     void TypeInfo::clearAll() {
