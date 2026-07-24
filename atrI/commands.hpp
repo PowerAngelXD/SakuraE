@@ -30,9 +30,6 @@
 #include "Runtime/rttype.h"
 
 
-#include "Compiler/Frontend/lexer.h"
-#include "Compiler/Frontend/parser_base.hpp"
-#include "Compiler/Frontend/parser.hpp"
 #include "Compiler/IR/generator.hpp"
 #include "Compiler/LLVMCodegen/LLVMCodegenerator.hpp"
 #include "utils.hpp"
@@ -73,30 +70,14 @@ namespace atri::cmds {
 
         std::ostringstream log;
 
-        sakuraE::Lexer lexer(content);
-        auto r = lexer.tokenize();
-
-        sakuraE::TokenIter current = r.begin();
         sakuraE::IR::IRGenerator generator("__main");
+        generator.startGenerate(content, "__main");
 
-        while ((*current).type != sakuraE::TokenType::_EOF_) {
-            auto result = sakuraE::StatementParser::parse(current, r.end());
-            if (result.status == sakuraE::ParseStatus::FAILED) {
-                if (result.err == nullptr) {
-                    throw std::runtime_error("Error: Parse failed with NULL error object at token: ");
-                }
-                throw *(result.err);
-            }
-
-            auto res = result.val->genResource();
-
-            if (config.displayAST) {
+        if (config.displayAST) {
+            for (const auto& statement : generator.getParsedStatements()) {
                 log << "--------------================:DEBUG: AST DISPLAY:================--------------" << std::endl;
-                log << res->toFormatString() << std::endl;
+                log << statement->toFormatString() << std::endl;
             }
-
-            generator.visitStmt(res);
-            current = result.end;
         }
 
         if (config.displaySakIR) {
