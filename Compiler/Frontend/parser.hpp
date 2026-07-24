@@ -488,7 +488,8 @@ namespace sakuraE {
         TokenParser<TokenType::TYPE_F64>,
         TokenParser<TokenType::TYPE_BOOL>,
         TokenParser<TokenType::TYPE_STRING>,
-        TokenParser<TokenType::TYPE_VOID>
+        TokenParser<TokenType::TYPE_VOID>,
+        TokenParser<TokenType::IDENTIFIER>
     >;
     class BasicTypeModifierParser: public ResourceFetcher, public BasicTypeModifierParserRule {
     public:
