@@ -17,13 +17,18 @@
 #include "Compiler/Frontend/lexer.h"
 
 #include <algorithm>
+#include <map>
 #include <numbers>
+#include <stdexcept>
+#include <vector>
 
 
 
 namespace sakuraE::IR {
     class IRGenerator {
         Program program;
+        std::vector<NodePtr> parsedStatements;
+        bool hasGenerated = false;
 
         Symbol<IRValue*>* lookup(fzlib::String n, PositionInfo info) {
             auto result = curFunc()->fnScope().lookup(n);
@@ -545,8 +550,12 @@ namespace sakuraE::IR {
             return program.curMod();
         }
     public:
-        IRGenerator(fzlib::String name): program(name) {
-            program.buildModule(name, {1, 1, "Start of the whole program"});
+        IRGenerator(fzlib::String name): program(name) {}
+
+        void startGenerate(const fzlib::String& source, fzlib::String moduleName);
+
+        const std::vector<NodePtr>& getParsedStatements() const {
+            return parsedStatements;
         }
 
         Program& getProgram() {
@@ -590,7 +599,7 @@ namespace sakuraE::IR {
             return result;
         }
 
-        // --- 访问表达式 ---
+        // --- Expression ---
         IRValue* visitLiteralNode(NodePtr node);
         IRValue* visitIndexOpNode(IRValue* addr, NodePtr node);
         IRValue* visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args);
@@ -611,7 +620,7 @@ namespace sakuraE::IR {
          * IRValue* visitRangeExprNode(NodePtr node);
          */
 
-        // --- 访问语句 ---
+        // --- Statement ---
         IRValue* visitDeclareStmtNode(NodePtr node);
         IRValue* visitExprStmtNode(NodePtr node);
         IRValue* visitIfStmtNode(NodePtr node);
@@ -621,6 +630,7 @@ namespace sakuraE::IR {
         IRValue* visitMatchStmtNode(NodePtr node);
         IRValue* visitBlockStmtNode(NodePtr node, fzlib::String blockName, long beforeBlock = -1);
         IRValue* visitFuncDefineStmtNode(NodePtr node);
+        IRValue* visitStructDefineStmtNode(NodePtr node);
         IRValue* visitReturnStmtNode(NodePtr node);
         IRValue* visitBreakStmtNode(NodePtr node);
         IRValue* visitContinueStmtNode(NodePtr node);

@@ -1,6 +1,7 @@
 #include "generator.hpp"
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Frontend/AST.hpp"
+#include "Compiler/Frontend/parser.hpp"
 #include "Compiler/IR/model/function.hpp"
 #include "Compiler/IR/model/instruction.hpp"
 #include "Compiler/IR/model/scope.hpp"
@@ -15,6 +16,46 @@
 #include <variant>
 
 namespace sakuraE::IR {
+    void IRGenerator::startGenerate(const fzlib::String& source, fzlib::String moduleName) {
+        if (hasGenerated) {
+            throw std::logic_error("IRGenerator supports one source generation per instance");
+        }
+
+        program.buildModule(moduleName, {1, 1, "Start of the whole program"});
+        hasGenerated = true;
+        parsedStatements.clear();
+
+        sakuraE::Lexer lexer(source);
+        auto tokens = lexer.tokenize();
+        TokenIter current = tokens.cbegin();
+        while (current->type != TokenType::_EOF_) {
+            auto result = StatementParser::parse(current, tokens.cend());
+            if (result.status == ParseStatus::FAILED) {
+                if (!result.err) {
+                    throw std::runtime_error("Error: Parse failed with NULL error object at token: ");
+                }
+                throw *result.err;
+            }
+
+            parsedStatements.push_back(result.val->genResource());
+            current = result.end;
+        }
+
+        for (const auto& node : parsedStatements) {
+            NodePtr statement = node->getTag() == ASTTag::Stmt ? (*node)[ASTTag::Stmt] : node;
+            if (statement->getTag() != ASTTag::StructDefineStmtNode) {
+                continue;
+            }
+
+            const auto nameToken = (*statement)[ASTTag::Identifier]->getToken();
+            curModule()->declareStruct(nameToken.content, nameToken.info);
+        }
+
+        for (const auto& node : parsedStatements) {
+            visitStmt(node);
+        }
+    }
+
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
         auto literal = Constant::getFromToken((*node)[ASTTag::Literal]->getToken());
 
@@ -1263,6 +1304,42 @@ namespace sakuraE::IR {
         return fn;
     };
 
+    IRValue* IRGenerator::visitStructDefineStmtNode(NodePtr node) {
+        const auto name = (*node)[ASTTag::Identifier]->getToken();
+        std::vector<IRStructType::FieldInfo> members;
+        std::map<fzlib::String, bool> memberNames;
+        if (node->hasNode(ASTTag::Members)) {
+            for (auto& member: (*node)[ASTTag::Members]->getChildren()) {
+                const auto memberToken = (*member)[ASTTag::Identifier]->getToken();
+                if (!memberNames.emplace(memberToken.content, true).second) {
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "Duplicate struct member: '" + memberToken.content + "'",
+                        memberToken.info
+                    );
+                }
+
+                IRStructType::FieldInfo info;
+                info.name = memberToken.content;
+                info.type = getTypeInfoFromNode((*member)[ASTTag::TypeModifierNode])->toIRType();
+                info.info = memberToken.info;
+
+                if (info.type->isEqual(IRType::getVoidTy())) {
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "A struct member cannot have type 'void'.",
+                        memberToken.info
+                    );
+                }
+
+                members.push_back(info);
+            }
+        }
+
+        curModule()->implStruct(name.content, std::move(members), name.info);
+        return nullptr;
+    }
+
     IRValue* IRGenerator::visitReturnStmtNode(NodePtr node) {
         if (!node->hasNode(ASTTag::HeadExpr)) {
             if (!curFunc()->getReturnType()->isEqual(IRType::getVoidTy())) {
@@ -1356,6 +1433,9 @@ namespace sakuraE::IR {
         }
         else if (stmt->getTag() == ASTTag::FuncDefineStmtNode) {
             return visitFuncDefineStmtNode(stmt);
+        }
+        else if (stmt->getTag() == ASTTag::StructDefineStmtNode) {
+            return visitStructDefineStmtNode(stmt);
         }
         else if (stmt->getTag() == ASTTag::ReturnStmtNode) {
             return visitReturnStmtNode(stmt);
