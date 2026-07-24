@@ -22,6 +22,7 @@ func fib(n: i32) -> i32 {
 
 func main() -> i32 {
     println("应用程序:");
+
     let counter: i32 = 0;
     let list: string[5];
 
