@@ -1,6 +1,7 @@
 #ifndef SAKURAE_TYPE_HPP
 #define SAKURAE_TYPE_HPP
 
+#include <Compiler/Error/error.hpp>
 #include <llvm/IR/LLVMContext.h>
 #include <map>
 
@@ -250,6 +251,7 @@ namespace sakuraE::IR {
         struct FieldInfo {
             fzlib::String name;
             IRType* type;
+            PositionInfo info;
         };
 
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
@@ -259,20 +261,26 @@ namespace sakuraE::IR {
         std::size_t getCount() const;
         std::optional<FieldInfo> findMember(const fzlib::String& target) const;
         const std::vector<FieldInfo>& getFields() const;
+        void complete(std::vector<FieldInfo> fs);
+        bool isComplete() const;
     private:
         friend class IRType;
         friend class NamingContext;
         friend class IRStructDecl;
         explicit IRStructType(fzlib::String modID, fzlib::String n, std::vector<FieldInfo> list):
-            IRType(StructTyID), parentModID(modID), name(n), fields(std::move(list))
+            IRType(StructTyID), parentModID(modID), name(n), isCompleteType(true), fields(std::move(list))
         {
             for (std::size_t i = 0; i < fields.size(); i ++) {
                 fieldIndices[fields[i].name] = i;
             }
         }
 
+        explicit IRStructType(fzlib::String modID, fzlib::String n):
+            IRType(StructTyID), parentModID(modID), name(n) {}
+
         fzlib::String parentModID;
         fzlib::String name;
+        bool isCompleteType = false;
         std::map<fzlib::String, std::size_t> fieldIndices;
         std::vector<FieldInfo> fields;
     };

@@ -92,7 +92,15 @@ namespace sakuraE::IR {
             return namingContext.lookupStructType(name);
         }
 
-        void decalareStruct(fzlib::String name, std::vector<std::pair<fzlib::String, IRType*>> fields, PositionInfo info) {
+        void declareStruct(fzlib::String name, PositionInfo info) {
+            namingContext.declareOpaqueStruct(name, info);
+        }
+
+        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
+            namingContext.implStruct(name, std::move(fields), info);
+        }
+
+        void declareAndImplStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
             namingContext.defineStruct(std::move(name), std::move(fields), std::move(info));
         }
 

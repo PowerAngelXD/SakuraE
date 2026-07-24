@@ -4,6 +4,7 @@
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/type/type_info.hpp"
 
+#include <Compiler/Error/error.hpp>
 #include <map>
 #include <memory>
 #include <utility>
@@ -25,12 +26,12 @@ namespace sakuraE::IR {
 
         IRStructDecl* lookupStructDecl(const fzlib::String& name) const;
         IRStructType* lookupStructType(const fzlib::String& name) const;
-        IRStructDecl* defineStruct(
-            fzlib::String name,
-            std::vector<std::pair<fzlib::String, IRType*>> fields,
-            PositionInfo info);
+        IRStructDecl* declareOpaqueStruct(fzlib::String name, PositionInfo info);
+        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info);
+        IRStructDecl* defineStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info);
     };
 
+    // 作用于整个Program的Context
     class IRContext {
         std::unique_ptr<llvm::LLVMContext> llvmContext_;
 

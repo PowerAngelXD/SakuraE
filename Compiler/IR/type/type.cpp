@@ -205,6 +205,8 @@ namespace sakuraE::IR {
             structType = llvm::StructType::create(ctx, structTypeName.c_str());
         }
 
+        if (!isCompleteType) return structType;
+
         if (structType->isOpaque()) {
             std::vector<llvm::Type*> memberTypes;
             memberTypes.reserve(fields.size());
@@ -309,11 +311,24 @@ namespace sakuraE::IR {
         return fields;
     }
 
+    bool IRStructType::isComplete() const {
+        return isCompleteType;
+    }
+
     std::optional<IRStructType::FieldInfo> IRStructType::findMember(
         const fzlib::String& target) const {
         const auto it = fieldIndices.find(target);
         if (it == fieldIndices.end()) return std::nullopt;
         return fields[it->second];
+    }
+
+    void IRStructType::complete(std::vector<IRStructType::FieldInfo> fs) {
+        fields = std::move(fs);
+        isCompleteType = true;
+
+        for (std::size_t i = 0; i < fields.size(); i ++) {
+            fieldIndices[fields[i].name] = i;
+        }
     }
 
 }

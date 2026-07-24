@@ -2,6 +2,8 @@
 
 #include "Compiler/IR/model/struct.hpp"
 
+#include <Compiler/IR/type/type.hpp>
+#include <memory>
 #include <stdexcept>
 
 namespace sakuraE::IR {
@@ -21,26 +23,46 @@ namespace sakuraE::IR {
         return decl ? decl->getType() : nullptr;
     }
 
-    IRStructDecl* NamingContext::defineStruct(
-        fzlib::String name,
-        std::vector<std::pair<fzlib::String, IRType*>> fields,
-        PositionInfo info) {
+    IRStructDecl* NamingContext::declareOpaqueStruct(fzlib::String name, PositionInfo info) {
+        if (lookupStructDecl(name)) {
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                              "Duplicate struct definition: '" + name + "'",
+                              info);
+        }
+        auto opaqueType = std::unique_ptr<IRStructType>(new IRStructType(moduleID, name));
+        auto decl = std::make_unique<IRStructDecl>(moduleID, name, std::move(opaqueType), std::move(info));
+        auto* result = decl.get();
+        structDecls.emplace(name, std::move(decl));
+        return result;
+    }
+
+    void NamingContext::implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
+        if (!lookupStructDecl(name)) {
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                              "Unknown struct definition: '" + name + "'",
+                              info);
+        }
+
+        if (lookupStructDecl(name)->getType()->isComplete()) {
+            throw SakuraError(OccurredTerm::IR_GENERATING,
+                              "You cannot redefine a struct that has already been defined.",
+                              info);
+        }
+
+        lookupStructDecl(name)->complete(std::move(fields));
+    }
+
+    IRStructDecl* NamingContext::defineStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
         if (lookupStructDecl(name)) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
                               "Duplicate struct definition: '" + name + "'",
                               info);
         }
 
-        std::vector<IRStructType::FieldInfo> typeFields;
-        typeFields.reserve(fields.size());
-        for (auto& field: fields) {
-            typeFields.push_back({std::move(field.first), field.second});
-        }
-
         auto type = std::unique_ptr<IRStructType>(
-            new IRStructType(moduleID, name, std::move(typeFields)));
+            new IRStructType(moduleID, name, std::move(fields)));
         auto decl = std::make_unique<IRStructDecl>(
-            name, std::move(type), std::move(info));
+            moduleID, name, std::move(type), std::move(info));
         auto* result = decl.get();
         structDecls.emplace(std::move(name), std::move(decl));
         return result;
