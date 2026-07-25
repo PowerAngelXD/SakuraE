@@ -100,7 +100,7 @@ fzlib::String sakuraE::Token::toString() const {
     return "<" + content + ", " + typeToString() + ">";
 }
 
-sakuraE::Lexer::Lexer(const fzlib::String& source) 
+sakuraE::Lexer::Lexer(const fzlib::String& source)
     : source_code(source), current_pos(0), current_line(1), current_column(1) {}
 
 
@@ -117,7 +117,7 @@ char sakuraE::Lexer::next() {
         current_pos++;
         if (c == '\n') {
             current_line++;
-            current_column = 1; 
+            current_column = 1;
         } else {
             current_column++;
         }
@@ -128,7 +128,7 @@ char sakuraE::Lexer::next() {
 void sakuraE::Lexer::skip() {
     while (true) {
         char c = peek();
-        
+
         if (std::isspace(c)) {
             next();
             continue;
@@ -139,10 +139,10 @@ void sakuraE::Lexer::skip() {
             while (peek() != '\n' && peek() != '\0') {
                 next();
             }
-            continue; 
+            continue;
         }
 
-        break; 
+        break;
     }
 }
 
@@ -194,7 +194,7 @@ sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
     else if (isTypeField(content)) {
         type = str2TypeField(content);
         details = content;
-    } 
+    }
     else {
         type = TokenType::IDENTIFIER;
         details = "identifier";
@@ -237,8 +237,8 @@ sakuraE::Token sakuraE::Lexer::makeNumberLiteral() {
                         "Unknown suffix of number literal: " + suffix,
                         {current_line, current_column, "lexer error"});
     }
-    
-    
+
+
     return Token(type, content, start_line, start_column, details);
 }
 
@@ -263,7 +263,7 @@ sakuraE::Token sakuraE::Lexer::makeNonDecimalLiteral() {
             throw SakuraError(OccurredTerm::LEXER,
                             "Hexadecimal literals must consist of 0-9, a-f, or A-F.",
                             {current_line, current_column, "Lexer error"});
-        
+
         content += next();
     }
 
@@ -294,7 +294,7 @@ sakuraE::Token sakuraE::Lexer::makeStringLiteral() {
     TokenType type = TokenType::STRING;
     fzlib::String details = "string";
     fzlib::String content;
-    
+
     next();
 
     while (peek() != '\"' && peek() != '\0' && peek() != '\n') {
@@ -317,7 +317,7 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
     fzlib::String content;
     TokenType type = TokenType::UNKNOWN;
     fzlib::String details;
-    
+
     switch (peek()) {
         case '+':
             if (peek(1) == '=') {
@@ -535,21 +535,21 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
 
 std::vector<sakuraE::Token> sakuraE::Lexer::tokenize() {
     std::vector<Token> tokens;
-    
+
     while (peek() != '\0') {
-        skip(); 
-        if (peek() == '\0') break; 
+        skip();
+        if (peek() == '\0') break;
         char c = peek();
         Token token;
         if (std::isalpha(c) || c == '_') {
             token = makeIdentifierOrKeyword();
-        } 
+        }
         else if (c == '0' && (peek(1) == 'b' || peek(1) == 'x' || peek(1) == 'o')) {
             token = makeNonDecimalLiteral();
         }
         else if (std::isdigit(c) || (c == '-' && std::isdigit(peek(1)))) {
             token = makeNumberLiteral();
-        } 
+        }
         else if (c == '\"') {
             token = makeStringLiteral();
         }
@@ -559,10 +559,10 @@ std::vector<sakuraE::Token> sakuraE::Lexer::tokenize() {
         else {
             token = makeSymbol();
         }
-        
+
         tokens.push_back(token);
     }
-    
+
     tokens.push_back(Token(TokenType::_EOF_, "", current_line, current_column, "End of File"));
     return tokens;
 }
