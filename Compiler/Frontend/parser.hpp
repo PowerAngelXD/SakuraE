@@ -454,7 +454,44 @@ namespace sakuraE {
         NodePtr genResource() override;
     };
 
+    using StructInitExprParserRule =
+    ConnectionParser<
+        IdentifierExprParser,
+        TokenParser<TokenType::LEFT_BRACKET>,
+        ClosureParser<
+            ConnectionParser<
+                TokenParser<TokenType::IDENTIFIER>,
+                TokenParser<TokenType::CONSTRAINT_OP>,
+                WholeExprParser
+            >
+        >,
+        TokenParser<TokenType::RIGHT_BRACKET>
+    >;
+    class StructInitExprParser: public ResourceFetcher, public StructInitExprParserRule {
+    public:
+        StructInitExprParser(StructInitExprParserRule&& base) : StructInitExprParserRule(std::move(base)) {}
+
+        static bool check(TokenIter begin, TokenIter end) {
+            return StructInitExprParserRule::check(begin, end);
+        }
+
+        static Result<StructInitExprParser> parse(TokenIter begin, TokenIter end) {
+            auto result = StructInitExprParserRule::parse(begin, end);
+            if (result.status != ParseStatus::SUCCESS) {
+                return {result.status, nullptr, result.end, result.err, result.err_pos};
+            }
+
+            return {result.status,
+                    std::make_shared<StructInitExprParser>(std::move(*result.val)),
+                    result.end};
+        }
+
+        NodePtr genResource() override;
+    };
+
     using WholeExprParserRule = OptionsParser<
+        StructInitExprParser,
+        AddExprParser,
         AssignExprParser,
         BinaryExprParser,
         ArrayExprParser

@@ -19,6 +19,7 @@ LogicExpr -> AddExpr (('=='|'!='|'>'|'<'|'<='|'>=') AddExpr)*
 BinaryExpr -> LogicExpr (('||'|'&&') LogicExpr)*
 ArrayExpr -> '[' WholeExpr (',' WholeExpr)* ']'
 AssignExpr -> IdentifierExpr '=' | '+=' | '-=' | '/=' | '*=' WholeExpr
+StructInitExpr -> IdentifierExpr '{' ((<field> ':' WholeExpr) (',' (<field> ':' WholeExpr))* '}'
 
 WholeExpr -> AddExpr | BinaryExpr | ArrayExpr | AssignExpr
 

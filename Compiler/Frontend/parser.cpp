@@ -295,6 +295,29 @@ sakuraE::NodePtr sakuraE::AssignExprParser::genResource() {
     return root;
 }
 
+sakuraE::NodePtr sakuraE::StructInitExprParser::genResource() {
+    NodePtr root = std::make_shared<Node>(ASTTag::StructInitExprNode);
+
+    root->setInfo(std::get<1>(getTuple())->token->info);
+    root->addChild(std::get<0>(getTuple())->genResource());
+
+    (*root)[ASTTag::Members]; {
+        if (!std::get<2>(getTuple())->getClosure().empty()) {
+            for (auto memberNode: std::get<2>(getTuple())->getClosure()) {
+                NodePtr memberInitSection = std::make_shared<Node>(ASTTag::MemberInit);
+                memberInitSection->setInfo(std::get<0>(memberNode->getTuple())->token->info);
+
+                (*memberInitSection)[ASTTag::Identifier] = std::make_shared<Node>(std::get<0>(memberNode->getTuple())->token);
+                (*memberInitSection)[ASTTag::HeadExpr] = std::get<2>(memberNode->getTuple())->genResource();
+
+                (*root)[ASTTag::Members]->addChild(memberInitSection);
+            }
+        }
+    }
+
+    return root;
+}
+
 sakuraE::NodePtr sakuraE::WholeExprParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::WholeExprNode);
 
@@ -305,6 +328,9 @@ sakuraE::NodePtr sakuraE::WholeExprParser::genResource() {
 
         if constexpr (std::is_same_v<VarType, std::shared_ptr<AddExprParser>>) {
             (*root)[ASTTag::AddExprNode] = res;
+        }
+        else if constexpr (std::is_same_v<VarType, std::shared_ptr<StructInitExprParser>>) {
+            (*root)[ASTTag::StructInitExprNode] = res;
         }
         else if constexpr (std::is_same_v<VarType, std::shared_ptr<BinaryExprParser>>) {
             (*root)[ASTTag::BinaryExprNode] = res;
@@ -602,6 +628,8 @@ sakuraE::NodePtr sakuraE::FuncDefineStmtParser::genResource() {
 
 sakuraE::NodePtr sakuraE::StructDefineStmtParser::genResource() {
     NodePtr root = std::make_shared<Node>(ASTTag::StructDefineStmtNode);
+
+    root->setInfo(std::get<1>(getTuple())->token->info);
 
     (*root)[ASTTag::Identifier] = std::make_shared<Node>(std::get<1>(getTuple())->token);
     if (std::get<3>(getTuple())->isMatch()) {

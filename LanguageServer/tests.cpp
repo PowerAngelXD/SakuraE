@@ -90,6 +90,13 @@ int main() {
     assert(missingTerminator.err != nullptr);
     assert(std::string(missingTerminator.err->message().c_str()).find("Expected ';'") != std::string::npos);
 
+    sakuraE::Lexer addExpressionLexer(fzlib::String("1 + 2"));
+    const auto addExpressionTokens = addExpressionLexer.tokenize();
+    auto addExpression = sakuraE::WholeExprParser::parse(addExpressionTokens.cbegin(),
+                                                          addExpressionTokens.cend());
+    assert(addExpression.status == sakuraE::ParseStatus::SUCCESS);
+    assert(addExpression.val->genResource()->hasNode(sakuraE::ASTTag::AddExprNode));
+
     std::stringstream input;
     const std::string body = R"({"jsonrpc":"2.0","id":1,"method":"shutdown"})";
     input << "Content-Length: " << body.size() << "\r\n\r\n" << body;
