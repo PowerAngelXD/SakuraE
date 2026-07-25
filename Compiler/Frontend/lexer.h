@@ -36,6 +36,8 @@ namespace sakuraE {
         BIG_ARROW,       // =>
         SPACE_SHIP,      // <=>
         DOT,             // .
+        QUESTION,        // ?
+        SAFE_DOT,        // ?.
         COMMA,           // ,
         STMT_END,        // ;
         FN_OP,           // |>

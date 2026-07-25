@@ -57,6 +57,8 @@ fzlib::String sakuraE::tokenTypeToString(TokenType type) {
     case TokenType::COMMA: return "','";
     case TokenType::STMT_END: return "';'";
     case TokenType::FN_OP: return "'|>'";
+    case TokenType::QUESTION: return "'?'";
+    case TokenType::SAFE_DOT: return "'?.'";
     case TokenType::KEYWORD_LET: return "'let'";
     case TokenType::KEYWORD_IF: return "'if'";
     case TokenType::KEYWORD_ELSE: return "'else'";
@@ -471,6 +473,18 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
             else {
                 type = TokenType::AND;
                 content = "&";
+                next();
+            }
+            break;
+        case '?':
+            if (peek(1) == '.') {
+                type = TokenType::SAFE_DOT;
+                content = "?.";
+                next(); next();
+            }
+            else {
+                type = TokenType::QUESTION;
+                content = "?";
                 next();
             }
             break;
