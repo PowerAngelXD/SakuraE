@@ -104,11 +104,16 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
     root->setInfo((*root)[ASTTag::Exprs]->getChildren()[0]->getPosInfo());
 
     auto subs = std::get<2>(getTuple());
-    if (!subs->isEmpty()) {
-        for (auto unit: subs->getClosure()) {
-            (*root)[ASTTag::Exprs]->addChild(std::get<1>(unit->getTuple())->genResource());
-        }
-    }
+      for (auto unit : subs->getClosure()) {
+          auto& member = unit->getTuple();
+
+          auto separator = std::visit([](auto& parser) -> NodePtr {
+              return std::make_shared<Node>(parser->token);
+          }, std::get<0>(member)->option());
+
+          (*root)[ASTTag::MemberVisitOps]->addChild(separator);
+          (*root)[ASTTag::Exprs]->addChild(std::get<1>(member)->genResource());
+      }
 
     // 后置运算符
     std::visit([&](auto& var) {

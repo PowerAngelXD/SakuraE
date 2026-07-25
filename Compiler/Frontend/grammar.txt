@@ -9,7 +9,7 @@ Literal -> <number> | <string> | 'true' | 'false' | <char>
 IndexOp -> '[' AddExpr ']'
 CallingOp -> '(' WholeExpr (',' WholeExpr)* ')'
 AtomIdentifierExpr -> (Identifier | '(' IdentifierExpr ')') (IndexOp|CallingOp)*
-IdentifierExpr -> ('!' | ('++' | '--') | '*' | '&') AtomIdentifierExpr ('.' AtomIdentifierExpr) ('++' | '--')*
+IdentifierExpr -> ('!' | ('++' | '--') | '*' | '&') AtomIdentifierExpr ('.'|'?.' AtomIdentifierExpr) ('++' | '--')*
 InnerCallableOpExpr -> ('typeof'|'sizeof') CallingOp
 PrimExpr -> Literal | IdentifierExpr | InnerCallableOpExpr
 

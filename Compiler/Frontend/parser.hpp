@@ -157,7 +157,10 @@ namespace sakuraE {
         AtomIdentifierExprParser,
         ClosureParser<
             ConnectionParser<
-                TokenParser<TokenType::DOT>,
+                OptionsParser<
+                    TokenParser<TokenType::DOT>,
+                    TokenParser<TokenType::SAFE_DOT>
+                >,
                 AtomIdentifierExprParser
             >
         >,

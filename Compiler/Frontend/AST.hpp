@@ -34,7 +34,7 @@ namespace sakuraE {
         HeadExpr, Exprs, Op, Ops, PreOp,
         Types, Args, Type, AssignTerm,
         Condition, Block, Default, Cases, Case, Stmts,
-        Members, MemberDef, NullableTag,
+        Members, MemberDef, MemberVisitOps, NullableTag,
         // 关键字
         Typeof, Sizeof
     };
