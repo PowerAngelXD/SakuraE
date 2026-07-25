@@ -21,7 +21,8 @@ namespace sakuraE {
         TokenParser<TokenType::FLOAT_N>,
         TokenParser<TokenType::STRING>,
         TokenParser<TokenType::BOOL_CONST>,
-        TokenParser<TokenType::CHAR>
+        TokenParser<TokenType::CHAR>,
+        TokenParser<TokenType::NULL_LITERAL>
     >;
     class LiteralParser: public ResourceFetcher, public LiteralParserRule {
     public:
