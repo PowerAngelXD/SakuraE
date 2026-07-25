@@ -590,10 +590,10 @@ namespace sakuraE {
         OptionsParser<
             ClosureParser<TokenParser<TokenType::MUL>>,
             TokenParser<TokenType::AND>,
+            NullParser
         >,
         OptionsParser<
             TokenParser<TokenType::QUESTION>,
-            NullParser
             NullParser
         >
     >;
