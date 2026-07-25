@@ -63,6 +63,7 @@ fzlib::String sakuraE::tokenTypeToString(TokenType type) {
     case TokenType::KEYWORD_WHILE: return "'while'";
     case TokenType::KEYWORD_FOR: return "'for'";
     case TokenType::KEYWORD_FUNC: return "'func'";
+    case TokenType::NULL_LITERAL: return "'null'";
     case TokenType::KEYWORD_RETURN: return "'return'";
     case TokenType::KEYWORD_CONST: return "'const'";
     case TokenType::KEYWORD_RANGE: return "'range'";
@@ -184,6 +185,10 @@ sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
     if (isKeyword(content)) {
         if (content == "true" || content == "false") {
             type = TokenType::BOOL_CONST;
+            details = content;
+        }
+        else if (content == "null") {
+            type = TokenType::NULL_LITERAL;
             details = content;
         }
         else {

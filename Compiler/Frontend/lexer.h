@@ -20,7 +20,7 @@ namespace sakuraE {
 
         INT_N, FLOAT_N,
         STRING, CHAR,
-        BOOL_CONST,
+        BOOL_CONST, NULL_LITERAL,
 
         ADD, SUB, MUL, DIV, MOD,
         OR, AND,
@@ -93,7 +93,7 @@ namespace sakuraE {
             "return", "let", "const", "range", "true",
             "false", "break", "continue", "match", "repeat",
             "struct", "impl", "is", "typeof", "ref", "default",
-            "typeof", "sizeof"
+            "typeof", "sizeof", "null"
         };
 
         const std::vector<fzlib::String> typeFields = {
