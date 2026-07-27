@@ -411,7 +411,7 @@ sakuraE::NodePtr sakuraE::TypeModifierParser::genResource() {
         using VarType = std::decay_t<decltype(var)>;
 
         if constexpr (std::is_same_v<VarType, std::shared_ptr<TokenParser<TokenType::QUESTION>>>) {
-            (*root)[ASTTag::NullableTag];
+            (*root)[ASTTag::NullableTag]->setInfo(var->token->info);
         }
     }, std::get<2>(getTuple())->option());
 
