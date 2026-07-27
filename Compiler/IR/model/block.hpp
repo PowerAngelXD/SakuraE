@@ -47,7 +47,8 @@ namespace sakuraE::IR {
                                     "Cannot create any instruction after terminal code!",
                                     {0, 0, "InsideError"});
 
-            Instruction* ins = new Instruction(k, t, std::vector<IRValue*>{});
+            Instruction* ins = new Instruction(
+                k, t, TypeInfo::makeBasicTypeID(TypeID::Void), std::vector<IRValue*>{});
             ins->setParent(this);
             ins->setName(n);
             instructions.push_back(ins);
@@ -63,7 +64,8 @@ namespace sakuraE::IR {
                                         {0, 0, "InsideError"});
             }
 
-            Instruction* ins = new Instruction(k, t, params);
+            Instruction* ins = new Instruction(
+                k, t, TypeInfo::makeBasicTypeID(TypeID::Void), params);
             ins->setParent(this);
             ins->setName(n);
             instructions.push_back(ins);
@@ -77,7 +79,11 @@ namespace sakuraE::IR {
                                     "Cannot create any instruction after terminal code!",
                                     {0, 0, "InsideError"});
 
-            Instruction* ins = new Instruction(k, t, st, std::vector<IRValue*>{});
+            Instruction* ins = new Instruction(
+                k,
+                t,
+                st ? st : TypeInfo::makeBasicTypeID(TypeID::Void),
+                std::vector<IRValue*>{});
             ins->setParent(this);
             ins->setName(n);
             instructions.push_back(ins);
@@ -93,7 +99,11 @@ namespace sakuraE::IR {
                                         {0, 0, "InsideError"});
             }
 
-            Instruction* ins = new Instruction(k, t, st, params);
+            Instruction* ins = new Instruction(
+                k,
+                t,
+                st ? st : TypeInfo::makeBasicTypeID(TypeID::Void),
+                params);
             ins->setParent(this);
             ins->setName(n);
             instructions.push_back(ins);
@@ -102,7 +112,8 @@ namespace sakuraE::IR {
         }
 
         IRValue* insertBeforeTerminal(OpKind k, IRType* t, std::vector<IRValue*> params, const fzlib::String& n) {
-            Instruction* ins = new Instruction(k, t, params);
+            Instruction* ins = new Instruction(
+                k, t, TypeInfo::makeBasicTypeID(TypeID::Void), params);
             ins->setParent(this);
             ins->setName(n);
 
