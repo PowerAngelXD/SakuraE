@@ -11,19 +11,46 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/PowerAngelXD/SakuraE"
+    "url": "git+https://github.com/PowerAngelXD/SakuraE.git"
   },
   "contributes": {
-    "languages": [{
-      "id": "sak",
-      "aliases": ["SakuraE", "sak"],
-      "extensions": [".sak"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "sak",
-      "scopeName": "source.sak",
-      "path": "./syntaxes/sak.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "sak",
+        "aliases": [
+          "SakuraE",
+          "sak"
+        ],
+        "extensions": [
+          ".sak"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sak",
+        "scopeName": "source.sak",
+        "path": "./syntaxes/sak.tmLanguage.json"
+      }
+    ]
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/PowerAngelXD/SakuraE/issues"
+  },
+  "homepage": "https://github.com/PowerAngelXD/SakuraE#readme",
+  "dependencies": {
+    "vscode-languageclient": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/vscode": "^1.125.0",
+    "typescript": "^7.0.2"
   }
 }
