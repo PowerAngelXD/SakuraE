@@ -491,9 +491,9 @@ namespace sakuraE {
 
     using WholeExprParserRule = OptionsParser<
         StructInitExprParser,
-        AddExprParser,
         AssignExprParser,
         BinaryExprParser,
+        AddExprParser,
         ArrayExprParser
     >;
     class WholeExprParser: public ResourceFetcher, public WholeExprParserRule {
