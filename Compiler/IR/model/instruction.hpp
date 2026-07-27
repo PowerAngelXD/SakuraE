@@ -23,6 +23,9 @@ namespace sakuraE::IR {
         store,
         create_array,
         indexing,
+        create_struct,
+        struct_gaddr,
+        struct_safe_gaddr,
         call,
         load,
         gmem,
@@ -48,6 +51,10 @@ namespace sakuraE::IR {
 
         Block* parent = nullptr;
     public:
+        Instruction(OpKind kind, IRType* t, TypeInfo* st)
+            : IRValue(t, st), kind(kind) {}
+        Instruction(OpKind kind, IRType* t, TypeInfo* st, std::vector<IRValue*> params)
+            : IRValue(t, st), kind(kind), args(params) {}
         Instruction(OpKind k, IRType* t): IRValue(t), kind(k) {}
         Instruction(OpKind k, IRType* t, std::vector<IRValue*> params):
             IRValue(t), kind(k), args(params) {}
@@ -63,7 +70,9 @@ namespace sakuraE::IR {
                     kind == OpKind::indexing ||
                     kind == OpKind::param ||
                     kind == OpKind::gmem ||
-                    kind == OpKind::deref;
+                    kind == OpKind::deref ||
+                    kind == OpKind::struct_gaddr ||
+                    kind == OpKind::struct_safe_gaddr;
         }
 
         bool isRValue() {
@@ -82,7 +91,8 @@ namespace sakuraE::IR {
                     kind == OpKind::lgc_equal ||
                     kind == OpKind::lgc_not_equal ||
                     kind == OpKind::lgc_not ||
-                    kind == OpKind::load;
+                    kind == OpKind::load ||
+                    kind == OpKind::create_struct;
         }
 
         void setParent(Block* blk) {

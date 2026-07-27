@@ -42,12 +42,12 @@ namespace sakuraE::IR {
         }
 
         IRValue* createInstruction(OpKind k, IRType* t, const fzlib::String& n) {
-            if (instructions[instructions.size() - 1]->isTerminal())
+            if (!instructions.empty() && instructions.back()->isTerminal())
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                     "Cannot create any instruction after terminal code!",
                                     {0, 0, "InsideError"});
 
-            Instruction* ins = new Instruction(k, t, {});
+            Instruction* ins = new Instruction(k, t, std::vector<IRValue*>{});
             ins->setParent(this);
             ins->setName(n);
             instructions.push_back(ins);
@@ -64,6 +64,36 @@ namespace sakuraE::IR {
             }
 
             Instruction* ins = new Instruction(k, t, params);
+            ins->setParent(this);
+            ins->setName(n);
+            instructions.push_back(ins);
+
+            return ins;
+        }
+
+        IRValue* createInstruction(OpKind k, IRType* t, TypeInfo* st, const fzlib::String& n) {
+            if (!instructions.empty() && instructions.back()->isTerminal())
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                    "Cannot create any instruction after terminal code!",
+                                    {0, 0, "InsideError"});
+
+            Instruction* ins = new Instruction(k, t, st, std::vector<IRValue*>{});
+            ins->setParent(this);
+            ins->setName(n);
+            instructions.push_back(ins);
+
+            return ins;
+        }
+
+        IRValue* createInstruction(OpKind k, IRType* t, TypeInfo* st, std::vector<IRValue*> params, const fzlib::String& n) {
+            if (!instructions.empty()) {
+                if (instructions[instructions.size() - 1]->isTerminal())
+                    throw SakuraError(OccurredTerm::IR_GENERATING,
+                                        "Cannot create any instruction after terminal code!",
+                                        {0, 0, "InsideError"});
+            }
+
+            Instruction* ins = new Instruction(k, t, st, params);
             ins->setParent(this);
             ins->setName(n);
             instructions.push_back(ins);
