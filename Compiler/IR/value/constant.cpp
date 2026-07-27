@@ -17,6 +17,14 @@ namespace sakuraE::IR {
     static std::map<bool, Constant> boolConstants;
     static std::map<TypeInfo*, Constant> typeInfoConstants;
     static std::map<IRArray*, Constant> arrConstants;
+    static std::map<IRType*, Constant> nullConstants;
+
+    Constant* Constant::getNullHandle(IRType* ty, PositionInfo info) {
+        auto it = nullConstants.find(ty);
+        if (it != nullConstants.end()) return &it->second;
+        auto entry = nullConstants.emplace(ty, Constant(ty, info));
+        return &entry.first->second;
+    }
 
 
     Constant* Constant::get(std::uint32_t val, PositionInfo info) {
@@ -264,6 +272,7 @@ namespace sakuraE::IR {
         boolConstants.clear();
         typeInfoConstants.clear();
         arrConstants.clear();
+        nullConstants.clear();
     }
 
     llvm::Type* Constant::toLLVMType(llvm::LLVMContext& ctx) {

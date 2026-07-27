@@ -57,6 +57,8 @@ namespace sakuraE::IR {
             : IRValue(ty), content(val), createInfo(info) {}
         Constant(IRType* ty, IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
             : IRValue(ty), content(val), createInfo(info) {}
+        explicit Constant(IRType* ty, PositionInfo info)
+            : IRValue(ty), content(std::monostate{}), createInfo(info) {}
 
     public:
         static Constant* get(std::uint32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
@@ -70,6 +72,7 @@ namespace sakuraE::IR {
         static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* getNullHandle(IRType* ty, PositionInfo info);
         static Constant* getDefault(IRType* ty, PositionInfo info);
         static Constant* getFromToken(const Token& tok);
         static void clearAll();
@@ -86,6 +89,10 @@ namespace sakuraE::IR {
 
         const PositionInfo& getInfo() const {
             return createInfo;
+        }
+
+        bool isNullHandle() const {
+            return std::holds_alternative<std::monostate>(content);
         }
 
         fzlib::String toString() {
