@@ -118,12 +118,45 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
+    TypeInfo* TypeInfoPool::wrapTypeAsNullable(TypeInfo* type, PositionInfo info) {
+        if (!type) {
+            throw SakuraError(
+                OccurredTerm::IR_GENERATING,
+                "Cannot wrap a Null Type!",
+                info
+            );
+        }
+        else if (type->isNullable()) {
+            throw SakuraError(
+                OccurredTerm::IR_GENERATING,
+                "Cannot wrap a 'T?' as 'T?\\?'!",
+                info
+            );
+        }
+        else if (type->isPointer() || type->isRef() || type->isBasic()) {
+            throw SakuraError(
+                OccurredTerm::IR_GENERATING,
+                "Cannot wrap 'T*', 'ref T' or Basic Type as Nullable Type!",
+                info
+            );
+        }
+
+        auto it = nullableTypes.find(type);
+        if (it == nullableTypes.end()) {
+            it = nullableTypes.emplace(
+                type,
+                std::unique_ptr<TypeInfo>(new TypeInfo(type, TypeQualifier::Nullable))).first;
+        }
+        return it->second.get();
+    }
+
     void TypeInfoPool::clear() {
         refTypes.clear();
         pointerTypes.clear();
         arrayTypes.clear();
         structTypes.clear();
         primaryTypes.clear();
+        nullableTypes.clear();
     }
 
     TypeInfo* TypeInfo::makeBasicTypeID(TypeID typeID) {
@@ -144,6 +177,10 @@ namespace sakuraE::IR {
 
     TypeInfo* TypeInfo::makeStructTypeID(IRStructType* type) {
         return IRContext::current().typeInfoPool().makeStructTypeID(type);
+    }
+
+    TypeInfo* TypeInfo::wrapTypeAsNullable(TypeInfo* type, PositionInfo info) {
+        return IRContext::current().typeInfoPool().wrapTypeAsNullable(type, info);
     }
 
     void TypeInfo::clearAll() {
