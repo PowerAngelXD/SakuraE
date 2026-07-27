@@ -461,10 +461,28 @@ namespace sakuraE::IR {
             return resultTyInfo;
         }
 
+        fzlib::String mangleTypeName(IRType* type) {
+            if (type->isStruct()) {
+                return static_cast<IRStructType*>(type)->getName();
+            }
+            if (type->isArray()) {
+                auto* arrayType = static_cast<IRArrayType*>(type);
+                return mangleTypeName(arrayType->getElementType()) + "[" +
+                       std::to_string(arrayType->getNumElements()) + "]";
+            }
+            if (type->isPointer()) {
+                return mangleTypeName(static_cast<IRPointerType*>(type)->getElementType()) + "*";
+            }
+            if (type->isRef()) {
+                return mangleTypeName(static_cast<IRRefType*>(type)->getElementType()) + "&";
+            }
+            return type->toString();
+        }
+
         fzlib::String mangleFnName(fzlib::String n, FormalParamsDefine args) {
             fzlib::String result = n;
             for (auto ty: args) {
-                result += "_" + ty.second->toString();
+                result += "_" + mangleTypeName(ty.second);
             }
             return result;
         }
@@ -472,7 +490,7 @@ namespace sakuraE::IR {
         fzlib::String mangleFnName(fzlib::String n, std::vector<IRType*> args) {
             fzlib::String result = n;
             for (auto ty: args) {
-                result += "_" + ty->toString();
+                result += "_" + mangleTypeName(ty);
             }
             return result;
         }
