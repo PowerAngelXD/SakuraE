@@ -565,6 +565,11 @@ namespace sakuraE::Codegen {
         }
 
         llvm::Value* boxConstant(IR::Constant* constant, LLVMFunction* curFn) {
+            if (constant->isNullHandle()) {
+                auto* llvmType = constant->getType()->toLLVMType(*context);
+                llvm::Constant* zero = llvm::Constant::getNullValue(llvmType);
+                return boxRaw(zero, constant->getType(), curFn);
+            }
             switch (constant->getType()->getIRTypeID()) {
                 case IR::IRTypeID::Integer32TyID:
                     return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), constant->getType(), curFn);
