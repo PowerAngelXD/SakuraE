@@ -134,7 +134,7 @@ sakuraE::NodePtr sakuraE::IdentifierExprParser::genResource() {
 }
 
 sakuraE::NodePtr sakuraE::InnerCallableOpExprParser::genResource() {
-    NodePtr root = std::make_shared<Node>(ASTTag::InnerCallabeOpExprNode);
+    NodePtr root = std::make_shared<Node>(ASTTag::InnerCallableOpExprNode);
     std::visit([&](auto& var) {
         using VarType = std::decay_t<decltype(var)>;
 
@@ -167,8 +167,8 @@ sakuraE::NodePtr sakuraE::PrimExprParser::genResource() {
             root->setInfo((*root)[ASTTag::Identifier]->getPosInfo());
         }
         else if constexpr (std::is_same_v<VarType, std::shared_ptr<InnerCallableOpExprParser>>) {
-            (*root)[ASTTag::InnerCallabeOpExprNode] = var->genResource();
-            root->setInfo((*root)[ASTTag::InnerCallabeOpExprNode]->getPosInfo());
+            (*root)[ASTTag::InnerCallableOpExprNode] = var->genResource();
+            root->setInfo((*root)[ASTTag::InnerCallableOpExprNode]->getPosInfo());
         }
         else {
             root->setInfo(std::get<0>(var->getTuple())->token->info);

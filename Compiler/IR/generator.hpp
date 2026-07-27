@@ -605,8 +605,8 @@ namespace sakuraE::IR {
                     return lookup((*atom)[ASTTag::Identifier]->getToken().content,
                                   identifier->getPosInfo())->getType();
                 }
-                if (node->hasNode(ASTTag::InnerCallabeOpExprNode)) {
-                    auto inner = (*node)[ASTTag::InnerCallabeOpExprNode];
+                if (node->hasNode(ASTTag::InnerCallableOpExprNode)) {
+                    auto inner = (*node)[ASTTag::InnerCallableOpExprNode];
                     if (inner->hasNode(ASTTag::Sizeof))
                         return IRType::getUInt64Ty();
                     return IRType::getTypeInfoTy();

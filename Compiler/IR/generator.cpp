@@ -487,8 +487,8 @@ namespace sakuraE::IR {
         if (node->hasNode(ASTTag::Literal)) {
             return visitLiteralNode((*node)[ASTTag::Literal]);
         }
-        else if (node->hasNode(ASTTag::InnerCallabeOpExprNode)) {
-            return visitInnerCallableExprNode((*node)[ASTTag::InnerCallabeOpExprNode]);
+        else if (node->hasNode(ASTTag::InnerCallableOpExprNode)) {
+            return visitInnerCallableExprNode((*node)[ASTTag::InnerCallableOpExprNode]);
         }
         else if (node->hasNode(ASTTag::Identifier)) {
             auto result = visitIdentifierExprNode((*node)[ASTTag::Identifier]);

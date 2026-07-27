@@ -22,7 +22,7 @@ namespace sakuraE {
         IdentifierExprNode, PrimExprNode, MulExprNode, AddExprNode,
         LogicExprNode, BinaryExprNode, ArrayExprNode, WholeExprNode,
         BasicTypeModifierNode, ArrayTypeModifierNode, TypeModifierNode,
-        AssignExprNode, RangeExprNode, InnerCallabeOpExprNode, StructInitExprNode,
+        AssignExprNode, RangeExprNode, InnerCallableOpExprNode, StructInitExprNode,
         // 语句节点
         DeclareStmtNode, ExprStmtNode, IfStmtNode, ElseStmtNode,
         WhileStmtNode, ForStmtNode, BlockStmtNode, FuncDefineStmtNode,
