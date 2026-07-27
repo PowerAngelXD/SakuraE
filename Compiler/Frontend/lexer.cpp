@@ -424,7 +424,7 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
                 content = "==";
                 next(); next();
             }
-            if (peek(1) == '>') {
+            else if (peek(1) == '>') {
                 type = TokenType::BIG_ARROW;
                 content = "=>";
                 next(); next();
