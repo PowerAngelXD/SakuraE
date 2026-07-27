@@ -12,7 +12,8 @@ namespace sakuraE::IR {
     struct Symbol: public IRValue {
         T address = nullptr;
 
-        Symbol(fzlib::String n, T addr, IRType* t): IRValue(t, n), address(addr) {}
+        Symbol(fzlib::String n, T addr, IRType* t, TypeInfo* st = nullptr):
+            IRValue(t, st, std::move(n)), address(addr) {}
     };
 
     template<typename T>
@@ -36,8 +37,8 @@ namespace sakuraE::IR {
             parent = scope;
         }
 
-        void declare(fzlib::String n, T addr, IRType* t) {
-            top().emplace(n, Symbol(n, addr, t));
+        void declare(fzlib::String n, T addr, IRType* t, TypeInfo* st = nullptr) {
+            top().emplace(n, Symbol(n, addr, t, st));
         }
 
         void enter() {

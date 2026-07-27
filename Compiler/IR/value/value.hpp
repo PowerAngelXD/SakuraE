@@ -2,17 +2,33 @@
 #define SAKURAE_VALUE_HPP
 
 #include "Compiler/IR/type/type.hpp"
+#include "Compiler/IR/type/type_info.hpp"
 #include "Compiler/Frontend/lexer.h"
 #include <string>
+#include <utility>
 
 namespace sakuraE::IR {
     class IRValue {
     protected:
-        IRType* type;
+        IRType* type = nullptr;
+        TypeInfo* semanticType = nullptr;
         fzlib::String name;
     public:
-        explicit IRValue(IRType* ty, fzlib::String n) : type(ty), name(n) {}
-        explicit IRValue(IRType* ty) : type(ty) {}
+        IRValue(IRType* storageType, TypeInfo* semanticType,
+            fzlib::String valueName)
+        : type(storageType),
+          semanticType(semanticType),
+          name(std::move(valueName)) {}
+
+        explicit IRValue(IRType* storageType, TypeInfo* semanticType)
+            : IRValue(storageType, semanticType, {}) {}
+
+        explicit IRValue(IRType* storageType, fzlib::String valueName)
+            : IRValue(storageType, nullptr, std::move(valueName)) {}
+
+        explicit IRValue(IRType* storageType)
+            : IRValue(storageType, nullptr, {}) {}
+
         virtual ~IRValue() = default;
 
         IRType* getType() const { return type; }
@@ -27,6 +43,14 @@ namespace sakuraE::IR {
 
         const fzlib::String& getName() {
             return name;
+        }
+
+        TypeInfo* getSemanticType() const {
+            return semanticType;
+        }
+
+        void setSemanticType(TypeInfo* newTypeInfo) {
+            semanticType = newTypeInfo;
         }
     };
 
