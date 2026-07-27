@@ -641,7 +641,11 @@ sakuraE::NodePtr sakuraE::StructDefineStmtParser::genResource() {
             std::visit([&](auto& var) {
                 using VarType = std::decay_t<decltype(var)>;
 
-                if constexpr (std::is_same_v<VarType, ConnectionParser<TokenParser<TokenType::ASSIGN_OP>,WholeExprParser>>) {
+                if constexpr (std::is_same_v<
+                                  VarType,
+                                  std::shared_ptr<ConnectionParser<
+                                      TokenParser<TokenType::ASSIGN_OP>,
+                                      WholeExprParser>>>) {
                     memberDef->addChild(std::get<1>(var->getTuple())->genResource());
                 }
             }, std::get<3>(member->getTuple())->option());
