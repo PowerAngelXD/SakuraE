@@ -13,7 +13,7 @@ namespace sakuraE::IR {
     class Module;
 
     // SakuraE 函数
-    class Function: public IRValue {
+    class Function: public CallableValue {
         fzlib::String rawName;
         IRType* returnType;
         FormalParamsDefine formalParams;
@@ -39,24 +39,31 @@ namespace sakuraE::IR {
         Module* parent;
     public:
         Function(fzlib::String n, IRType* retType, PositionInfo info):
-            IRValue(IRType::getFunctionTy(retType, {}), n), returnType(retType), funcScope(info), createInfo(info) {}
+            CallableValue(IRType::getFunctionTy(retType, {}), n),
+            returnType(retType), funcScope(info), createInfo(info) {}
 
         // 仅用于预声明
         Function(fzlib::String n, PositionInfo info):
-            IRValue(nullptr, n), returnType(nullptr), formalParams({}), funcScope(info), createInfo(info) {}
+            CallableValue(nullptr, n), returnType(nullptr), formalParams({}),
+            funcScope(info), createInfo(info) {}
 
-        Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info):
-            IRValue(IRType::getFunctionTy(retType,
+        Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info,
+                 std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr):
+            CallableValue(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {
                         result.push_back(param.second);
                     }
                     return result;
-                }()), n), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
+                }()), n), returnType(retType), formalParams(params),
+                funcScope(info), createInfo(info) {
+            setFuncSemanticSignature(std::make_shared<FuncSemanticSignature>(
+                FuncSemanticSignature{std::move(semanticParams), semanticReturn}));
+        }
 
         Function(fzlib::String n, fzlib::String raw, IRType* retType, FormalParamsDefine params, PositionInfo info):
-            IRValue(IRType::getFunctionTy(retType,
+            CallableValue(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {
@@ -89,9 +96,13 @@ namespace sakuraE::IR {
 
         fzlib::String getRawName() { return rawName; }
 
-        void setFuncDefineInfo(FormalParamsDefine params, IRType* retType) {
+        void setFuncDefineInfo(FormalParamsDefine params, IRType* retType,
+                               std::vector<TypeInfo*> semanticParams = {},
+                               TypeInfo* semanticReturn = nullptr) {
             formalParams = params;
             returnType = retType;
+            setFuncSemanticSignature(std::make_shared<FuncSemanticSignature>(
+                FuncSemanticSignature{std::move(semanticParams), semanticReturn}));
 
             setType(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
@@ -118,6 +129,17 @@ namespace sakuraE::IR {
 
         IRType* getReturnType() {
             return returnType;
+        }
+
+        TypeInfo* getSemanticReturnType() const {
+            auto signature = getFuncSemanticSignature();
+            return signature ? signature->returnType : nullptr;
+        }
+
+        const std::vector<TypeInfo*>& getSemanticParamTypes() const {
+            static const std::vector<TypeInfo*> empty;
+            auto signature = getFuncSemanticSignature();
+            return signature ? signature->paramTypes : empty;
         }
 
         std::vector<IRType*> getParamsOnlyType() {

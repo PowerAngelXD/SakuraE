@@ -7,6 +7,7 @@
 #include "Compiler/IR/type/type.hpp"
 #include "function.hpp"
 #include <map>
+#include <cstring>
 
 namespace sakuraE::IR {
     class Program;
@@ -48,8 +49,10 @@ namespace sakuraE::IR {
             return program;
         }
 
-        IRValue* buildFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
-            Function* func = new Function(name, retType, params, info);
+        IRValue* buildFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info,
+                               std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr) {
+            Function* func = new Function(name, retType, params, info,
+                                          std::move(semanticParams), semanticReturn);
             func->setName(name);
             func->buildBlock("entry");
             func->setParent(this);
@@ -155,6 +158,25 @@ namespace sakuraE::IR {
 
         std::vector<Function*> getFunctions() {
             return fnList;
+        }
+
+        std::vector<Function*> findFunctionCandidates(
+            const fzlib::String& rawName,
+            std::size_t arity
+        ) const {
+            std::vector<Function*> result;
+            const auto prefix = rawName + "_";
+            for (auto* fn : fnList) {
+                const auto& name = fn->getName();
+                const bool sameName = arity == 0
+                    ? name == rawName
+                    : (name.len() > prefix.len() &&
+                       std::strncmp(name.c_str(), prefix.c_str(), prefix.len()) == 0);
+                if (sameName && fn->getFormalParams().size() == arity) {
+                    result.push_back(fn);
+                }
+            }
+            return result;
         }
 
         long& cur() {
