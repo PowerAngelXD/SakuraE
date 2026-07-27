@@ -3,6 +3,15 @@
 #include "Compiler/IR/context.hpp"
 
 namespace sakuraE::IR {
+    bool isAssignableTo(const TypeInfo* source, const TypeInfo* target) {
+        if (!source || !target) return false;
+        if (source == target) return true;
+
+        return source->getBase() == target->getBase()
+            && !source->isNullable()
+            && target->isNullable();
+    }
+
     namespace {
         IRType* tid2IRType(IRContext& context, TypeID typeID) {
             switch (typeID) {

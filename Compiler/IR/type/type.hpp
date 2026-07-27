@@ -13,6 +13,8 @@
 
 namespace sakuraE::IR {
     class IRContext;
+    class TypeInfo;
+    class Constant;
     enum IRTypeID {
         VoidTyID,
         Integer32TyID,
@@ -251,6 +253,8 @@ namespace sakuraE::IR {
         struct FieldInfo {
             fzlib::String name;
             IRType* type;
+            TypeInfo* semanticType;
+            Constant* defaultValue = nullptr;
             PositionInfo info;
         };
 

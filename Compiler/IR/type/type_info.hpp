@@ -39,6 +39,8 @@ namespace sakuraE::IR {
         Nullable
     };
 
+    bool isAssignableTo(const TypeInfo* source, const TypeInfo* target);
+
     class ArrayTypeInfo {
         TypeInfo* elementType;
         std::uint64_t elementCount;
@@ -82,7 +84,7 @@ namespace sakuraE::IR {
         friend class TypeInfoPool;
 
         IRContext& context;
-        TypeQualifier qualifier = TypeQualifier::Normal;
+        const TypeQualifier qualifier;
         TypeID typeID;
         std::variant<
             std::monostate,
@@ -116,8 +118,11 @@ namespace sakuraE::IR {
             : context(ctx), qualifier(TypeQualifier::Normal), typeID(Struct), complexTypeInfo(StructTypeInfo(structType)) {}
 
         TypeInfo(TypeInfo* b, TypeQualifier qk)
-            : context(b->context), qualifier(qk), typeID(b->typeID), complexTypeInfo(b->complexTypeInfo), base(b) {
-
+            : context(b->context), qualifier(qk), typeID(b->typeID),
+              complexTypeInfo(b->complexTypeInfo), base(b) {
+            if (qk != TypeQualifier::Nullable) {
+                throw std::invalid_argument("Only nullable TypeInfo wrappers are supported");
+            }
         }
     public:
         ~TypeInfo() = default;
@@ -140,6 +145,26 @@ namespace sakuraE::IR {
 
         const TypeInfo* getBase() const {
             return isNullable() ? base : this;
+        }
+
+        TypeInfo* getElementType() const {
+            if (!isArray()) return nullptr;
+            return std::get<ArrayTypeInfo>(complexTypeInfo).getElementTy();
+        }
+
+        TypeInfo* getPointeeType() const {
+            if (isPointer()) {
+                return std::get<PointerTypeInfo>(complexTypeInfo).getElementTy();
+            }
+            if (isRef()) {
+                return std::get<RefTypeInfo>(complexTypeInfo).getElementTy();
+            }
+            return nullptr;
+        }
+
+        IRStructType* getStructType() const {
+            if (!isStruct()) return nullptr;
+            return std::get<StructTypeInfo>(complexTypeInfo).getType();
         }
 
         IRType* toIRType() const;
