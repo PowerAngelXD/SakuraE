@@ -30,6 +30,21 @@ namespace sakuraE::IR {
         std::vector<NodePtr> parsedStatements;
         bool hasGenerated = false;
 
+        TypeInfo* semanticTypeForStorage(IRType* type) {
+            switch (type->getIRTypeID()) {
+                case Integer32TyID: return TypeInfo::makeBasicTypeID(TypeID::Int32);
+                case Integer64TyID: return TypeInfo::makeBasicTypeID(TypeID::Int64);
+                case UInteger32TyID: return TypeInfo::makeBasicTypeID(TypeID::UInt32);
+                case UInteger64TyID: return TypeInfo::makeBasicTypeID(TypeID::UInt64);
+                case Float32TyID: return TypeInfo::makeBasicTypeID(TypeID::Float32);
+                case Float64TyID: return TypeInfo::makeBasicTypeID(TypeID::Float64);
+                case BoolTyID: return TypeInfo::makeBasicTypeID(TypeID::Bool);
+                case CharTyID: return TypeInfo::makeBasicTypeID(TypeID::Char);
+                case StringTyID: return TypeInfo::makeBasicTypeID(TypeID::String);
+                default: return nullptr;
+            }
+        }
+
         Symbol<IRValue*>* lookup(fzlib::String n, PositionInfo info) {
             auto result = curFunc()->fnScope().lookup(n);
             if (!result) {
@@ -57,6 +72,7 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(OpKind::load,
                         addr->getType(),
+                        addr->getSemanticType(),
                         {addr},
                         "load." + addr->getName());
             }
@@ -94,6 +110,7 @@ namespace sakuraE::IR {
                             ->curBlock()
                             ->createInstruction(OpKind::store,
                                                 addr->getType(),
+                                                addr->getSemanticType(),
                                                 {addr, value},
                                                 "store." + addr->getName());
             }
@@ -104,7 +121,7 @@ namespace sakuraE::IR {
             }
         }
 
-        IRValue* createParam(fzlib::String name, IRType* ty, PositionInfo info) {
+        IRValue* createParam(fzlib::String name, IRType* ty, TypeInfo* semanticType, PositionInfo info) {
             IRType* finalType = ty;
 
             auto param = curFunc()
@@ -112,15 +129,16 @@ namespace sakuraE::IR {
                             ->createInstruction(
                                 OpKind::param,
                                 finalType,
+                                semanticType,
                                 {},
                                 "param." + name
                             );
-            curFunc()->fnScope().declare(name, param, finalType);
+            curFunc()->fnScope().declare(name, param, finalType, semanticType);
 
             return param;
         }
 
-        IRValue* createAlloca(fzlib::String n, IRType* ty, IRValue* initVal, PositionInfo info) {
+        IRValue* createAlloca(fzlib::String n, IRType* ty, TypeInfo* semanticType, IRValue* initVal, PositionInfo info) {
             if (initVal && !ty->isEqual(initVal->getType())) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Cannot declare a variable with a type that differs from the assigned value's type. Target is: " + ty->toString() + ", but actually is: " + initVal->getType()->toString(),
@@ -131,10 +149,11 @@ namespace sakuraE::IR {
                 ->curBlock()
                 ->createInstruction(OpKind::create_alloca,
                                     ty,
+                                    semanticType,
                                     {initVal?initVal:(ty->isComplexType()?nullptr:Constant::getDefault(ty, info))},
                                     "create_alloca." + n);
 
-            curFunc()->fnScope().declare(n, addr, ty);
+            curFunc()->fnScope().declare(n, addr, ty, semanticType);
 
             return addr;
         }
@@ -264,42 +283,112 @@ namespace sakuraE::IR {
 
                 switch (token.type) {
                     case TokenType::TYPE_I32:    {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                        );
+                }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Int32);
                         break;
                     }
                     case TokenType::TYPE_I64:    {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                                OccurredTerm::IR_GENERATING,
+                                "Cannot wrap Basic Type as Nullable Type!",
+                                (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Int64);
                         break;
                     }
                     case TokenType::TYPE_UI32:   {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                                OccurredTerm::IR_GENERATING,
+                                "Cannot wrap Basic Type as Nullable Type!",
+                                (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::UInt32);
                         break;
                     }
                     case TokenType::TYPE_UI64:   {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::UInt64);
                         break;
                     }
                     case TokenType::TYPE_F32:    {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Float32);
                         break;
                     }
                     case TokenType::TYPE_F64:    {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Float64);
                         break;
                     }
                     case TokenType::TYPE_CHAR:   {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Char);
                         break;
                     }
                     case TokenType::TYPE_BOOL:   {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Bool);
                         break;
                     }
                     case TokenType::TYPE_STRING: {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::String);
                         break;
                     }
                     case TokenType::TYPE_VOID: {
+                        if (node->hasNode(ASTTag::NullableTag)) {
+                            throw SakuraError(
+                            OccurredTerm::IR_GENERATING,
+                            "Cannot wrap Basic Type as Nullable Type!",
+                            (*node)[ASTTag::NullableTag]->getPosInfo()
+                            );
+                        }
                         resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Void);
                         break;
                     }
@@ -334,20 +423,39 @@ namespace sakuraE::IR {
                     );
                 }
 
+                if (node->hasNode(ASTTag::NullableTag)) {
+                    currentType = TypeInfo::wrapTypeAsNullable(currentType, (*node)[ASTTag::NullableTag]->getPosInfo());
+                }
+
                 resultTyInfo = currentType;
             }
 
             // 指针或引用
-
             if (node->hasNode(ASTTag::Op)) {
                 // 判断是否为引用类型信息
                 resultTyInfo = TypeInfo::makeRefTypeID(resultTyInfo);
+
+                if (node->hasNode(ASTTag::NullableTag)) {
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "Cannot wrap Ref Type as Nullable Type!",
+                        (*node)[ASTTag::NullableTag]->getPosInfo()
+                    );
+                }
             }
             else if (node->hasNode(ASTTag::Ops)) {
                 // 判断是否为指针类型信息
                 auto ptrDepth = (*node)[ASTTag::Ops]->getChildren().size();
                 for (std::size_t i = 0; i < ptrDepth; i ++)
                     resultTyInfo = TypeInfo::makePointerTypeID(resultTyInfo);
+
+                if (node->hasNode(ASTTag::NullableTag)) {
+                    throw SakuraError(
+                        OccurredTerm::IR_GENERATING,
+                        "Cannot wrap Pointer Type as Nullable Type!",
+                        (*node)[ASTTag::NullableTag]->getPosInfo()
+                    );
+                }
             }
 
             return resultTyInfo;

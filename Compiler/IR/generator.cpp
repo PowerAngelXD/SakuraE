@@ -58,12 +58,14 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
         auto literal = Constant::getFromToken((*node)[ASTTag::Literal]->getToken());
+        auto semanticType = semanticTypeForStorage(literal->getType());
 
         return curFunc()
             ->curBlock()
             ->createInstruction(
                 OpKind::constant,
                 literal->getType(),
+                semanticType,
                 {literal},
                 "const." + literal->toString()
             );
@@ -275,6 +277,7 @@ namespace sakuraE::IR {
                         ->createInstruction(
                             OpKind::lgc_not,
                             IRType::getBoolTy(),
+                            TypeInfo::makeBasicTypeID(TypeID::Bool),
                             {resultValue},
                             "lgc_not." + resultValue->getName()
                         );
@@ -288,6 +291,7 @@ namespace sakuraE::IR {
                         ->createInstruction(
                             OpKind::add,
                             handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
+                            semanticTypeForStorage(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             {resultValue, Constant::get(1)},
                             "add"
                         );
@@ -302,6 +306,7 @@ namespace sakuraE::IR {
                         ->createInstruction(
                             OpKind::sub,
                             handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
+                            semanticTypeForStorage(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             {resultValue, Constant::get(1)},
                             "sub"
                         );
@@ -512,19 +517,25 @@ namespace sakuraE::IR {
                     case TokenType::MUL: {
                         lhs = curFunc()
                             ->curBlock()
-                            ->createInstruction(OpKind::mul, handleUnlogicalBinaryCalc(lhs, rhs), {lhs, rhs}, "mul");
+                            ->createInstruction(OpKind::mul, handleUnlogicalBinaryCalc(lhs, rhs),
+                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                {lhs, rhs}, "mul");
                         break;
                     }
                     case TokenType::DIV: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::div, handleUnlogicalBinaryCalc(lhs, rhs), {lhs, rhs}, "div");
+                            ->createInstruction(OpKind::div, handleUnlogicalBinaryCalc(lhs, rhs),
+                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                {lhs, rhs}, "div");
                         break;
                     }
                     case TokenType::MOD: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::mod, handleUnlogicalBinaryCalc(lhs, rhs), {lhs, rhs}, "mod");
+                            ->createInstruction(OpKind::mod, handleUnlogicalBinaryCalc(lhs, rhs),
+                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                {lhs, rhs}, "mod");
                         break;
                     }
                     default:
@@ -552,13 +563,17 @@ namespace sakuraE::IR {
                     case TokenType::ADD: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::add, handleUnlogicalBinaryCalc(lhs, rhs), {lhs, rhs}, "add");
+                            ->createInstruction(OpKind::add, handleUnlogicalBinaryCalc(lhs, rhs),
+                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                {lhs, rhs}, "add");
                         break;
                     }
                     case TokenType::SUB: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::sub, handleUnlogicalBinaryCalc(lhs, rhs), {lhs, rhs}, "sub");
+                            ->createInstruction(OpKind::sub, handleUnlogicalBinaryCalc(lhs, rhs),
+                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                {lhs, rhs}, "sub");
                         break;
                     }
                     default:
@@ -586,37 +601,49 @@ namespace sakuraE::IR {
                     case TokenType::LGC_LS_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_ls_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_ls_than");
+                            ->createInstruction(OpKind::lgc_ls_than, IRType::getBoolTy(),
+                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                                {lhs, rhs}, "lgc_ls_than");
                         break;
                     }
                     case TokenType::LGC_LSEQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_eq_ls_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_eq_ls_than");
+                            ->createInstruction(OpKind::lgc_eq_ls_than, IRType::getBoolTy(),
+                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                                {lhs, rhs}, "lgc_eq_ls_than");
                         break;
                     }
                     case TokenType::LGC_MR_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_mr_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_mr_than");
+                            ->createInstruction(OpKind::lgc_mr_than, IRType::getBoolTy(),
+                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                                {lhs, rhs}, "lgc_mr_than");
                         break;
                     }
                     case TokenType::LGC_MREQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_eq_mr_than, IRType::getBoolTy(), {lhs, rhs}, "lgc_eq_mr_than");
+                            ->createInstruction(OpKind::lgc_eq_mr_than, IRType::getBoolTy(),
+                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                                {lhs, rhs}, "lgc_eq_mr_than");
                         break;
                     }
                     case TokenType::LGC_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_equal, IRType::getBoolTy(), {lhs, rhs}, "lgc_equal");
+                            ->createInstruction(OpKind::lgc_equal, IRType::getBoolTy(),
+                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                                {lhs, rhs}, "lgc_equal");
                         break;
                     }
                     case TokenType::LGC_NOT_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::lgc_not_equal, IRType::getBoolTy(), {lhs, rhs}, "lgc_not_equal");
+                            ->createInstruction(OpKind::lgc_not_equal, IRType::getBoolTy(),
+                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                                {lhs, rhs}, "lgc_not_equal");
                         break;
                     }
                     default:
@@ -639,7 +666,9 @@ namespace sakuraE::IR {
         static int binaryID = 0;
         fzlib::String resultAddrName = "tbv." + std::to_string(binaryID);
         binaryID ++;
-        IRValue* resultAddr = createAlloca(resultAddrName, IRType::getBoolTy(), lhs, node->getPosInfo());
+        IRValue* resultAddr = createAlloca(resultAddrName, IRType::getBoolTy(),
+                                           TypeInfo::makeBasicTypeID(TypeID::Bool),
+                                           lhs, node->getPosInfo());
 
         if (node->hasNode(ASTTag::Ops)) {
             auto opChain = (*node)[ASTTag::Ops]->getChildren();
@@ -702,7 +731,9 @@ namespace sakuraE::IR {
         Symbol<IRValue*>* symbol = curFunc()->fnScope().lookup(resultAddrName);
         return curFunc()
                         ->curBlock()
-                        ->createInstruction(OpKind::load, symbol->getType(), {symbol->address}, "load." + resultAddrName);
+                        ->createInstruction(OpKind::load, symbol->getType(),
+                                            symbol->getSemanticType(),
+                                            {symbol->address}, "load." + resultAddrName);
     }
 
     IRValue* IRGenerator::visitArrayExprNode(NodePtr node) {
@@ -729,8 +760,9 @@ namespace sakuraE::IR {
         return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::create_array,
-                                        arrConstant->getType(),
-                                        {arrConstant},
+                                         arrConstant->getType(),
+                                         TypeInfo::makeArrayTypeID(head->getSemanticType(), rawArray.size()),
+                                         {arrConstant},
                                         "create-array");
     }
 
@@ -861,7 +893,13 @@ namespace sakuraE::IR {
             allocaTy = typeInfo->toIRType();
         }
 
-        return createAlloca(identifier.content, allocaTy, initVal, node->getPosInfo());
+        TypeInfo* semanticType = initVal ? initVal->getSemanticType() : nullptr;
+        if (typeInfoIRValue) {
+            auto inst = dynamic_cast<Instruction*>(typeInfoIRValue);
+            auto typeInfoConst = static_cast<Constant*>(inst->getOperands()[0]);
+            semanticType = typeInfoConst->getContentValue<TypeInfo*>();
+        }
+        return createAlloca(identifier.content, allocaTy, semanticType, initVal, node->getPosInfo());
     }
 
     IRValue* IRGenerator::visitExprStmtNode(NodePtr node) {
@@ -1069,6 +1107,7 @@ namespace sakuraE::IR {
         IRValue* counter = createAlloca(
             "$repeat_counter." + std::to_string(repeat_counter),
             IRType::getInt32Ty(),
+            TypeInfo::makeBasicTypeID(TypeID::Int32),
             Constant::get((int)0), node->getPosInfo()
         );
         IRValue* limitValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
@@ -1250,6 +1289,7 @@ namespace sakuraE::IR {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
         IRType* retType = IRType::getVoidTy();
         FormalParamsDefine params;
+        std::vector<TypeInfo*> paramSemanticTypes;
 
         if (node->hasNode(ASTTag::Args)) {
             auto typeList = (*node)[ASTTag::Args]->getChildren()[0];
@@ -1257,6 +1297,7 @@ namespace sakuraE::IR {
             for (std::size_t i = 0; i < typeList->getChildren().size(); i ++) {
                 auto tyInfo = getTypeInfoFromNode(typeList->getChildren()[i]);
                 IRType* argType = tyInfo->toIRType();
+                paramSemanticTypes.push_back(tyInfo);
                 fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
                 params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
@@ -1268,8 +1309,9 @@ namespace sakuraE::IR {
         long initBlockIndex = curFunc()->cur();
 
         if (node->hasNode(ASTTag::Args)) {
-            for (auto arg: params) {
-                createParam(arg.first, arg.second, node->getPosInfo());
+            for (std::size_t i = 0; i < params.size(); ++i) {
+                auto& arg = params[i];
+                createParam(arg.first, arg.second, paramSemanticTypes[i], node->getPosInfo());
             }
         }
 
