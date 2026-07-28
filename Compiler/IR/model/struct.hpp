@@ -5,6 +5,7 @@
 
 #include <Compiler/Error/error.hpp>
 #include <cstddef>
+#include <map>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -15,6 +16,7 @@ namespace sakuraE::IR {
         fzlib::String parentModID;
         fzlib::String name;
         std::unique_ptr<IRStructType> type;
+        std::map<fzlib::String, Constant*> defaultValues;
         PositionInfo createInfo;
 
     public:
@@ -32,8 +34,27 @@ namespace sakuraE::IR {
             return type->getFields().at(index);
         }
 
-        void complete(std::vector<IRStructType::FieldInfo> fs) {
+        bool hasDefaultValue(const fzlib::String& fieldName) const {
+            return defaultValues.contains(fieldName);
+        }
+
+        Constant* getDefaultValue(const fzlib::String& fieldName) const {
+            const auto it = defaultValues.find(fieldName);
+            return it == defaultValues.end() ? nullptr : it->second;
+        }
+
+        void setDefaultValue(fzlib::String fieldName, Constant* value) {
+            if (!value) {
+                defaultValues.erase(fieldName);
+                return;
+            }
+            defaultValues.insert_or_assign(std::move(fieldName), value);
+        }
+
+        void complete(std::vector<IRStructType::FieldInfo> fs,
+                      std::map<fzlib::String, Constant*> defaults = {}) {
             type->complete(std::move(fs));
+            defaultValues = std::move(defaults);
         }
     };
 
