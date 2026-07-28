@@ -27,7 +27,8 @@ namespace sakuraE::IR {
         IRStructDecl* lookupStructDecl(const fzlib::String& name) const;
         IRStructType* lookupStructType(const fzlib::String& name) const;
         IRStructDecl* declareOpaqueStruct(fzlib::String name, PositionInfo info);
-        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info);
+        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields,
+                        std::map<fzlib::String, Constant*> defaults, PositionInfo info);
         IRStructDecl* defineStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info);
     };
 

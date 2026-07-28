@@ -99,8 +99,9 @@ namespace sakuraE::IR {
             namingContext.declareOpaqueStruct(name, info);
         }
 
-        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
-            namingContext.implStruct(name, std::move(fields), info);
+        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields,
+                        std::map<fzlib::String, Constant*> defaults, PositionInfo info) {
+            namingContext.implStruct(name, std::move(fields), std::move(defaults), info);
         }
 
         void declareAndImplStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {

@@ -254,7 +254,6 @@ namespace sakuraE::IR {
             fzlib::String name;
             IRType* type;
             TypeInfo* semanticType;
-            Constant* defaultValue = nullptr;
             PositionInfo info;
         };
 

@@ -24,8 +24,8 @@ int main() {
     const sakuraE::PositionInfo definitionInfo {1, 1, "context test"};
     names.defineStruct(
         "Point",
-        {{"x", first.getInt32Ty(), firstTypeInfo, nullptr, definitionInfo},
-         {"y", first.getInt32Ty(), firstTypeInfo, nullptr, definitionInfo}},
+        {{"x", first.getInt32Ty(), firstTypeInfo, definitionInfo},
+         {"y", first.getInt32Ty(), firstTypeInfo, definitionInfo}},
         definitionInfo);
 
     assert(names.lookupStructDecl("Point") != nullptr);

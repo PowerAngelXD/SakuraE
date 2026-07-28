@@ -36,7 +36,8 @@ namespace sakuraE::IR {
         return result;
     }
 
-    void NamingContext::implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
+    void NamingContext::implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields,
+                                   std::map<fzlib::String, Constant*> defaults, PositionInfo info) {
         if (!lookupStructDecl(name)) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
                               "Unknown struct definition: '" + name + "'",
@@ -49,7 +50,7 @@ namespace sakuraE::IR {
                               info);
         }
 
-        lookupStructDecl(name)->complete(std::move(fields));
+        lookupStructDecl(name)->complete(std::move(fields), std::move(defaults));
     }
 
     IRStructDecl* NamingContext::defineStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {

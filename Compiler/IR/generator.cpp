@@ -1467,6 +1467,7 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitStructDefineStmtNode(NodePtr node) {
         const auto name = (*node)[ASTTag::Identifier]->getToken();
         std::vector<IRStructType::FieldInfo> members;
+        std::map<fzlib::String, Constant*> defaultValues;
         std::map<fzlib::String, bool> memberNames;
         if (node->hasNode(ASTTag::Members)) {
             for (auto& member: (*node)[ASTTag::Members]->getChildren()) {
@@ -1485,6 +1486,8 @@ namespace sakuraE::IR {
                 info.type = info.semanticType->toIRType();
                 info.info = memberToken.info;
 
+                Constant* defaultValue = nullptr;
+
                 if (member->hasNode(ASTTag::WholeExprNode)) {
                     auto defaultExpr = (*member)[ASTTag::WholeExprNode];
                     if (!isNullLiteralExpression(defaultExpr)) {
@@ -1501,7 +1504,7 @@ namespace sakuraE::IR {
                             "null can only default-initialize a nullable struct or array member.",
                             defaultExpr->getPosInfo());
                     }
-                    info.defaultValue = Constant::getNullHandle(info.type, defaultExpr->getPosInfo());
+                    defaultValue = Constant::getNullHandle(info.type, defaultExpr->getPosInfo());
                 }
 
                 if (info.type->isEqual(IRType::getVoidTy())) {
@@ -1513,10 +1516,13 @@ namespace sakuraE::IR {
                 }
 
                 members.push_back(info);
+                if (defaultValue) {
+                    defaultValues.emplace(info.name, defaultValue);
+                }
             }
         }
 
-        curModule()->implStruct(name.content, std::move(members), name.info);
+        curModule()->implStruct(name.content, std::move(members), std::move(defaultValues), name.info);
         return nullptr;
     }
 

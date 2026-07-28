@@ -1,4 +1,5 @@
 #include "Compiler/IR/generator.hpp"
+#include "Compiler/IR/model/struct.hpp"
 
 #include <cassert>
 
@@ -43,7 +44,9 @@ int main() {
     assert(nextMember->semanticType->isStruct());
     assert(nextMember->semanticType->isNullable());
     assert(nextMember->semanticType->getBase()->toIRType() == nodeType);
-    assert(nextMember->defaultValue == nullptr);
+    auto* nodeDecl = nullableGenerator.getProgram().curMod()->lookupStruct("Node");
+    assert(nodeDecl != nullptr);
+    assert(!nodeDecl->hasDefaultValue("next"));
 
     IRGenerator defaultGenerator("default-generator-test");
     defaultGenerator.startGenerate(
@@ -52,9 +55,10 @@ int main() {
     auto* defaultNode = defaultGenerator.getProgram().curMod()->lookupStructType("DefaultNode");
     auto defaultMember = defaultNode->findMember("next");
     assert(defaultMember.has_value());
-    std::cerr << defaultGenerator.getParsedStatements()[0]->toString().c_str() << "\n";
-    assert(defaultMember->defaultValue != nullptr);
-    assert(defaultMember->defaultValue->isNullHandle());
+    auto* defaultDecl = defaultGenerator.getProgram().curMod()->lookupStruct("DefaultNode");
+    assert(defaultDecl != nullptr);
+    assert(defaultDecl->hasDefaultValue("next"));
+    assert(defaultDecl->getDefaultValue("next")->isNullHandle());
 
     IRGenerator nullableArrayGenerator("nullable-array-test");
     nullableArrayGenerator.startGenerate(
@@ -69,8 +73,10 @@ int main() {
     assert(valuesMember->semanticType != nullptr);
     assert(valuesMember->semanticType->isNullable());
     assert(valuesMember->semanticType->getBase()->isArray());
-    assert(valuesMember->defaultValue != nullptr);
-    assert(valuesMember->defaultValue->isNullHandle());
+    auto* containerDecl = nullableArrayGenerator.getProgram().curMod()->lookupStruct("Container");
+    assert(containerDecl != nullptr);
+    assert(containerDecl->hasDefaultValue("values"));
+    assert(containerDecl->getDefaultValue("values")->isNullHandle());
 
     IRGenerator semanticGenerator("semantic-type-test");
     semanticGenerator.startGenerate(
