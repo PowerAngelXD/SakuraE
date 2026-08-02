@@ -9,10 +9,10 @@
 - [ ] struct和impl的实现
 - [x] 函数的定义和调用
 - [ ] 完整的类型支持，复杂字面量的支持
-- [ ] 指针，引用类型
+- [x] 指针，引用类型
 - [ ] 完整的runtime支持
 - [x] gc系统
 - [ ] 变长参数
-- [ ] 更多控制流语句（break，continue，repeat，match等）
+- [x] 更多控制流语句（break，continue，repeat，match等）
 - [ ] 显式类型转换
 - [ ] typeof 关键字和TypeInfo结构体支持

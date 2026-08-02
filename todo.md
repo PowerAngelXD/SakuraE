@@ -9,10 +9,10 @@ This file mainly outlines the goals to be completed for each version of SakuraE.
 - [ ] Implementation of struct and impl
 - [x] Function definition and invocation
 - [ ] Complete type support, support for complex literals
-- [ ] Pointers and reference types
+- [x] Pointers and reference types
 - [ ] Complete runtime support
 - [x] GC system
 - [ ] Variadic parameters
-- [ ] More control flow statements (break, continue, repeat, match, etc.)
+- [x] More control flow statements (break, continue, repeat, match, etc.)
 - [ ] Explicit type conversion
 - [ ] Support for the typeof keyword and the TypeInfo struct.

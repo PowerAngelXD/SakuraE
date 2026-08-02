@@ -9,16 +9,101 @@ sakuraE::Token::Token(TokenType t, const fzlib::String& c, int l, int col, const
     info.details = det;
 }
 
+fzlib::String sakuraE::tokenTypeToString(TokenType type) {
+    switch (type) {
+    case TokenType::IDENTIFIER: return "identifier";
+    case TokenType::KEYWORD: return "keyword";
+    case TokenType::INT_N: return "integer literal";
+    case TokenType::FLOAT_N: return "floating-point literal";
+    case TokenType::STRING: return "string literal";
+    case TokenType::CHAR: return "character literal";
+    case TokenType::BOOL_CONST: return "boolean literal";
+    case TokenType::ADD: return "'+'";
+    case TokenType::SUB: return "'-'";
+    case TokenType::MUL: return "'*'";
+    case TokenType::DIV: return "'/'";
+    case TokenType::MOD: return "'%'";
+    case TokenType::OR: return "'|'";
+    case TokenType::AND: return "'&'";
+    case TokenType::LGC_NOT: return "'!'";
+    case TokenType::LGC_NOT_EQU: return "'!='";
+    case TokenType::LGC_AND: return "'&&'";
+    case TokenType::LGC_OR: return "'||'";
+    case TokenType::LGC_EQU: return "'=='";
+    case TokenType::LGC_MR_THAN: return "'>'";
+    case TokenType::LGC_LS_THAN: return "'<'";
+    case TokenType::LGC_MREQU_THAN: return "'>='";
+    case TokenType::LGC_LSEQU_THAN: return "'<='";
+    case TokenType::LEFT_PAREN: return "'('";
+    case TokenType::RIGHT_PAREN: return "')'";
+    case TokenType::LEFT_SQUARE_BRACKET: return "'['";
+    case TokenType::RIGHT_SQUARE_BRACKET: return "']'";
+    case TokenType::LEFT_BRACKET: return "'{'";
+    case TokenType::RIGHT_BRACKET: return "'}'";
+    case TokenType::ASSIGN_OP: return "'='";
+    case TokenType::ADD_ASSIGN: return "'+='";
+    case TokenType::SUB_ASSIGN: return "'-='";
+    case TokenType::MUL_ASSIGN: return "'*='";
+    case TokenType::DIV_ASSIGN: return "'/='";
+    case TokenType::AUTO_INC:
+    case TokenType::AINC: return "'++'";
+    case TokenType::AUTO_DEC:
+    case TokenType::SDEC: return "'--'";
+    case TokenType::CONSTRAINT_OP: return "':'";
+    case TokenType::ARROW: return "'->'";
+    case TokenType::BIG_ARROW: return "'=>'";
+    case TokenType::SPACE_SHIP: return "'<=>'";
+    case TokenType::DOT: return "'.'";
+    case TokenType::COMMA: return "','";
+    case TokenType::STMT_END: return "';'";
+    case TokenType::FN_OP: return "'|>'";
+    case TokenType::QUESTION: return "'?'";
+    case TokenType::SAFE_DOT: return "'?.'";
+    case TokenType::KEYWORD_LET: return "'let'";
+    case TokenType::KEYWORD_IF: return "'if'";
+    case TokenType::KEYWORD_ELSE: return "'else'";
+    case TokenType::KEYWORD_WHILE: return "'while'";
+    case TokenType::KEYWORD_FOR: return "'for'";
+    case TokenType::KEYWORD_FUNC: return "'func'";
+    case TokenType::NULL_LITERAL: return "'null'";
+    case TokenType::KEYWORD_RETURN: return "'return'";
+    case TokenType::KEYWORD_CONST: return "'const'";
+    case TokenType::KEYWORD_RANGE: return "'range'";
+    case TokenType::KEYWORD_BREAK: return "'break'";
+    case TokenType::KEYWORD_CONTINUE: return "'continue'";
+    case TokenType::KEYWORD_REF: return "'ref'";
+    case TokenType::KEYWORD_STRUCT: return "'struct'";
+    case TokenType::KEYWORD_IMPL: return "'impl'";
+    case TokenType::KEYWORD_REPEAT: return "'repeat'";
+    case TokenType::KEYWORD_MATCH: return "'match'";
+    case TokenType::KEYWORD_DEFAULT: return "'default'";
+    case TokenType::KEYWORD_TYPEOF: return "'typeof'";
+    case TokenType::KEYWORD_SIZEOF: return "'sizeof'";
+    case TokenType::TYPE_I32: return "'i32'";
+    case TokenType::TYPE_I64: return "'i64'";
+    case TokenType::TYPE_F32: return "'f32'";
+    case TokenType::TYPE_F64: return "'f64'";
+    case TokenType::TYPE_CHAR: return "'char'";
+    case TokenType::TYPE_BOOL: return "'bool'";
+    case TokenType::TYPE_STRING: return "'string'";
+    case TokenType::TYPE_UI32: return "'ui32'";
+    case TokenType::TYPE_UI64: return "'ui64'";
+    case TokenType::TYPE_VOID: return "'void'";
+    case TokenType::_EOF_: return "EOF";
+    case TokenType::UNKNOWN: return "unknown token";
+    }
+    return "unknown token";
+}
+
 fzlib::String sakuraE::Token::typeToString() const {
-    fzlib::String s = magic_enum::enum_name(type);
-    return fzlib::String(s);
+    return tokenTypeToString(type);
 }
 
 fzlib::String sakuraE::Token::toString() const {
     return "<" + content + ", " + typeToString() + ">";
 }
 
-sakuraE::Lexer::Lexer(const fzlib::String& source) 
+sakuraE::Lexer::Lexer(const fzlib::String& source)
     : source_code(source), current_pos(0), current_line(1), current_column(1) {}
 
 
@@ -35,7 +120,7 @@ char sakuraE::Lexer::next() {
         current_pos++;
         if (c == '\n') {
             current_line++;
-            current_column = 1; 
+            current_column = 1;
         } else {
             current_column++;
         }
@@ -46,7 +131,7 @@ char sakuraE::Lexer::next() {
 void sakuraE::Lexer::skip() {
     while (true) {
         char c = peek();
-        
+
         if (std::isspace(c)) {
             next();
             continue;
@@ -57,10 +142,10 @@ void sakuraE::Lexer::skip() {
             while (peek() != '\n' && peek() != '\0') {
                 next();
             }
-            continue; 
+            continue;
         }
 
-        break; 
+        break;
     }
 }
 
@@ -88,7 +173,7 @@ sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
     fzlib::String content;
 
     if (!std::isalpha(peek()) && peek() != '_') {
-        // Should not happen if called correctly
+        // 如果调用方式正确，此处不应发生
         return Token(TokenType::UNKNOWN, "", start_line, start_column, "Expected identifier or keyword start.");
     }
 
@@ -104,6 +189,10 @@ sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
             type = TokenType::BOOL_CONST;
             details = content;
         }
+        else if (content == "null") {
+            type = TokenType::NULL_LITERAL;
+            details = content;
+        }
         else {
             type = str2KeywordType(content);
             details = content;
@@ -112,7 +201,7 @@ sakuraE::Token sakuraE::Lexer::makeIdentifierOrKeyword() {
     else if (isTypeField(content)) {
         type = str2TypeField(content);
         details = content;
-    } 
+    }
     else {
         type = TokenType::IDENTIFIER;
         details = "identifier";
@@ -155,8 +244,8 @@ sakuraE::Token sakuraE::Lexer::makeNumberLiteral() {
                         "Unknown suffix of number literal: " + suffix,
                         {current_line, current_column, "lexer error"});
     }
-    
-    
+
+
     return Token(type, content, start_line, start_column, details);
 }
 
@@ -181,7 +270,7 @@ sakuraE::Token sakuraE::Lexer::makeNonDecimalLiteral() {
             throw SakuraError(OccurredTerm::LEXER,
                             "Hexadecimal literals must consist of 0-9, a-f, or A-F.",
                             {current_line, current_column, "Lexer error"});
-        
+
         content += next();
     }
 
@@ -212,7 +301,7 @@ sakuraE::Token sakuraE::Lexer::makeStringLiteral() {
     TokenType type = TokenType::STRING;
     fzlib::String details = "string";
     fzlib::String content;
-    
+
     next();
 
     while (peek() != '\"' && peek() != '\0' && peek() != '\n') {
@@ -235,7 +324,7 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
     fzlib::String content;
     TokenType type = TokenType::UNKNOWN;
     fzlib::String details;
-    
+
     switch (peek()) {
         case '+':
             if (peek(1) == '=') {
@@ -335,6 +424,11 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
                 content = "==";
                 next(); next();
             }
+            else if (peek(1) == '>') {
+                type = TokenType::BIG_ARROW;
+                content = "=>";
+                next(); next();
+            }
             else {
                 type = TokenType::ASSIGN_OP;
                 content = "=";
@@ -379,6 +473,18 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
             else {
                 type = TokenType::AND;
                 content = "&";
+                next();
+            }
+            break;
+        case '?':
+            if (peek(1) == '.') {
+                type = TokenType::SAFE_DOT;
+                content = "?.";
+                next(); next();
+            }
+            else {
+                type = TokenType::QUESTION;
+                content = "?";
                 next();
             }
             break;
@@ -448,21 +554,21 @@ sakuraE::Token sakuraE::Lexer::makeSymbol() {
 
 std::vector<sakuraE::Token> sakuraE::Lexer::tokenize() {
     std::vector<Token> tokens;
-    
+
     while (peek() != '\0') {
-        skip(); 
-        if (peek() == '\0') break; 
+        skip();
+        if (peek() == '\0') break;
         char c = peek();
         Token token;
         if (std::isalpha(c) || c == '_') {
             token = makeIdentifierOrKeyword();
-        } 
+        }
         else if (c == '0' && (peek(1) == 'b' || peek(1) == 'x' || peek(1) == 'o')) {
             token = makeNonDecimalLiteral();
         }
         else if (std::isdigit(c) || (c == '-' && std::isdigit(peek(1)))) {
             token = makeNumberLiteral();
-        } 
+        }
         else if (c == '\"') {
             token = makeStringLiteral();
         }
@@ -472,10 +578,10 @@ std::vector<sakuraE::Token> sakuraE::Lexer::tokenize() {
         else {
             token = makeSymbol();
         }
-        
+
         tokens.push_back(token);
     }
-    
+
     tokens.push_back(Token(TokenType::_EOF_, "", current_line, current_column, "End of File"));
     return tokens;
 }

@@ -3,3 +3,12 @@ std.png
 .vscode
 .cache
 .zed
+docs
+!Compiler/
+!Compiler/IR/
+!Compiler/IR/docs/
+!Compiler/IR/docs/README.md
+!Compiler/IR/docs/README-zh_cn.md
+!Compiler/IR/docs/context.md
+!Compiler/IR/docs/context-zh_cn.md
+node_modules

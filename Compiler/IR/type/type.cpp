@@ -1,15 +1,12 @@
 #include "type.hpp"
+#include "Compiler/IR/context.hpp"
+#include <Compiler/Error/error.hpp>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/LLVMContext.h>
 #include <llvm/Support/Casting.h>
 #include <stdexcept>
 
 namespace sakuraE::IR {
-    static std::map<unsigned, IRIntegerType> IRIntegerTypes;
-    static std::map<unsigned, IRIntegerType> IRUIntegerTypes;
-    static std::map<IRType*, IRPointerType> IRPointerTypes;
-    static std::map<IRType*, IRRefType> IRRefTypes;
-    static std::map<std::pair<IRType*, uint64_t>, IRArrayType> arrayTypes;
-    static std::map<std::pair<IRType*, std::vector<IRType*>>, IRFunctionType> funcTypes;
-
     IRType* IRType::unwrapPointer() {
         if (!isPointer()) return this;
         else {
@@ -52,6 +49,7 @@ namespace sakuraE::IR {
             case CharTyID:
             case BoolTyID:
             case TypeInfoTyID:
+            case StringTyID:
             case Float32TyID:
             case Float64TyID:
             case VoidTyID:
@@ -86,123 +84,85 @@ namespace sakuraE::IR {
                 }
                 return lFn->returnType->isEqual(rFn->returnType);
             }
+            case StructTyID: {
+                auto lStruct = static_cast<IRStructType*>(this);
+                auto rStruct = static_cast<IRStructType*>(ty);
+                return lStruct->parentModID == rStruct->parentModID &&
+                    lStruct->name == rStruct->name;
+            }
             default: return false;
         }
     }
 
     IRType* IRType::getVoidTy() {
-        static IRVoidType voidSingle;
-        return &voidSingle;
+        return IRContext::current().getVoidTy();
     }
 
     IRType* IRType::getBoolTy() {
-        static IRIntegerType boolSingle(1);
-        return &boolSingle;
+        return IRContext::current().getBoolTy();
     }
 
     IRType* IRType::getCharTy() {
-        static IRIntegerType charSingle(8);
-        return &charSingle;
+        return IRContext::current().getCharTy();
     }
 
     IRType* IRType::getInt32Ty() {
-        static IRIntegerType i32Single(32);
-        return &i32Single;
+        return IRContext::current().getInt32Ty();
     }
 
     IRType* IRType::getInt64Ty() {
-        static IRIntegerType i64Single(64);
-        return &i64Single;
+        return IRContext::current().getInt64Ty();
     }
 
     IRType* IRType::getIntNTy(unsigned bitWidth) {
-        auto it = IRIntegerTypes.find(bitWidth);
-        if (it != IRIntegerTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth));
-        return &newEntry.first->second;
+        return IRContext::current().getIntNTy(bitWidth);
     }
 
     IRType* IRType::getUInt32Ty() {
-        static IRIntegerType ui32Single(32, false);
-        return &ui32Single;
+        return IRContext::current().getUInt32Ty();
     }
     IRType* IRType::getUInt64Ty() {
-        static IRIntegerType ui64Single(64, false);
-        return &ui64Single;
+        return IRContext::current().getUInt64Ty();
     }
     IRType* IRType::getUIntNTy(unsigned bitWidth) {
-        auto it = IRUIntegerTypes.find(bitWidth);
-        if (it != IRUIntegerTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRUIntegerTypes.emplace(bitWidth, IRIntegerType(bitWidth, false));
-        return &newEntry.first->second;
+        return IRContext::current().getUIntNTy(bitWidth);
     }
 
     IRType* IRType::getTypeInfoTy() {
-        static IRTypeInfoType tinfoSingle;
-        return &tinfoSingle;
+        return IRContext::current().getTypeInfoTy();
+    }
+
+    IRType* IRType::getStringTy() {
+        return IRContext::current().getStringTy();
     }
 
     IRType* IRType::getFloat32Ty() {
-        static IRFloatType float32Single(32);
-        return &float32Single;
+        return IRContext::current().getFloat32Ty();
     }
 
     IRType* IRType::getFloat64Ty() {
-        static IRFloatType float64Single(64);
-        return &float64Single;
+        return IRContext::current().getFloat64Ty();
     }
 
     IRType* IRType::getPointerTo(IRType* elementType) {
-        auto it = IRPointerTypes.find(elementType);
-        if (it != IRPointerTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRPointerTypes.emplace(elementType, IRPointerType(elementType));
-        return &newEntry.first->second;
+        return IRContext::current().getPointerTo(elementType);
     }
 
     IRType* IRType::getRefTo(IRType* elementType) {
-        auto it = IRRefTypes.find(elementType);
-        if (it != IRRefTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = IRRefTypes.emplace(elementType, IRRefType(elementType));
-        return &newEntry.first->second;
+        return IRContext::current().getRefTo(elementType);
     }
 
     IRType* IRType::getArrayTy(IRType* elementType, uint64_t numElements) {
-        auto key = std::make_pair(elementType, numElements);
-        auto it = arrayTypes.find(key);
-        if (it != arrayTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = arrayTypes.emplace(key, IRArrayType(elementType, numElements));
-
-        return &newEntry.first->second;
+        return IRContext::current().getArrayTy(elementType, numElements);
     }
 
     IRType* IRType::getBlockTy() {
-        static IRBlockType blockIndexSingle;
-
-        return &blockIndexSingle;
+        return IRContext::current().getBlockTy();
     }
 
     IRType* IRType::getFunctionTy(IRType* returnType, std::vector<IRType*> params) {
-        auto key = std::make_pair(returnType, params);
-        auto it = funcTypes.find(key);
-
-        if (it != funcTypes.end()) {
-            return &it->second;
-        }
-        auto newEntry = funcTypes.emplace(key, IRFunctionType(returnType, params));
-
-        return &newEntry.first->second;
+        return IRContext::current().getFunctionTy(returnType, std::move(params));
     }
-
 
     llvm::Type* IRVoidType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::Type::getVoidTy(ctx);
@@ -222,6 +182,10 @@ namespace sakuraE::IR {
         return llvm::PointerType::get(ctx, 0);
     }
 
+    llvm::Type* IRStringType::toLLVMType(llvm::LLVMContext& ctx) {
+        return llvm::PointerType::getUnqual(ctx);
+    }
+
     llvm::Type* IRRefType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::PointerType::get(ctx, 0);
     }
@@ -232,6 +196,27 @@ namespace sakuraE::IR {
 
     llvm::Type* IRBlockType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::Type::getLabelTy(ctx);
+    }
+
+    llvm::Type* IRStructType::toLLVMType(llvm::LLVMContext& ctx) {
+        fzlib::String structTypeName = "sakurae.struct." + parentModID + "." + name;
+        auto structType = llvm::StructType::getTypeByName(ctx, structTypeName.c_str());
+        if (!structType) {
+            structType = llvm::StructType::create(ctx, structTypeName.c_str());
+        }
+
+        if (!isCompleteType) return structType;
+
+        if (structType->isOpaque()) {
+            std::vector<llvm::Type*> memberTypes;
+            memberTypes.reserve(fields.size());
+            for (auto& field: fields) {
+                memberTypes.push_back(field.type->toLLVMType(ctx));
+            }
+            structType->setBody(memberTypes, false);
+        }
+
+        return structType;
     }
 
     llvm::Type* IRFunctionType::toLLVMType(llvm::LLVMContext& ctx) {
@@ -257,7 +242,7 @@ namespace sakuraE::IR {
         return llvm::PointerType::getUnqual(ctx);
     }
 
-    // toString
+    // 转换为字符串
 
     fzlib::String IRVoidType::toString() {
         return "void";
@@ -270,11 +255,16 @@ namespace sakuraE::IR {
     }
 
     fzlib::String IRIntegerType::toString() {
-        return "i" + std::to_string(bitWidth) ;
+        if (bitWidth == 8) return "char";
+        else return "i" + std::to_string(bitWidth) ;
     }
 
     fzlib::String IRTypeInfoType::toString() {
         return "tinfo";
+    }
+
+    fzlib::String IRStringType::toString() {
+        return "string";
     }
 
     fzlib::String IRPointerType::toString() {
@@ -301,4 +291,44 @@ namespace sakuraE::IR {
 
         return result;
     }
+
+    fzlib::String IRStructType::toString() {
+        fzlib::String result = "struct {";
+        for (std::size_t i = 0; i < fields.size(); i ++) {
+            result += fields[i].type->toString();
+            if (i == fields.size() - 1);
+            else result += ", ";
+        }
+        result += "}";
+        return result;
+    }
+
+    const fzlib::String& IRStructType::getName() const { return name; }
+
+    std::size_t IRStructType::getCount() const { return fields.size(); }
+
+    const std::vector<IRStructType::FieldInfo>& IRStructType::getFields() const {
+        return fields;
+    }
+
+    bool IRStructType::isComplete() const {
+        return isCompleteType;
+    }
+
+    std::optional<IRStructType::FieldInfo> IRStructType::findMember(
+        const fzlib::String& target) const {
+        const auto it = fieldIndices.find(target);
+        if (it == fieldIndices.end()) return std::nullopt;
+        return fields[it->second];
+    }
+
+    void IRStructType::complete(std::vector<IRStructType::FieldInfo> fs) {
+        fields = std::move(fs);
+        isCompleteType = true;
+
+        for (std::size_t i = 0; i < fields.size(); i ++) {
+            fieldIndices[fields[i].name] = i;
+        }
+    }
+
 }

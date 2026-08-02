@@ -1,7 +1,7 @@
 #ifndef SAKURAE_ATRI_CPP
 #define SAKURAE_ATRI_CPP
 #include "Compiler/IR/type/type_info.hpp"
-#define DEBUG
+//#define DEBUG
 
 #include <fstream>
 #include <iterator>
@@ -34,6 +34,9 @@ namespace atri {
                     fzlib::String line;
                     std::cout << ">> ";
                     getline(std::cin, line);
+
+                    if (line.isEmpty()) continue;
+
                     auto list = line.split(' ');
                     std::vector<fzlib::String> args;
                     for (std::size_t i = 1; i < list.size(); i ++) {
@@ -41,33 +44,28 @@ namespace atri {
                     }
 
                     parseCommand(list[0], args);
+                    if (cmds::exitRequested) break;
 #else
                     std::cout << "RUNNING DEBUG MODE, TEST PROGRAM: " << std::endl;
-                    parseCommand("run", {"test3.sak", "-sakir", "-llvmir", "-rawllvm"});
+                    parseCommand("run", {"test4.sak", "-sakir", "-llvmir"});
                     parseCommand("exit", {});
 #endif
                 }
                 catch (const std::runtime_error& e) {
                     std::cerr << e.what() << "\n";
 #ifdef DEBUG
-                    sakuraE::IR::TypeInfo::clearAll();
-                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }
                 catch (sakuraE::SakuraError& e) {
                     std::cerr << e.toString() << "\n";
 #ifdef DEBUG
-                    sakuraE::IR::TypeInfo::clearAll();
-                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }
                 catch (const std::exception& e) {
                     std::cerr << "OtherError: " << e.what() << "\n";
 #ifdef DEBUG
-                    sakuraE::IR::TypeInfo::clearAll();
-                    sakuraE::IR::IRArray::clearArrayPool();
                     exit(1);
 #endif
                 }

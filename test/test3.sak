@@ -1,0 +1,19 @@
+func main() -> i32 {
+    let a = 10;
+    match (a) {
+        1 => {
+            println("wtf");
+        }
+        110 => {
+            println("hello world");
+        }
+        default => {
+            println("no");
+        }
+    }
+
+    repeat(5) {
+        println("say hi");
+    }
+    return 0;
+}

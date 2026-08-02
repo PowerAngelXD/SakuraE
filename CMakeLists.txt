@@ -1,80 +1,268 @@
 cmake_minimum_required(VERSION 3.24)
-project(SakuraE)
+
+project(SakuraE LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(SAKURAE_ENABLE_ASAN "Enable AddressSanitizer for debug-style builds" ON)
+
 find_package(LLVM REQUIRED CONFIG)
+find_package(Threads REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-
-include_directories(${LLVM_INCLUDE_DIRS})
-
-add_definitions(${LLVM_DEFINITIONS})
-
 message(STATUS "LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
 
 string(REPLACE "." ";" LLVM_PACKAGE_VERSION_LIST "${LLVM_PACKAGE_VERSION}")
 list(GET LLVM_PACKAGE_VERSION_LIST 0 LLVM_MAJOR_VERSION)
 
-find_program(LLVM_CONFIG_EXECUTABLE
-             NAMES llvm-config llvm-config-${LLVM_MAJOR_VERSION}
-             DOC "Path to the llvm-config executable"
-             REQUIRED
+find_program(
+    LLVM_CONFIG_EXECUTABLE
+    NAMES llvm-config llvm-config-${LLVM_MAJOR_VERSION}
+    DOC "Path to the llvm-config executable"
+    REQUIRED
 )
+
+execute_process(
+    COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs --system-libs all
+    OUTPUT_VARIABLE LLVM_LINK_FLAGS_RAW
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY
+)
+
+separate_arguments(LLVM_LINK_FLAGS NATIVE_COMMAND "${LLVM_LINK_FLAGS_RAW}")
+
 message(STATUS "Using llvm-config executable: ${LLVM_CONFIG_EXECUTABLE}")
+message(STATUS "LLVM link flags: ${LLVM_LINK_FLAGS_RAW}")
 
-execute_process(COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs all
-                OUTPUT_VARIABLE llvm_components
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                RESULT_VARIABLE LLVM_LIBS_RESULT
+add_executable(
+    ${PROJECT_NAME}
+    main.cpp
+    Compiler/Frontend/lexer.cpp
+    Compiler/Frontend/parser.cpp
+    Compiler/IR/generator.cpp
+    Compiler/IR/context.cpp
+    Compiler/IR/type/type.cpp
+    Compiler/IR/type/type_info.cpp
+    Compiler/IR/value/constant.cpp
+    Compiler/LLVMCodegen/LLVMCodegenerator.cpp
+    Runtime/alloc.cpp
+    Runtime/gc.cpp
+    Runtime/input.cpp
+    Runtime/errors.cpp
+    Runtime/print.cpp
+    Runtime/raw_string.cpp
+    Runtime/rttype.cpp
 )
 
-string(REPLACE " " ";" llvm_components_list "${llvm_components}")
-
-execute_process(COMMAND ${LLVM_CONFIG_EXECUTABLE} --libdir
-                OUTPUT_VARIABLE llvm_libdir
-                OUTPUT_STRIP_TRAILING_WHITESPACE
+add_executable(
+    sakurae-language-server
+    LanguageServer/main.cpp
+    LanguageServer/json_rpc.cpp
+    LanguageServer/document_store.cpp
+    LanguageServer/symbol_table.cpp
+    LanguageServer/analyzer.cpp
+    LanguageServer/server.cpp
+    Compiler/Frontend/lexer.cpp
+    Compiler/Frontend/parser.cpp
 )
 
-# print LLVM components
-message(STATUS "LLVM libdir: ${llvm_libdir}")
-message(STATUS "LLVM components: ${llvm_components}")
+target_include_directories(
+    sakurae-language-server
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
 
-# -Wfloat-equal
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fsanitize=address -g -Wall -pedantic -Wimplicit-fallthrough -Wsequence-point -Wstringop-truncation -Wbool-compare -Wtautological-compare -Wshadow=global -Wpointer-arith -Wpointer-compare -Wcast-align -Wcast-qual -Wwrite-strings -Wdangling-else -Wlogical-op -Werror")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+target_compile_features(sakurae-language-server PRIVATE cxx_std_23)
 
-file(GLOB SRC_FILES "includes/magic_enum.hpp" 
-                    "main.cpp" 
-                    "Compiler/Frontend/lexer.*"
-                    "Compiler/Frontend/parser_base.hpp"
-                    "Compiler/Frontend/parser.hpp"
-                    "Compiler/Frontend/parser.cpp"
-                    "Compiler/Error/error.hpp"
-                    "Compiler/Utils/logger.hpp"
-                    "Compiler/Frontend/AST.h"
-                    "Compiler/IR/*.hpp"
-                    "Compiler/IR/*.cpp"
-                    "Compiler/IR/value/*.hpp"
-                    "Compiler/IR/value/*.cpp"
-                    "Compiler/IR/struct/*.hpp"
-                    "Compiler/IR/type/*.hpp"
-                    "Compiler/IR/type/*.cpp"
-                    "Compiler/LLVMCodegen/*.cpp"
-                    "Compiler/LLVMCodegen/*.hpp"
-                    "atrI/*.hpp"
-                    "atrI/config.*hpp")
+target_compile_options(
+    sakurae-language-server
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+)
 
-file(GLOB RUNTIME_FILES "Runtime/*.cpp"
-                        "Runtime/*.h")
-        
-add_executable(${CMAKE_PROJECT_NAME} ${SRC_FILES} ${RUNTIME_FILES})
+target_link_libraries(
+    sakurae-language-server
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+)
 
-include_directories(${LLVM_INCLUDE_DIRS})
-include_directories(${PROJECT_SOURCE_DIR})
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${llvm_components_list})
+add_executable(
+    sakurae-language-server-tests
+    LanguageServer/tests.cpp
+    LanguageServer/json_rpc.cpp
+    LanguageServer/document_store.cpp
+    LanguageServer/symbol_table.cpp
+    LanguageServer/analyzer.cpp
+    Compiler/Frontend/lexer.cpp
+    Compiler/Frontend/parser.cpp
+)
+
+add_executable(
+    sakurae-ir-context-tests
+    Compiler/IR/tests/context_tests.cpp
+    Compiler/IR/type/type.cpp
+    Compiler/IR/type/type_info.cpp
+    Compiler/IR/context.cpp
+)
+
+add_executable(
+    sakurae-ir-generator-tests
+    Compiler/IR/tests/generator_tests.cpp
+    Compiler/Frontend/lexer.cpp
+    Compiler/Frontend/parser.cpp
+    Compiler/IR/generator.cpp
+    Compiler/IR/context.cpp
+    Compiler/IR/type/type.cpp
+    Compiler/IR/type/type_info.cpp
+    Compiler/IR/value/constant.cpp
+)
+
+target_include_directories(
+    sakurae-ir-context-tests
+    SYSTEM PRIVATE
+        ${LLVM_INCLUDE_DIRS}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_definitions(
+    sakurae-ir-context-tests
+    PRIVATE
+        ${LLVM_DEFINITIONS}
+)
+
+target_compile_features(sakurae-ir-context-tests PRIVATE cxx_std_23)
+
+target_compile_options(
+    sakurae-ir-context-tests
+    PRIVATE
+        -Wall
+        -Wpedantic
+        -Werror
+)
+
+target_link_libraries(
+    sakurae-ir-context-tests
+    PRIVATE
+        ${LLVM_LINK_FLAGS}
+)
+
+target_include_directories(
+    sakurae-ir-generator-tests
+    SYSTEM PRIVATE
+        ${LLVM_INCLUDE_DIRS}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_definitions(
+    sakurae-ir-generator-tests
+    PRIVATE
+        ${LLVM_DEFINITIONS}
+)
+
+target_compile_features(sakurae-ir-generator-tests PRIVATE cxx_std_23)
+
+target_compile_options(
+    sakurae-ir-generator-tests
+    PRIVATE
+        -Wall
+        -Wpedantic
+        -Werror
+)
+
+target_link_libraries(
+    sakurae-ir-generator-tests
+    PRIVATE
+        ${LLVM_LINK_FLAGS}
+)
+
+target_include_directories(
+    sakurae-language-server-tests
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_features(sakurae-language-server-tests PRIVATE cxx_std_23)
+
+target_link_libraries(
+    sakurae-language-server-tests
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+)
+
+target_include_directories(
+    ${PROJECT_NAME}
+    SYSTEM PRIVATE
+        ${LLVM_INCLUDE_DIRS}
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}
+)
+
+target_compile_definitions(
+    ${PROJECT_NAME}
+    PRIVATE
+        ${LLVM_DEFINITIONS}
+)
+
+target_compile_options(
+    ${PROJECT_NAME}
+    PRIVATE
+        -Wall
+        -Wpedantic
+        -Wimplicit-fallthrough
+        -Wsequence-point
+        -Wstringop-truncation
+        -Wbool-compare
+        -Wtautological-compare
+        -Wshadow=global
+        -Wpointer-arith
+        -Wpointer-compare
+        -Wcast-align
+        -Wcast-qual
+        -Wwrite-strings
+        -Wdangling-else
+        -Wlogical-op
+        -Werror
+        $<$<CONFIG:Debug>:-g>
+        $<$<CONFIG:RelWithDebInfo>:-g>
+        $<$<CONFIG:Release>:-O3>
+)
+
+if(SAKURAE_ENABLE_ASAN)
+    target_compile_options(
+        ${PROJECT_NAME}
+        PRIVATE
+            $<$<CONFIG:Debug,RelWithDebInfo>:-fsanitize=address>
+    )
+
+    target_link_options(
+        ${PROJECT_NAME}
+        PRIVATE
+            $<$<CONFIG:Debug,RelWithDebInfo>:-fsanitize=address>
+    )
+endif()
+
+target_link_libraries(
+    ${PROJECT_NAME}
+    PRIVATE
+        ${LLVM_LINK_FLAGS}
+        Threads::Threads
+)
+
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
+
+set_target_properties(
+    ${PROJECT_NAME}
+    PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)

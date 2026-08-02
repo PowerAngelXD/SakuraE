@@ -12,6 +12,8 @@
 #include <memory>
 #include <stdexcept>
 #include <chrono>
+#include <thread>
+#include <sstream>
 
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -19,32 +21,36 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/TargetSelect.h>
-
-#include "Compiler/IR/type/type_info.hpp"
-#include "Compiler/IR/value/array.hpp"
 #include "Runtime/alloc.h"
+#include "Runtime/errors.h"
 #include "Runtime/gc.h"
+#include "Runtime/input.h"
 #include "Runtime/raw_string.h"
 #include "Runtime/print.h"
-#include "Compiler/Frontend/lexer.h"
-#include "Compiler/Frontend/parser_base.hpp"
-#include "Compiler/Frontend/parser.hpp"
+#include "Runtime/rttype.h"
+
+
 #include "Compiler/IR/generator.hpp"
 #include "Compiler/LLVMCodegen/LLVMCodegenerator.hpp"
 #include "utils.hpp"
 #include "config/config.hpp"
 
 namespace atri::cmds {
+    inline bool exitRequested = false;
+
     inline void cmdHelp(std::vector<fzlib::String> args) {
         auto content = readSourceFile("./help.txt");
         std::cout << content << std::endl;
     }
 
     inline void cmdExit(std::vector<fzlib::String> args) {
-        exit(0);
+        exitRequested = true;
     }
 
     inline void cmdRun(std::vector<fzlib::String> args) {
+        CompilerSessionGuard compilerSessionGuard;
+        RuntimeSessionGuard runtimeSessionGuard;
+
         if (args.size() < 1) {
             fzlib::String content = "Invalid argument for command: 'run': ";
             for (auto arg: args) {
@@ -54,39 +60,24 @@ namespace atri::cmds {
         }
 
         auto content = readSourceFile(args[0]);
+        bool isDebug = false;
         DebugConfig config;
 
-        if (contains(args, "-ast")) config.displayAST = true;
-        if (contains(args, "-sakir")) config.displaySakIR = true;
-        if (contains(args, "-rawllvm")) config.displayRawLLVMIR = true;
-        if (contains(args, "-llvmir")) config.displayOptimizedLLVMIR = true;
+        if (contains(args, "-ast")) { config.displayAST = true; isDebug = true; }
+        if (contains(args, "-sakir")) { config.displaySakIR = true; isDebug = true; }
+        if (contains(args, "-rawllvm")) { config.displayRawLLVMIR = true; isDebug = true; }
+        if (contains(args, "-llvmir")) { config.displayOptimizedLLVMIR = true; isDebug = true; }
 
         std::ostringstream log;
 
-        sakuraE::Lexer lexer(content);
-        auto r = lexer.tokenize();
-
-        sakuraE::TokenIter current = r.begin();
         sakuraE::IR::IRGenerator generator("__main");
+        generator.startGenerate(content, "__main");
 
-        while ((*current).type != sakuraE::TokenType::_EOF_) {
-            auto result = sakuraE::StatementParser::parse(current, r.end());
-            if (result.status == sakuraE::ParseStatus::FAILED) {
-                if (result.err == nullptr) {
-                    throw std::runtime_error("Error: Parse failed with NULL error object at token: ");
-                }
-                throw *(result.err);
-            }
-
-            auto res = result.val->genResource();
-
-            if (config.displayAST) {
+        if (config.displayAST) {
+            for (const auto& statement : generator.getParsedStatements()) {
                 log << "--------------================:DEBUG: AST DISPLAY:================--------------" << std::endl;
-                log << res->toFormatString() << std::endl;
+                log << statement->toFormatString() << std::endl;
             }
-
-            generator.visitStmt(res);
-            current = result.end;
         }
 
         if (config.displaySakIR) {
@@ -111,8 +102,9 @@ namespace atri::cmds {
             log << llvmCodegen.toString() << std::endl;
         }
 
-        auto currentTime = std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::system_clock::now());
-        writeFile("log-" + currentTime + ".txt", log.str());
+        auto currentTime = std::format("{:%Y-%m-%d_%H-%M-%S}", std::chrono::system_clock::now());
+        auto logPath = executableDirectory() / ("log-" + std::string(currentTime.c_str()) + ".txt");
+        if (isDebug) writeFile(logPath, log.str());
 
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
@@ -128,14 +120,31 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("create_string")] = { llvm::orc::ExecutorAddr::fromPtr(&create_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("free_string")] = { llvm::orc::ExecutorAddr::fromPtr(&free_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("concat_string")] = { llvm::orc::ExecutorAddr::fromPtr(&concat_string), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__print")] = { llvm::orc::ExecutorAddr::fromPtr(&__print), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__println")] = { llvm::orc::ExecutorAddr::fromPtr(&__println), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("print")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::print), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("println")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::println), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("input")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::input), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("inputc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::inputc), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_alloc_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_alloc_value), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_check_array_bounds")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_check_array_bounds), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_array_bounds_error")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_array_bounds_error), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_basic")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_basic), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_pointer")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_pointer), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_reference")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_reference), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_array")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_array), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__gc_safe_point")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_safe_point), llvm::JITSymbolFlags::Exported };
-        runtimeSymbols[JIT->mangleAndIntern("__gc_create_thread")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_create_thread), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_enter_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_enter_scope), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_leave_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_leave_scope), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_pop")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_pop), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_register")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_register_value")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register_value), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_register_value_slot")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_register_value_slot), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_atomic_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_atomic_type), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_array_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_array_type), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_runtime_value_array_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_runtime_value_array_type), llvm::JITSymbolFlags::Exported };
+        // LLVM 生成数组 GC 元数据时使用带长度的接口，必须显式加入 JIT 符号表。
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_array_type_with_length")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_array_type_with_length), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__gc_get_struct_type")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_get_struct_type), llvm::JITSymbolFlags::Exported };
 
         llvm::cantFail(JD.define(llvm::orc::absoluteSymbols(runtimeSymbols)));
 
@@ -145,6 +154,12 @@ namespace atri::cmds {
             if (mod->ID == "__main") {
                 auto module = mod;
                 llvm::Module* rawModule = module->content;
+                auto* entryFunction = rawModule->getFunction("main");
+                if (!entryFunction || !entryFunction->getReturnType()->isPointerTy() ||
+                    entryFunction->arg_size() != 0) {
+                    throw std::runtime_error(
+                        "Generated main must have the RuntimeValue*() ABI.");
+                }
                 auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
                 auto TSM = llvm::orc::ThreadSafeModule(
                     std::move(modulePtr),
@@ -156,14 +171,25 @@ namespace atri::cmds {
         }
 
         auto mainSymbol = llvm::cantFail(JIT->lookup("main"));
-        auto sakuraMain = mainSymbol.toPtr<int(*)()>();
-        auto resultVal = sakuraMain();
-        std::cout << "Result: " << resultVal << std::endl;
+        auto sakuraMain = mainSymbol.toPtr<sakuraE::runtime::RuntimeValue*(*)()>();
+        sakuraE::runtime::__runtime_reset_error();
+        std::thread jitThread([sakuraMain]() {
+            sakuraMain();
+        });
+        jitThread.join();
 
-        //
-
-        sakuraE::IR::TypeInfo::clearAll();
-        sakuraE::IR::IRArray::clearArrayPool();
+        sakuraE::runtime::RuntimeErrorInfo runtimeError;
+        const bool hasRuntimeError = sakuraE::runtime::__runtime_take_error(&runtimeError);
+        sakuraE::runtime::__gc_reset();
+        if (hasRuntimeError) {
+            std::ostringstream message;
+            message << "array index out of bounds: index=" << runtimeError.index
+                    << ", length=" << runtimeError.length;
+            throw sakuraE::SakuraError(
+                sakuraE::OccurredTerm::RUNTIME,
+                fzlib::String(message.str()),
+                {0, 0, "runtime array bounds check"});
+        }
     }
 }
 

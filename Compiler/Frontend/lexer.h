@@ -16,25 +16,28 @@
 
 namespace sakuraE {
     enum class TokenType {
-        IDENTIFIER, KEYWORD,  
+        IDENTIFIER, KEYWORD,
 
         INT_N, FLOAT_N,
         STRING, CHAR,
-        BOOL_CONST,
+        BOOL_CONST, NULL_LITERAL,
 
         ADD, SUB, MUL, DIV, MOD,
-        OR, AND, 
+        OR, AND,
         LGC_NOT, LGC_NOT_EQU, LGC_AND, LGC_OR, LGC_EQU, LGC_MR_THAN, LGC_LS_THAN, LGC_MREQU_THAN, LGC_LSEQU_THAN,
         LEFT_PAREN, RIGHT_PAREN, // ()
         LEFT_SQUARE_BRACKET, RIGHT_SQUARE_BRACKET, // []
         LEFT_BRACKET, RIGHT_BRACKET, // {}
         ASSIGN_OP, ADD_ASSIGN, SUB_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, // =, +=, -=, *=, /=
+
         AUTO_INC, AUTO_DEC, // ++, --
         CONSTRAINT_OP, // :
         ARROW,           // ->
         BIG_ARROW,       // =>
         SPACE_SHIP,      // <=>
         DOT,             // .
+        QUESTION,        // ?
+        SAFE_DOT,        // ?.
         COMMA,           // ,
         STMT_END,        // ;
         FN_OP,           // |>
@@ -45,20 +48,25 @@ namespace sakuraE {
         KEYWORD_WHILE, KEYWORD_FOR, KEYWORD_FUNC,
         KEYWORD_RETURN, KEYWORD_CONST, KEYWORD_RANGE,
         KEYWORD_BREAK, KEYWORD_CONTINUE, KEYWORD_REF,
-        KEYWORD_STRUCT, KEYWORD_IMPL,
-        
-        TYPE_I32, TYPE_I64, TYPE_F32, 
-        TYPE_F64, TYPE_CHAR, TYPE_BOOL, 
+        KEYWORD_STRUCT, KEYWORD_IMPL, KEYWORD_REPEAT,
+        KEYWORD_MATCH, KEYWORD_DEFAULT, KEYWORD_TYPEOF,
+        KEYWORD_SIZEOF,
+
+        TYPE_I32, TYPE_I64, TYPE_F32,
+        TYPE_F64, TYPE_CHAR, TYPE_BOOL,
         TYPE_STRING, TYPE_UI32, TYPE_UI64,
+        TYPE_VOID,
 
         _EOF_,
         UNKNOWN
     };
 
+    fzlib::String tokenTypeToString(TokenType type);
+
     class Token {
     public:
         PositionInfo info;
-        fzlib::String content; 
+        fzlib::String content;
         TokenType type;
 
         Token(TokenType t = TokenType::UNKNOWN,
@@ -83,14 +91,15 @@ namespace sakuraE {
         int current_column = 1;
 
         const std::vector<fzlib::String> keywords = {
-            "if", "else", "while", "for", "func", 
-            "return", "let", "const", "range", "true", 
+            "if", "else", "while", "for", "func",
+            "return", "let", "const", "range", "true",
             "false", "break", "continue", "match", "repeat",
-            "struct", "impl", "is", "typeof", "ref"
+            "struct", "impl", "is", "typeof", "ref", "default",
+            "typeof", "sizeof", "null"
         };
 
         const std::vector<fzlib::String> typeFields = {
-            "i32", "i64", "f32", "f64", "ui32", "ui64", "bool", "char", "string"
+            "i32", "i64", "f32", "f64", "ui32", "ui64", "bool", "char", "string", "void"
         };
 
         char peek(int offset = 0) const;

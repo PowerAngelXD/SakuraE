@@ -2,10 +2,14 @@
 #define FZSGBALL_STRING_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace fzlib {
@@ -14,11 +18,39 @@ namespace fzlib {
         std::size_t _len = 0;
         std::size_t _cap = 0;
 
+        static std::size_t checked_add(std::size_t lhs, std::size_t rhs) {
+            if (rhs > std::numeric_limits<std::size_t>::max() - lhs) {
+                throw std::length_error("String size overflow");
+            }
+            return lhs + rhs;
+        }
+
+        void init_empty() {
+            delete[] _content;
+            _content = new char[1];
+            if (_content == nullptr)
+                throw std::bad_alloc();
+
+            _content[0] = '\0';
+            _len = 0;
+            _cap = 0;
+        }
+
         void resize(std::size_t new_len) {
             if (new_len <= _cap)
                 return;
 
-            std::size_t new_cap = std::max<std::size_t>(new_len, _cap * 2);
+            if (new_len == std::numeric_limits<std::size_t>::max()) {
+                throw std::length_error("String size overflow");
+            }
+
+            std::size_t doubled_cap = _cap > std::numeric_limits<std::size_t>::max() / 2
+                ? std::numeric_limits<std::size_t>::max()
+                : _cap * 2;
+            std::size_t new_cap = std::max<std::size_t>(new_len, doubled_cap);
+            if (new_cap == std::numeric_limits<std::size_t>::max()) {
+                new_cap = new_len;
+            }
             char *new_content = new char[new_cap + 1];
 
             if (new_content == nullptr)
@@ -31,9 +63,7 @@ namespace fzlib {
 
             _content = new_content;
             _cap = new_cap;
-            _len = new_len;
-
-            _content[new_len] = '\0';
+            _content[_len] = '\0';
         }
 
     public:
@@ -43,42 +73,47 @@ namespace fzlib {
         String() = default;
 
         String(const char *s) {
-            _len = strlen(s);
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (s == nullptr || s[0] == '\0') {
+                init_empty();
                 return;
             }
+
+            _len = strlen(s);
             resize(_len);
             std::memcpy(_content, s, _len);
             _content[_len] = '\0';
         }
 
         String(const char *s, std::size_t len) {
-            _len = len;
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (s == nullptr || len == 0) {
+                init_empty();
                 return;
             }
+
+            _len = len;
             resize(len);
             std::memcpy(_content, s, _len);
             _content[_len] = '\0';
         }
 
         String(const String &str) {
-            resize(str._len);
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (str._len == 0 || str._content == nullptr) {
+                init_empty();
                 return;
             }
+
+            resize(str._len);
             std::memcpy(_content, str._content, str._len);
             _len = str._len;
             _content[_len] = '\0';
         }
 
         String(std::string&& str) {
+            if (str.empty()) {
+                init_empty();
+                return;
+            }
+
             _len = str.size();
             resize(_len);
             std::memcpy(_content, str.c_str(), _len);
@@ -86,27 +121,34 @@ namespace fzlib {
         }
 
         String(const std::string& str) {
-            _len = str.size();
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (str.empty()) {
+                init_empty();
                 return;
             }
+
+            _len = str.size();
             resize(_len);
             std::memcpy(_content, str.c_str(), _len);
             _content[_len] = '\0';
         }
 
         String(std::string_view sv) {
-            _len = sv.size();
-            if (_len == 0) {
-                resize(1);
-                _content[0] = '\0';
+            if (sv.empty()) {
+                init_empty();
                 return;
             }
+
+            _len = sv.size();
             resize(_len);
             std::memcpy(_content, sv.data(), _len);
             _content[_len] = '\0';
+        }
+
+        String(String&& other) noexcept
+            : _content(other._content), _len(other._len), _cap(other._cap) {
+            other._content = nullptr;
+            other._len = 0;
+            other._cap = 0;
         }
 
         String(int count, char ch) {
@@ -140,13 +182,26 @@ namespace fzlib {
 
         ~String() { free(); }
 
+        String& operator=(String&& other) noexcept {
+            if (this == &other) return *this;
+
+            free();
+            _content = other._content;
+            _len = other._len;
+            _cap = other._cap;
+            other._content = nullptr;
+            other._len = 0;
+            other._cap = 0;
+            return *this;
+        }
+
         // Methods
 
         iter begin() { return _content; }
         const_iter begin() const { return _content; }
 
-        iter end() { return _content + _len; }
-        const_iter end() const { return _content + _len; }
+        iter end() { return _content ? _content + _len : nullptr; }
+        const_iter end() const { return _content ? _content + _len : nullptr; }
 
         // 获得当前字符串的长度
         std::size_t len() const { return _len; }
@@ -160,11 +215,21 @@ namespace fzlib {
             return _content[index];
         }
 
-        bool isEmpty() { return _content == nullptr; }
+        bool isEmpty() const { return _len == 0; }
 
         String &append(const char *str) {
+            if (str == nullptr) return *this;
+
+            auto source = reinterpret_cast<std::uintptr_t>(str);
+            auto begin = reinterpret_cast<std::uintptr_t>(_content);
+            auto end = begin + _len;
+            if (_content && source >= begin && source < end) {
+                String copy(str);
+                return append(copy);
+            }
+
             std::size_t app_len = strlen(str);
-            std::size_t new_len = app_len + _len;
+            std::size_t new_len = checked_add(app_len, _len);
             std::size_t old_len = _len;
 
             resize(new_len);
@@ -178,7 +243,7 @@ namespace fzlib {
         }
 
         String &append(char ch) {
-            std::size_t new_len = _len + 1;
+            std::size_t new_len = checked_add(_len, 1);
             std::size_t old_len = _len;
 
             resize(new_len);
@@ -194,8 +259,16 @@ namespace fzlib {
         String &append(const String &str) {
             if (str._content == nullptr) return *this;
 
+            auto source = reinterpret_cast<std::uintptr_t>(str._content);
+            auto begin = reinterpret_cast<std::uintptr_t>(_content);
+            auto end = begin + _len;
+            if (&str == this || (_content && source >= begin && source < end)) {
+                String copy(str);
+                return append(copy);
+            }
+
             std::size_t app_len = str._len;
-            std::size_t new_len = app_len + _len;
+            std::size_t new_len = checked_add(app_len, _len);
             std::size_t old_len = _len;
 
             resize(new_len);
@@ -214,7 +287,7 @@ namespace fzlib {
         String slice(std::size_t begin, std::size_t len) {
             if (begin >= _len)
                 return String("");
-            if (begin + len > _len) {
+            if (len > _len - begin) {
                 len = _len - begin;
             }
 
@@ -246,11 +319,14 @@ namespace fzlib {
 
         // 从开头向后删 step 个字符
         String &erase(std::size_t step) {
+            if (step >= _len) {
+                _len = 0;
+                if (_content) _content[0] = '\0';
+                return *this;
+            }
+
             std::size_t new_len = _len - step;
-
-            resize(new_len);
-
-            std::memcpy(_content, _content + step, new_len);
+            std::memmove(_content, _content + step, new_len);
             _len = new_len;
 
             _content[_len] = '\0';
@@ -273,7 +349,7 @@ namespace fzlib {
                 }
                 tmp += chk;
             }
-            
+
             if (tmp._len != 0)
                 result.push_back(tmp);
 
@@ -300,7 +376,7 @@ namespace fzlib {
         }
 
         bool operator<(const String& other) const {
-            return std::strcmp(_content, other._content) < 0;
+            return std::strcmp(c_str(), other.c_str()) < 0;
         }
 
         String& operator+= (const String &str) {
@@ -332,13 +408,18 @@ namespace fzlib {
 
         String& operator= (const char *str) {
             if (str == nullptr) {
-                free();
+                init_empty();
                 return *this;
             }
-    
+
             if (_content == str) return *this;
 
             std::size_t new_l = strlen(str);
+            if (new_l == 0) {
+                init_empty();
+                return *this;
+            }
+
             _len = 0;
             resize(new_l);
 
@@ -363,13 +444,18 @@ namespace fzlib {
         String& operator= (const String& str) {
             if (this == &str) return *this;
 
-            _len = 0; 
-            resize(str._len); 
+            if (str._len == 0 || str._content == nullptr) {
+                init_empty();
+                return *this;
+            }
+
+            _len = 0;
+            resize(str._len);
 
             if (str._len > 0) {
                 std::memcpy(_content, str._content, str._len);
             }
-            
+
             _len = str._len;
             _content[_len] = '\0';
 
@@ -378,7 +464,7 @@ namespace fzlib {
 
         bool operator== (const String& str) const {
             if (_len != str._len) return false;
-            else if (std::memcmp(_content, str._content, _len) != 0) return false;
+            else if (_len != 0 && std::memcmp(_content, str._content, _len) != 0) return false;
             else return true;
         }
 
@@ -399,7 +485,7 @@ namespace fzlib {
         friend std::istream& operator>>(std::istream &iss, String &str) {
             str.free();
             char ch;
-            
+
             while (iss.get(ch) && std::isspace(ch));
 
             if (iss) {

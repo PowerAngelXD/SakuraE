@@ -1,0 +1,276 @@
+#ifndef SAKURAE_PROGRAM_HPP
+#define SAKURAE_PROGRAM_HPP
+
+#include "Compiler/Error/error.hpp"
+#include "Compiler/IR/context.hpp"
+#include "module.hpp"
+#include <cstddef>
+
+namespace sakuraE::IR {
+    class Program {
+        IRContext context;
+        fzlib::String ID;
+
+        std::vector<Module*> moduleList;
+        // moduleList 当前索引的最大值
+        int cursor = -1;
+    public:
+        Program(fzlib::String id): ID(id) {
+            PositionInfo info = {0, 0, "System"};
+            size_t targetSize = sizeof(void*) * 8;
+            buildModule("__runtime", info, true);
+            auto runtimeMod = curMod();
+
+            runtimeMod->declareRuntimeFunction(
+                "__alloc",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"size", IRType::getUIntNTy(targetSize)} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__free",
+                IRType::getVoidTy(),
+                { {"ptr", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "create_string",
+                IRType::getStringTy(),
+                { {"literal", IRType::getPointerTo(IRType::getCharTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "free_string",
+                IRType::getVoidTy(),
+                { {"str", IRType::getStringTy()} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "concat_string",
+                IRType::getStringTy(),
+                {
+                    {"s1", IRType::getStringTy()},
+                    {"s2", IRType::getStringTy()}
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "print",
+                IRType::getVoidTy(),
+                { {"value", IRType::getStringTy()} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "println",
+                IRType::getVoidTy(),
+                { {"value", IRType::getStringTy()} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "input",
+                IRType::getStringTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "inputc",
+                IRType::getCharTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_alloc_value",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_check_array_bounds",
+                IRType::getVoidTy(),
+                {
+                    {"index", IRType::getInt64Ty()},
+                    {"length", IRType::getUInt64Ty()}
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_array_bounds_error",
+                IRType::getVoidTy(),
+                {
+                    {"index", IRType::getInt64Ty()},
+                    {"length", IRType::getUInt64Ty()}
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_type_info_basic",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"kind", IRType::getUIntNTy(8)} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_type_info_pointer",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"element", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_type_info_reference",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                { {"element", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__runtime_type_info_array",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {
+                    {"element", IRType::getPointerTo(IRType::getVoidTy())},
+                    {"count", IRType::getUInt64Ty()}
+                },
+                info
+            );
+
+            // GC 方法
+            runtimeMod->declareRuntimeFunction(
+                "__gc_alloc",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {
+                    { "size", IRType::getUIntNTy(targetSize) },
+                    { "ty", IRType::getPointerTo(IRType::getVoidTy()) },
+                    { "member_count", IRType::getUInt64Ty() }
+                },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_register",
+                IRType::getVoidTy(),
+                { {"addr", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_register_value",
+                IRType::getVoidTy(),
+                { {"value", IRType::getPointerTo(IRType::getVoidTy())} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_register_value_slot",
+                IRType::getVoidTy(),
+                { {"slot", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_enter_scope",
+                IRType::getVoidTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_leave_scope",
+                IRType::getVoidTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_pop",
+                IRType::getVoidTy(),
+                { {"times", IRType::getUInt32Ty()} },
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_collect",
+                IRType::getVoidTy(),
+                {},
+                info
+            );
+
+            runtimeMod->declareRuntimeFunction(
+                "__gc_get_struct_type",
+                IRType::getPointerTo(IRType::getVoidTy()),
+                {
+                    { "name", IRType::getPointerTo(IRType::getCharTy()) },
+                    { "ptr_count", IRType::getUInt32Ty() },
+                    { "ptr_offsets", IRType::getPointerTo(IRType::getVoidTy()) }
+                },
+                info
+            );
+        }
+
+        ~Program() {
+            for (auto mod: moduleList) {
+                delete mod;
+            }
+        }
+
+        Program& buildModule(fzlib::String id, PositionInfo info, bool isRuntime = false) {
+            Module* module = new Module(id, info);
+            // 使用运行时模块
+            if (!isRuntime)
+                module->use(mod(0));
+            moduleList.emplace_back(module);
+            cursor ++;
+
+            return *this;
+        }
+
+        Module* curMod () {
+            return moduleList[cursor];
+        }
+
+        Module* mod(std::size_t index) {
+            return moduleList[index];
+        }
+
+        void reset() {
+            cursor = 0;
+            for (auto mod: moduleList) {
+                mod->reset();
+            }
+        }
+
+        fzlib::String getID() {
+            return ID;
+        }
+
+        IRContext& getContext() {
+            return context;
+        }
+
+        std::vector<Module*> getMods() {
+            return moduleList;
+        }
+
+        fzlib::String toString() {
+            fzlib::String result = ID + " {";
+            for (auto mod: moduleList) {
+                result += mod->toString();
+            }
+            result += "}";
+            return result;
+        }
+    };
+}
+
+#endif /* !SAKURAE_PROGRAM_HPP */

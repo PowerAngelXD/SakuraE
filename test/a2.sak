@@ -1,0 +1,7 @@
+func main() -> i32 {
+    let a = 32;
+    let p1 = &a;
+    let p2 = p1 + 10;
+    println(p1);
+    println(p2);
+}

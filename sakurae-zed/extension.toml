@@ -1,7 +1,20 @@
 id = "sakurae"
 name = "SakuraE"
-version = "0.1.0"
+version = "0.1.9"
 schema_version = 1
 authors = ["FZSGBall"]
 description = "SakuraE language support for Zed."
 repository = "https://github.com/PowerAngelXD/SakuraE"
+languages = ["languages/sakurae"]
+
+[lib]
+kind = "Rust"
+version = "0.7.0"
+
+[grammars.sakurae]
+repository = "https://github.com/PowerAngelXD/SakuraE"
+rev = "425ac4203920783e0cf05fc75031003773e5442c"
+path = "sakurae-tree-sitter"
+
+[language_servers.sakurae-language-server]
+languages = ["SakuraE"]

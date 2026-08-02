@@ -2,22 +2,32 @@
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/value/array.hpp"
+#include <cstdint>
+#include <limits>
 
 namespace sakuraE::IR {
-    static std::map<int, Constant> i32Constants;
-    static std::map<unsigned int, Constant> ui32Constants;
-    static std::map<long long, Constant> i64Constants;
-    static std::map<unsigned long long, Constant> ui64Constants;
+    static std::map<std::int32_t, Constant> i32Constants;
+    static std::map<std::uint32_t, Constant> ui32Constants;
+    static std::map<std::int64_t, Constant> i64Constants;
+    static std::map<std::uint64_t, Constant> ui64Constants;
     static std::map<float, Constant> f32Constants;
     static std::map<double, Constant> f64Constants;
     static std::map<fzlib::String, Constant> stringConstants;
-    static std::map<char, Constant> charConstants;
+    static std::map<std::int8_t, Constant> charConstants;
     static std::map<bool, Constant> boolConstants;
     static std::map<TypeInfo*, Constant> typeInfoConstants;
     static std::map<IRArray*, Constant> arrConstants;
+    static std::map<IRType*, Constant> nullConstants;
+
+    Constant* Constant::getNullHandle(IRType* ty, PositionInfo info) {
+        auto it = nullConstants.find(ty);
+        if (it != nullConstants.end()) return &it->second;
+        auto entry = nullConstants.emplace(ty, Constant(ty, info));
+        return &entry.first->second;
+    }
 
 
-    Constant* Constant::get(unsigned int val, PositionInfo info) {
+    Constant* Constant::get(std::uint32_t val, PositionInfo info) {
         auto it = ui32Constants.find(val);
         if (it != ui32Constants.end()) {
             return &it->second;
@@ -27,7 +37,7 @@ namespace sakuraE::IR {
         auto newEntry = ui32Constants.emplace(val, Constant(uint32Ty, val, info));
         return &newEntry.first->second;
     }
-    Constant* Constant::get(unsigned long long val, PositionInfo info) {
+    Constant* Constant::get(std::uint64_t val, PositionInfo info) {
         auto it = ui64Constants.find(val);
         if (it != ui64Constants.end()) {
             return &it->second;
@@ -37,7 +47,7 @@ namespace sakuraE::IR {
         auto newEntry = ui64Constants.emplace(val, Constant(uint64Ty, val, info));
         return &newEntry.first->second;
     }
-    Constant* Constant::get(long long val, PositionInfo info) {
+    Constant* Constant::get(std::int64_t val, PositionInfo info) {
         auto it = i64Constants.find(val);
         if (it != i64Constants.end()) {
             return &it->second;
@@ -48,7 +58,7 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
-    Constant* Constant::get(int val, PositionInfo info) {
+    Constant* Constant::get(std::int32_t val, PositionInfo info) {
         auto it = i32Constants.find(val);
         if (it != i32Constants.end()) {
             return &it->second;
@@ -87,13 +97,12 @@ namespace sakuraE::IR {
             return &it->second;
         }
 
-        IRType* charTy = IRType::getCharTy();
-        IRType* stringTy = IRType::getPointerTo(charTy);
+        IRType* stringTy = IRType::getStringTy();
         auto newEntry = stringConstants.emplace(val, Constant(stringTy, val, info));
         return &newEntry.first->second;
     }
 
-    Constant* Constant::get(char val, PositionInfo info) {
+    Constant* Constant::get(std::int8_t val, PositionInfo info) {
         auto it = charConstants.find(val);
         if (it != charConstants.end()) {
             return &it->second;
@@ -141,17 +150,17 @@ namespace sakuraE::IR {
         switch (ty->getIRTypeID())
         {
             case IRTypeID::Integer32TyID:
-                return get((int)0, info);
+                return get(std::int32_t{0}, info);
             case IRTypeID::Integer64TyID:
-                return get((int)0, info);
+                return get(std::int64_t{0}, info);
             case IRTypeID::BoolTyID:
                 return get(false, info);
             case IRTypeID::UInteger32TyID:
-                return get((unsigned int)0, info);
+                return get(std::uint32_t{0}, info);
             case IRTypeID::UInteger64TyID:
-                return get((unsigned long long)0, info);
+                return get(std::uint64_t{0}, info);
             case IRTypeID::CharTyID:
-                return get(' ', info);
+                return get(std::int8_t{' '}, info);
             case IRTypeID::Float32TyID:
                 return get((float)0.0, info);
             default:
@@ -169,7 +178,7 @@ namespace sakuraE::IR {
                 std::string str = tok.content.c_str();
                 if (str.empty()) return Constant::get(0, tok.info);
 
-                long long sign = 1;
+                std::int64_t sign = 1;
                 size_t pos = 0;
                 if (str[pos] == '-') {
                     sign = -1;
@@ -200,24 +209,25 @@ namespace sakuraE::IR {
                 std::string val_part = str.substr(pos, end_pos - pos);
                 try {
                     if (suffix == "UL") {
-                        unsigned long long val = std::stoull(val_part, nullptr, base);
-                        return Constant::get(sign == 1 ? val : (unsigned long long)-(long long)val, tok.info);
+                        std::uint64_t val = std::stoull(val_part, nullptr, base);
+                        return Constant::get(sign == 1 ? val : static_cast<std::uint64_t>(-static_cast<std::int64_t>(val)), tok.info);
                     } 
                     else if (suffix == "L") {
-                        long long val = std::stoll(val_part, nullptr, base);
-                        return Constant::get(sign * val, tok.info);
+                        std::int64_t val = std::stoll(val_part, nullptr, base);
+                        return Constant::get(static_cast<std::int64_t>(sign * val), tok.info);
                     } 
                     else if (suffix == "U") {
-                        unsigned int val = (unsigned int)std::stoul(val_part, nullptr, base);
-                        return Constant::get(sign == 1 ? val : (unsigned int)-(int)val, tok.info);
+                        std::uint32_t val = static_cast<std::uint32_t>(std::stoul(val_part, nullptr, base));
+                        return Constant::get(sign == 1 ? val : static_cast<std::uint32_t>(-static_cast<std::int32_t>(val)), tok.info);
                     } 
                     else {
-                        long long val = std::stoll(val_part, nullptr, base);
+                        std::int64_t val = std::stoll(val_part, nullptr, base);
                         val *= sign;
-                        if (val > INT_MAX || val < INT_MIN) {
-                            return Constant::get(val, tok.info);
+                        if (val > std::numeric_limits<std::int32_t>::max() ||
+                            val < std::numeric_limits<std::int32_t>::min()) {
+                            return Constant::get(static_cast<std::int64_t>(val), tok.info);
                         }
-                        return Constant::get((int)val, tok.info);
+                        return Constant::get(static_cast<std::int32_t>(val), tok.info);
                     }
                 } 
                 catch (...) {
@@ -225,6 +235,7 @@ namespace sakuraE::IR {
                                         "Literal value out of range or invalid: " + tok.content,
                                         tok.info);
                 }
+                break;
             }
             case TokenType::FLOAT_N: {
                 std::string str = tok.content.c_str();
@@ -237,12 +248,31 @@ namespace sakuraE::IR {
             case TokenType::STRING:
                 return Constant::get(fzlib::String(tok.content.c_str()), tok.info);
             case TokenType::CHAR:
-                return Constant::get(tok.content[0], tok.info);
+                return Constant::get(static_cast<std::int8_t>(tok.content[0]), tok.info);
             default:
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                                    "Cannot create constant from non-constant token",
-                                    tok.info);
+                                "Cannot create constant from non-constant token",
+                                tok.info);
         }
+
+        throw SakuraError(OccurredTerm::IR_GENERATING,
+                          "Cannot create constant from token",
+                          tok.info);
+    }
+
+    void Constant::clearAll() {
+        i32Constants.clear();
+        ui32Constants.clear();
+        i64Constants.clear();
+        ui64Constants.clear();
+        f32Constants.clear();
+        f64Constants.clear();
+        stringConstants.clear();
+        charConstants.clear();
+        boolConstants.clear();
+        typeInfoConstants.clear();
+        arrConstants.clear();
+        nullConstants.clear();
     }
 
     llvm::Type* Constant::toLLVMType(llvm::LLVMContext& ctx) {

@@ -1,0 +1,4 @@
+func main() -> i32 {
+    let invalid = sizeof("text");
+    return 0;
+}

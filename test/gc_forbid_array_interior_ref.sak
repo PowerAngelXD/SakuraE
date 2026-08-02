@@ -1,0 +1,5 @@
+func main() -> i32 {
+    let arr = ["a", "b"];
+    let bad = ref arr[0];
+    return 0;
+}

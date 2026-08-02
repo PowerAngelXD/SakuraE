@@ -16,7 +16,7 @@ namespace sakuraE {
         SUCCESS, FAILED, UNPARSED
     };
 
-    // Parser Result: using to identify the result
+    // 解析器结果：用于标识解析结果
     template<typename T>
     struct Result{
         std::shared_ptr<T> val = nullptr;
@@ -40,13 +40,13 @@ namespace sakuraE {
         }
     };
 
-    // Concept: Check if the parser type T has a static epsilonable() method.
+    // 概念约束：检查解析器类型 T 是否具有静态 epsilonable() 方法
     template<typename T>
     concept HasEpsilonable = requires {
         { T::epsilonable() } -> std::convertible_to<bool>;
     };
 
-    // Only to parse a Single token
+    // 仅用于解析单个词法单元
     template<sakuraE::TokenType T>
     struct TokenParser {
         const std::shared_ptr<Token> token;
@@ -61,7 +61,7 @@ namespace sakuraE {
             if (check(begin, end))
                 return Result<TokenParser>(ParseStatus::SUCCESS, std::make_shared<TokenParser>(std::make_shared<Token>(*begin)), begin + 1);
             else {
-                fzlib::String msg = "Expected " + fzlib::String(magic_enum::enum_name(T)) + ", but got ";
+                fzlib::String msg = "Expected " + tokenTypeToString(T) + ", but got ";
                 if (begin == end) msg += "EOF";
                 else msg += begin->typeToString();
                 
@@ -74,7 +74,7 @@ namespace sakuraE {
         }
     };
 
-    // NullParser
+    // 空解析器
     struct NullParser {
         static constexpr bool epsilonable() { 
             return true; 

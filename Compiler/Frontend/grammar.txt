@@ -9,8 +9,9 @@ Literal -> <number> | <string> | 'true' | 'false' | <char>
 IndexOp -> '[' AddExpr ']'
 CallingOp -> '(' WholeExpr (',' WholeExpr)* ')'
 AtomIdentifierExpr -> (Identifier | '(' IdentifierExpr ')') (IndexOp|CallingOp)*
-IdentifierExpr -> ('!' | ('++' | '--') | '*' | '&') AtomIdentifierExpr ('.' AtomIdentifierExpr) ('++' | '--')*
-PrimExpr -> Literal | IdentifierExpr
+IdentifierExpr -> ('!' | ('++' | '--') | '*' | '&') AtomIdentifierExpr ('.'|'?.' AtomIdentifierExpr) ('++' | '--')*
+InnerCallableOpExpr -> ('typeof'|'sizeof') CallingOp
+PrimExpr -> Literal | IdentifierExpr | InnerCallableOpExpr
 
 MulExpr -> PrimExpr (('*'|'/') PrimExpr)*
 AddExpr -> MulExpr (('+'|'-') MulExpr)*
@@ -18,12 +19,13 @@ LogicExpr -> AddExpr (('=='|'!='|'>'|'<'|'<='|'>=') AddExpr)*
 BinaryExpr -> LogicExpr (('||'|'&&') LogicExpr)*
 ArrayExpr -> '[' WholeExpr (',' WholeExpr)* ']'
 AssignExpr -> IdentifierExpr '=' | '+=' | '-=' | '/=' | '*=' WholeExpr
+StructInitExpr -> IdentifierExpr '{' ((<field> ':' WholeExpr) (',' (<field> ':' WholeExpr))* '}'
 
 WholeExpr -> AddExpr | BinaryExpr | ArrayExpr | AssignExpr
 
-BasicTypeModifier -> 'i32'|'i64'|'ui32'|'ui64'|'f32'|'f64'|'bool'|'char'|'string'|<field>
+BasicTypeModifier -> 'i32'|'i64'|'ui32'|'ui64'|'f32'|'f64'|'bool'|'char'|'string'|'void'|<field>
 ArrayTypeModifier ->  BasicTypeModifier ('[' <number> ']')*
-TypeModifier -> ArrayTypeModifier | BasicTypeModifier (('*')*|&)
+TypeModifier -> (ArrayTypeModifier | BasicTypeModifier (('*')*|&)) '?'
 
 DeclareStmt -> 'let' <field> (':' TypeModifier) '=' WholeExpr '；'
 ExprStmt -> IdentifierExpr | AssignExpr ';'
@@ -32,8 +34,13 @@ IfStmt -> 'if' '(' BinaryExpr ')' Stmt | BlockStmt
 ElseStmt -> 'else' Stmt | BlockStmt
 WhileStmt -> 'while' '(' BinaryExpr ')' Stmt | BlockStmt
 ForStmt -> 'for' '(' LetStmt BinaryExpr ';' WholeExpr ';' ')' Stmt | BlockStmt
+RepeatStmt -> 'repeat' '(' WholeExpr ')' BlockStmt
+MatchStmt -> 'match' '(' IdentifierExpr ')' '{' (WholeExpr '=>' BlockStmt)* 'default' '=>' BlockStmt '}'
 FuncDefineStmt -> 'func' <field> '(' (<field> ':' TypeModifier) (',' <field> ':' TypeModifier) ')' '->' TypeModifier BlockStmt
 ReturnStmt -> 'return' WholeExpr ';'
 BreakStmt -> 'break' ';'
 ContinueStmt -> 'continue' ';'
-Stmt -> DeclareStmt | ExprStmt | BlockStmt | IfStmt | ElseStmt | WhileStmt | ForStmt | ReturnStmt | BreakStmt | ContinueStmt
+Stmt -> DeclareStmt | ExprStmt | BlockStmt |
+        IfStmt | ElseStmt | WhileStmt |
+        ForStmt | ReturnStmt | BreakStmt |
+        ContinueStmt | MatchStmt | RepeatStmt

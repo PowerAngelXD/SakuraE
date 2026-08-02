@@ -6,6 +6,7 @@
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Use.h>
+#include <llvm/IR/Value.h>
 #include <llvm/Support/Casting.h>
 #include <map>
 #include <memory>
@@ -30,13 +31,14 @@
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/generator.hpp"
-#include "Compiler/IR/struct/function.hpp"
-#include "Compiler/IR/struct/instruction.hpp"
-#include "Compiler/IR/struct/scope.hpp"
+#include "Compiler/IR/model/function.hpp"
+#include "Compiler/IR/model/instruction.hpp"
+#include "Compiler/IR/model/scope.hpp"
 #include "Compiler/IR/type/type.hpp"
 #include "Compiler/IR/value/value.hpp"
 #include "includes/String.hpp"
 #include "Runtime/gc.h"
+#include "Runtime/rttype.h"
 
 namespace sakuraE::Codegen {
     class LLVMCodeGenerator {
@@ -45,38 +47,38 @@ namespace sakuraE::Codegen {
         llvm::LLVMContext* context;
         llvm::IRBuilder<>* builder;
     private:
-        // Struct Definition ==================================================
+        // 结构体定义 =========================================================
         enum class FunctionType {
             Definition,
             ExternalLinkage
         };
 
         struct LLVMModule;
-        // Represent LLVM Function Instantce
+        // LLVM 函数实例
         struct LLVMFunction {
-            // Function Type
+            // 函数类型
             FunctionType type;
-            // Function linkage name
+            // 函数链接名称
             fzlib::String linkageName;
-            // Function Name
+            // 函数名称
             fzlib::String name;
-            // LLVM IR Function represent
+            // LLVM IR 函数表示
             llvm::Function* content = nullptr;
-            // Function Return Type
+            // 函数返回类型
             llvm::Type* returnType = nullptr;
-            // Function Formal Params
+            // 函数形式参数
             std::vector<std::pair<fzlib::String, llvm::Type*>> formalParams;
-            // Scope for current Function
+            // 当前函数的作用域
             IR::Scope<llvm::Value*> scope;
-            // Parent Module
+            // 父模块
             LLVMModule* parent = nullptr;
-            // Parent LLVMCodeGenerator
+            // 父级 LLVMCodeGenerator
             LLVMCodeGenerator& codegenContext;
-            // Params Alloca Map
+            // 参数 Alloca 映射
             std::map<fzlib::String, llvm::AllocaInst*> paramAllocaMap;
-            // Count gc root
-            std::stack<uint32_t> gcRootCountStack;
-            // SAK IR Function
+            // 当前函数的活动 GC 作用域深度
+            uint32_t gcScopeDepth = 0;
+            // SAK IR 函数
             IR::Function* sourceFn;
 
             LLVMFunction(FunctionType ty,
@@ -98,38 +100,74 @@ namespace sakuraE::Codegen {
                         PositionInfo info):
                 type(ty), linkageName(lkn), name(n), content(nullptr), returnType(retT), formalParams(formalP), scope(IR::Scope<llvm::Value*>(info)), parent(p), codegenContext(codegen) {}
 
-            void gcCreateThread() {
-                auto fn = parent->lookup("__gc_create_thread");
+            void gcEnterScope() {
+                // 进入函数或临时表达式作用域，后续注册的 root 会按栈序撤销
+                auto fn = parent->lookup("__gc_enter_scope");
                 codegenContext.builder->CreateCall(fn->content, {});
+                gcScopeDepth ++;
             }
 
-            void gcInsertSafepoint() {
-                auto fn = parent->lookup("__gc_safe_point");
+            void gcLeaveScope() {
+                if (gcScopeDepth == 0) return;
+                auto fn = parent->lookup("__gc_leave_scope");
                 codegenContext.builder->CreateCall(fn->content, {});
+                gcScopeDepth --;
             }
 
-            llvm::Value* gcAlloc(llvm::Value* size, runtime::ObjectType ty) {
+            void gcLeaveAllScopes() {
+                while (gcScopeDepth > 0) {
+                    gcLeaveScope();
+                }
+            }
+
+            llvm::Value* gcAlloc(llvm::Value* size, llvm::Value* gcTy, llvm::Value* elemCount = nullptr) {
+                // 所有托管对象都通过统一入口分配，GC 可据此维护对象链表和类型信息
                 auto fn = parent->lookup("__gc_alloc");
-                return codegenContext.builder->CreateCall(fn->content,  {
-                    size, codegenContext.builder->getInt32(ty)
+
+                if (!elemCount) {
+                    elemCount = codegenContext.builder->getInt64(0);
+                }
+
+                return codegenContext.builder->CreateCall(fn->content, {
+                    size,
+                    gcTy,
+                    elemCount
                 });
             }
 
-            llvm::Value* gcAlloc(int size, runtime::ObjectType ty) {
+            llvm::Value* gcAlloc(int size, llvm::Value* gcTy, uint64_t elemCount = 0) {
                 auto fn = parent->lookup("__gc_alloc");
                 auto sTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
-                return codegenContext.builder->CreateCall(fn->content,  {
-                    llvm::ConstantInt::get(sTy, size), codegenContext.builder->getInt32(ty)
+
+                return codegenContext.builder->CreateCall(fn->content, {
+                    llvm::ConstantInt::get(sTy, size),
+                    gcTy,
+                    codegenContext.builder->getInt64(elemCount)
                 });
             }
 
             void gcRegisterRoot(llvm::Value* addr) {
+                // addr 指向 LLVM alloca 槽位，运行时会在收集时读取槽位中的最新对象指针
                 auto fn = parent->lookup("__gc_register");
                 auto ptr = codegenContext.builder->CreateBitCast(addr, llvm::PointerType::getUnqual(*codegenContext.context));
 
                 codegenContext.builder->CreateCall(fn->content, {ptr});
+            }
 
-                if (!gcRootCountStack.empty()) gcRootCountStack.top() ++;
+            void gcRegisterValueRoot(llvm::Value* addr) {
+                auto fn = parent->lookup("__gc_register_value_slot");
+                auto ptr = codegenContext.builder->CreateBitCast(addr,
+                    llvm::PointerType::getUnqual(*codegenContext.context));
+                codegenContext.builder->CreateCall(fn->content, {ptr});
+            }
+
+            void gcRegisterManagedSlot(llvm::Value* addr, IR::IRType* irType) {
+                if (irType && irType->isArray()) {
+                    gcRegisterRoot(addr);
+                }
+                else {
+                    gcRegisterValueRoot(addr);
+                }
             }
 
             void gcPop(size_t times) {
@@ -143,15 +181,75 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {});
             }
 
-            void enterNewHeapScope() {
-                gcRootCountStack.push(0);
+            /* 当前 GC 只把“真正的托管对象引用”纳入 root stack：
+             * 1. string 对象
+             * 2. array 对象，语义上对应堆分配的数组 payload
+             * ref、取地址和索引等派生地址不视作 GC root
+             */
+            bool isManagedStringType(IR::IRType* ty) const {
+                return ty && ty->isString();
             }
 
-            void leaveHeapScope() {
-                if (gcRootCountStack.empty()) return;
-                uint32_t count = gcRootCountStack.top();
-                gcPop(count);
-                gcRootCountStack.pop();
+            bool isRawCharPointerType(IR::IRType* ty) const {
+                if (!ty || !ty->isPointer()) {
+                    return false;
+                }
+
+                auto* ptrTy = dynamic_cast<IR::IRPointerType*>(ty);
+                return ptrTy && ptrTy->getElementType() == IR::IRType::getCharTy();
+            }
+
+            bool isManagedHeapType(IR::IRType* ty) const {
+                if (!ty) {
+                    return false;
+                }
+
+                if (ty->isArray()) {
+                    return true;
+                }
+
+                return isManagedStringType(ty);
+            }
+
+            bool shouldTrackAsGCRoot(IR::IRValue* value) const {
+                if (!value || !isManagedHeapType(value->getType())) {
+                    return false;
+                }
+
+                if (auto* inst = dynamic_cast<IR::Instruction*>(value)) {
+                    switch (inst->getKind()) {
+                        case IR::OpKind::constant:
+                        case IR::OpKind::create_array:
+                        case IR::OpKind::call:
+                        case IR::OpKind::load:
+                            return true;
+                        case IR::OpKind::gaddr:
+                        case IR::OpKind::indexing:
+                        case IR::OpKind::deref:
+                        case IR::OpKind::param:
+                        case IR::OpKind::create_alloca:
+                            return false;
+                        default:
+                            return false;
+                    }
+                }
+
+                return true;
+            }
+
+            bool shouldRegisterSlotAsGCRoot(IR::IRType* ty) const {
+                return isManagedHeapType(ty);
+            }
+
+            llvm::AllocaInst* createRootedTemporary(
+                llvm::Value* value,
+                const fzlib::String& slotName,
+                IR::IRType* irType) {
+                // 将 SSA 值落到 entry block 的槽位，避免后续分配发生时值无法作为 root 被扫描
+                auto* slot = createAlloca(value->getType(), nullptr, slotName);
+                codegenContext.builder->CreateStore(value, slot);
+                gcRegisterManagedSlot(slot, irType);
+                return slot;
             }
 
             llvm::AllocaInst* createAlloca(llvm::Type *ty, llvm::Value *arraySize = nullptr, fzlib::String n = "") {
@@ -161,20 +259,18 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->SetInsertPoint(entryBlock, ++ entryBlock->getFirstInsertionPt());
                 llvm::AllocaInst* alloca = codegenContext.builder->CreateAlloca(ty, arraySize, n.c_str());
 
-                if (ty->isPointerTy()) gcRegisterRoot(alloca);
                 codegenContext.builder->SetInsertPoint(currentBlock, currentPoint);
 
                 return alloca;
             }
 
-            llvm::Value* createHeapAlloc(llvm::Type* t, runtime::ObjectType objTy, fzlib::String n) {
-                if (t->isPointerTy()) std::cout << "YES" << std::endl;
+            llvm::Value* createHeapAlloc(llvm::Type* t, llvm::Value* gcTy, llvm::Value* elemCount) {
+                // 数组 payload 不包含 header；header 由 Runtime::__gc_alloc 在 payload 前方创建
                 size_t size = parent->content->getDataLayout().getTypeAllocSize(t);
                 llvm::Type* sizeTy = parent->content->getDataLayout().getIntPtrType(*codegenContext.context);
-
                 llvm::Value* sizeVal = llvm::ConstantInt::get(sizeTy, size);
 
-                return gcAlloc(sizeVal, objTy);
+                return gcAlloc(sizeVal, gcTy, elemCount);
             }
 
             llvm::Value* getParamAddress(fzlib::String n) {
@@ -185,13 +281,14 @@ namespace sakuraE::Codegen {
             }
 
             llvm::BasicBlock* entryBlock = nullptr;
-            // Instantiates an LLVM Function, performing the transformation from IR Function to LLVM Function.
-            // Note: This call resets the insertion point to the entry block of the current function.
+            /* 创建 LLVM 函数，并将 IR 函数转换为 LLVM 函数
+             * 注意：此调用会将当前插入点重置到当前函数的 entry 基本块
+             */
             void impl(IR::Function* source);
-            // Start LLVM IR Code generation
+            // 开始生成 LLVM IR
             void codegen();
         };
-        // Represent LLVM Module Instantce
+        // LLVM 模块实例
         struct LLVMModule {
             fzlib::String ID;
             llvm::Module* content = nullptr;
@@ -206,10 +303,104 @@ namespace sakuraE::Codegen {
             LLVMModule(fzlib::String id, llvm::LLVMContext& ctx, LLVMCodeGenerator& codegen):
                 ID(id), content(nullptr), codegenContext(codegen) {}
 
+            llvm::StructType* runtimeValueType() {
+                return codegenContext.runtimeValueType();
+            }
+
+            llvm::Type* abiType(IR::IRType* type, const fzlib::String& name) {
+                if (!type || type->getIRTypeID() == IR::IRTypeID::VoidTyID) {
+                    return llvm::Type::getVoidTy(*codegenContext.context);
+                }
+
+                if (name == "__gc_alloc" || name == "__alloc" || name == "__free" ||
+                    name == "__gc_register" || name == "__gc_pop") {
+                    return type->toLLVMType(*codegenContext.context);
+                }
+
+                return llvm::PointerType::getUnqual(*codegenContext.context);
+            }
+
             ~LLVMModule() {
                 for (auto& pair : fnMap) {
                     if (pair.second) delete pair.second;
                 }
+            }
+
+            llvm::Value* getAtomicGCType() {
+                auto callee = content->getOrInsertFunction(
+                    "__gc_get_atomic_type",
+                    llvm::FunctionType::get(codegenContext.builder->getPtrTy(), false)
+                );
+                return codegenContext.builder->CreateCall(callee, {});
+            }
+
+            llvm::Value* getArrayGCType(bool isPtr, uint32_t memberSize, llvm::Value* memTy, uint64_t length = 0) {
+                // 将 LLVM 数组布局转换为运行时扫描描述符，length 用于嵌入式数组递归扫描
+                auto callee = content->getOrInsertFunction(
+                    "__gc_get_array_type_with_length",
+                    llvm::FunctionType::get(
+                        codegenContext.builder->getPtrTy(),
+                        {
+                            llvm::Type::getInt1Ty(*codegenContext.context),
+                            llvm::Type::getInt32Ty(*codegenContext.context),
+                            llvm::Type::getInt64Ty(*codegenContext.context),
+                            codegenContext.builder->getPtrTy()
+                        },
+                        false
+                    )
+                );
+                return codegenContext.builder->CreateCall(
+                    callee,
+                    {
+                        codegenContext.builder->getInt1(isPtr),
+                        codegenContext.builder->getInt32(memberSize),
+                        codegenContext.builder->getInt64(length),
+                        memTy
+                    }
+                );
+            }
+
+            llvm::Value* getRuntimeValueArrayGCType(uint32_t memberSize, uint64_t length) {
+                auto callee = content->getOrInsertFunction(
+                    "__gc_get_runtime_value_array_type",
+                    llvm::FunctionType::get(
+                        codegenContext.builder->getPtrTy(),
+                        {
+                            llvm::Type::getInt32Ty(*codegenContext.context),
+                            llvm::Type::getInt64Ty(*codegenContext.context)
+                        },
+                        false
+                    )
+                );
+                return codegenContext.builder->CreateCall(callee, {
+                    codegenContext.builder->getInt32(memberSize),
+                    codegenContext.builder->getInt64(length)
+                });
+            }
+
+            llvm::Value* llvmTy2GCType(llvm::Type* ty) {
+                if (!ty) {
+                    return getAtomicGCType();
+                }
+
+                if (ty->isArrayTy()) {
+                    auto* arrTy = llvm::cast<llvm::ArrayType>(ty);
+                    llvm::Type* elemTy = arrTy->getElementType();
+                    bool elemIsPtr = elemTy->isPointerTy();
+                    uint32_t elemSize = static_cast<uint32_t>(
+                        content->getDataLayout().getTypeAllocSize(elemTy)
+                    );
+                    llvm::Value* elemGcTy = elemIsPtr ? getAtomicGCType() : llvmTy2GCType(elemTy);
+
+                    return getArrayGCType(elemIsPtr, elemSize, elemGcTy, arrTy->getNumElements());
+                }
+
+                if (ty->isPointerTy()) {
+                    uint32_t ptrSize = static_cast<uint32_t>(content->getDataLayout().getPointerSize());
+                    return getArrayGCType(true, ptrSize, getAtomicGCType());
+                }
+
+                return getAtomicGCType();
             }
 
             void declareFunction(FunctionType ty, fzlib::String n, llvm::Type* retT, std::vector<std::pair<fzlib::String, llvm::Type*>> formalP, PositionInfo info) {
@@ -239,33 +430,196 @@ namespace sakuraE::Codegen {
                 throw std::runtime_error(fzlib::String("Try to call a unknown function: \"" + n + "\"").c_str());
             }
 
-            // Instantiates an LLVM Module, performing the transformation from IR Module to LLVM Module.
+            // 创建 LLVM 模块，并将 IR 模块转换为 LLVM 模块
             void impl(IR::Module* source);
 
-            // Start LLVM IR Code generation
+            // 开始生成 LLVM IR
             void codegen();
         };
 
         // ====================================================================
 
-        // Instruction Referring ==============================================
+        llvm::StructType* runtimeValueType() {
+            auto* existing = llvm::StructType::getTypeByName(*context, "sakurae.RuntimeValue");
+            if (existing) return existing;
+
+            auto* padding = llvm::ArrayType::get(llvm::Type::getInt8Ty(*context), 7);
+            // RawValue 在 C++ ABI 下占用 32 字节，并按 8 字节对齐
+            auto* data = llvm::ArrayType::get(llvm::Type::getInt64Ty(*context), 4);
+            return llvm::StructType::create(*context,
+                {llvm::Type::getInt8Ty(*context), padding, data},
+                "sakurae.RuntimeValue");
+        }
+
+        llvm::Type* abiType(IR::IRType* type, const fzlib::String& name) {
+            if (!type || type->getIRTypeID() == IR::IRTypeID::VoidTyID) {
+                return llvm::Type::getVoidTy(*context);
+            }
+            if (name == "__gc_alloc" || name == "__alloc" || name == "__free" ||
+                name == "__gc_register" || name == "__gc_register_value" ||
+                name == "__gc_pop" || name == "__gc_get_struct_type" ||
+                name == "__runtime_type_info_basic" ||
+                name == "__runtime_type_info_array" ||
+                name == "__runtime_check_array_bounds" ||
+                name == "__runtime_array_bounds_error") {
+                return type->toLLVMType(*context);
+            }
+            return llvm::PointerType::getUnqual(*context);
+        }
+
+        llvm::Type* abiParamType(IR::IRType* type, const fzlib::String& name) {
+            if ((name == "create_string" || name == "__gc_register_value") && type && type->isPointer()) {
+                return type->toLLVMType(*context);
+            }
+            if (name == "__gc_get_struct_type") {
+                return type->toLLVMType(*context);
+            }
+            return abiType(type, name);
+        }
+
+        llvm::Value* boxRaw(llvm::Value* raw, IR::IRType* type, LLVMFunction* curFn) {
+            auto* allocFn = curFn->parent->lookup("__runtime_alloc_value");
+            auto* resultSlot = builder->CreateCall(allocFn->content, {}, "runtime.value");
+            builder->CreateStore(llvm::Constant::getNullValue(runtimeValueType()), resultSlot);
+            builder->CreateStore(builder->getInt8(runtimeTypeTag(type)),
+                                builder->CreateStructGEP(runtimeValueType(), resultSlot, 0));
+
+            auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), resultSlot, 2);
+            auto* rawSlot = builder->CreateBitCast(dataSlot, llvm::PointerType::getUnqual(*context));
+            builder->CreateStore(raw, rawSlot);
+            return resultSlot;
+        }
+
+        std::uint8_t runtimeTypeTag(IR::IRType* type) const {
+            switch (type->getIRTypeID()) {
+                case IR::IRTypeID::CharTyID: return 0;
+                case IR::IRTypeID::Integer32TyID: return 1;
+                case IR::IRTypeID::Integer64TyID: return 2;
+                case IR::IRTypeID::UInteger32TyID: return 4;
+                case IR::IRTypeID::UInteger64TyID: return 5;
+                case IR::IRTypeID::Float32TyID: return 6;
+                case IR::IRTypeID::Float64TyID: return 7;
+                case IR::IRTypeID::BoolTyID: return 8;
+                case IR::IRTypeID::StringTyID: return 9;
+                case IR::IRTypeID::ArrayTyID: return 10;
+                case IR::IRTypeID::TypeInfoTyID:
+                    return 13;
+                case IR::IRTypeID::PointerTyID:
+                case IR::IRTypeID::RefTyID: return 12;
+                default: return 12;
+            }
+        }
+
+        llvm::Value* runtimeTypeInfo(IR::IRType* type, LLVMFunction* curFn) {
+            auto callFactory = [&](const fzlib::String& name, std::vector<llvm::Value*> args) {
+                auto* fn = curFn->parent->lookup(name);
+                return builder->CreateCall(fn->content, args, "runtime.typeinfo");
+            };
+
+            std::uint8_t kind = 0;
+            switch (type->getIRTypeID()) {
+                case IR::IRTypeID::VoidTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::Void); break;
+                case IR::IRTypeID::CharTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::I8); break;
+                case IR::IRTypeID::Integer32TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::I32); break;
+                case IR::IRTypeID::Integer64TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::I64); break;
+                case IR::IRTypeID::UInteger32TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::U32); break;
+                case IR::IRTypeID::UInteger64TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::U64); break;
+                case IR::IRTypeID::Float32TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::F32); break;
+                case IR::IRTypeID::Float64TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::F64); break;
+                case IR::IRTypeID::BoolTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::Bool); break;
+                case IR::IRTypeID::StringTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::String); break;
+                case IR::IRTypeID::PointerTyID: {
+                    auto* pointer = static_cast<IR::IRPointerType*>(type);
+                    return callFactory("__runtime_type_info_pointer", {
+                        runtimeTypeInfo(pointer->getElementType(), curFn)
+                    });
+                }
+                case IR::IRTypeID::RefTyID: {
+                    auto* reference = static_cast<IR::IRRefType*>(type);
+                    return callFactory("__runtime_type_info_reference", {
+                        runtimeTypeInfo(reference->getElementType(), curFn)
+                    });
+                }
+                case IR::IRTypeID::ArrayTyID: {
+                    auto* array = static_cast<IR::IRArrayType*>(type);
+                    return callFactory("__runtime_type_info_array", {
+                        runtimeTypeInfo(array->getElementType(), curFn),
+                        builder->getInt64(array->getNumElements())
+                    });
+                }
+                default:
+                    throw std::runtime_error("Unsupported IR type for Runtime::TypeInfo lowering");
+            }
+
+            return callFactory("__runtime_type_info_basic", {builder->getInt8(kind)});
+        }
+
+        llvm::Value* unboxRaw(llvm::Value* boxed, IR::IRType* type, LLVMFunction* curFn) {
+            auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), boxed, 2);
+            auto* rawSlot = builder->CreateBitCast(dataSlot, llvm::PointerType::getUnqual(*context));
+            return builder->CreateLoad(type->toLLVMType(*context), rawSlot, "unboxed.value");
+        }
+
+        llvm::Value* rawValue(IR::IRValue* value, LLVMFunction* curFn) {
+            return unboxRaw(toLLVMValue(value, curFn), value->getType(), curFn);
+        }
+
+        llvm::Value* boxConstant(IR::Constant* constant, LLVMFunction* curFn) {
+            if (constant->isNullHandle()) {
+                auto* llvmType = constant->getType()->toLLVMType(*context);
+                llvm::Constant* zero = llvm::Constant::getNullValue(llvmType);
+                return boxRaw(zero, constant->getType(), curFn);
+            }
+            switch (constant->getType()->getIRTypeID()) {
+                case IR::IRTypeID::Integer32TyID:
+                    return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::Integer64TyID:
+                    return boxRaw(builder->getInt64(constant->getContentValue<std::int64_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::UInteger32TyID:
+                    return boxRaw(builder->getInt32(constant->getContentValue<std::uint32_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::UInteger64TyID:
+                    return boxRaw(builder->getInt64(constant->getContentValue<std::uint64_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::Float32TyID:
+                    return boxRaw(llvm::ConstantFP::get(builder->getFloatTy(), constant->getContentValue<float>()), constant->getType(), curFn);
+                case IR::IRTypeID::Float64TyID:
+                    return boxRaw(llvm::ConstantFP::get(builder->getDoubleTy(), constant->getContentValue<double>()), constant->getType(), curFn);
+                case IR::IRTypeID::CharTyID:
+                    return boxRaw(builder->getInt8(constant->getContentValue<std::int8_t>()), constant->getType(), curFn);
+                case IR::IRTypeID::BoolTyID:
+                    return boxRaw(builder->getInt1(constant->getContentValue<bool>()), constant->getType(), curFn);
+                case IR::IRTypeID::TypeInfoTyID:
+                    return boxRaw(
+                        runtimeTypeInfo(constant->getContentValue<IR::TypeInfo*>()->toIRType(), curFn),
+                        constant->getType(),
+                        curFn);
+                default:
+                    throw std::runtime_error(fzlib::String("Unsupported boxed constant type: " + constant->getType()->toString()).c_str());
+            }
+        }
+
+        // 指令引用 ============================================================
         std::map<IR::IRValue*, llvm::Value*> instructionMap;
-        // Get IRValue to llvm Value referrence
+        std::map<IR::IRValue*, llvm::AllocaInst*> protectedValueSlots;
+        // 获取 IRValue 对应的 LLVM Value 引用
         inline llvm::Value* getRef(IR::IRValue* sakIRVal) {
             return instructionMap[sakIRVal];
         }
 
-        // Create a new IRValue to llvm Value referrence
+        // 创建新的 IRValue 到 LLVM Value 的引用
         inline void bind(IR::IRValue* sakIRVal, llvm::Value* llvmIRVal) {
             instructionMap[sakIRVal] = llvmIRVal;
         }
+
+        inline void protectValue(IR::IRValue* sakIRVal, llvm::AllocaInst* slot) {
+            protectedValueSlots[sakIRVal] = slot;
+        }
         // =====================================================================
 
-        // Module ==============================================================
+        // 模块 =================================================================
         std::vector<LLVMModule*> modules;
         // =====================================================================
 
-        // State Tools =========================================================
+        // 状态工具 ============================================================
         IR::Module* curIRModule() {
             return program->curMod();
         }
@@ -274,28 +628,27 @@ namespace sakuraE::Codegen {
             return curIRModule()->curFunc();
         }
 
-        // Look up an identifier matching the target name in the current active IR-function's scope.
+        // 在当前活动 IR 函数的作用域中查找指定名称的标识符
         template<typename T>
         IR::Symbol<T>* IRScopeLookup(fzlib::String n) {
             return curIRFunc()->fnScope().lookup(n);
         }
         // =====================================================================
 
-        // Resources ===========================================================
-        std::map<fzlib::String, llvm::Value*> stringPool;
-        // =====================================================================
+        /* 资源 =================================================================
+         * =====================================================================
+         */
     public:
         LLVMCodeGenerator()=default;
         LLVMCodeGenerator(IR::Program* p) {
             program = p;
-            context = new llvm::LLVMContext();
+            context = &program->getContext().llvmContext();
             builder = new llvm::IRBuilder<>(*context);
 
-            // Reset, for the state managing
+            // 重置状态管理器
             program->reset();
         }
         ~LLVMCodeGenerator() {
-            if (context) delete context;
             if (builder) delete builder;
 
             for (auto mod: modules) delete mod;
@@ -311,62 +664,30 @@ namespace sakuraE::Codegen {
         std::unique_ptr<llvm::LLVMContext> releaseContext() {
             if (!context) return nullptr;
 
-            auto ptr = std::unique_ptr<llvm::LLVMContext>(context);
+            auto ptr = program->getContext().releaseLLVMContext();
             context = nullptr;
             return ptr;
         }
     private:
-        llvm::Value* compare(IR::Instruction* ins, LLVMFunction* curFn);
         llvm::Value* instgen(IR::Instruction* ins, LLVMFunction* curFn);
 
-        // Tool Methods =========================================================
+        // 工具方法 ============================================================
         llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
-            switch (constant->getType()->getIRTypeID()){
-                case IR::IRTypeID::Integer32TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<int>());
-                case IR::IRTypeID::Integer64TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<long long>());
-                case IR::IRTypeID::UInteger32TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<unsigned int>());
-                case IR::IRTypeID::UInteger64TyID:
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<unsigned long long>());
-                case IR::IRTypeID::Float32TyID:
-                    return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<float>());
-                case IR::IRTypeID::Float64TyID:
-                    return llvm::ConstantFP::get(constant->getType()->toLLVMType(*context), constant->getContentValue<double>());
-                case IR::IRTypeID::PointerTyID: {
-                    auto ptrType = dynamic_cast<IR::IRPointerType*>(constant->getType());
-                    if (ptrType->getElementType() == IR::IRType::getCharTy()) {
-                        // Is String
-                        fzlib::String strVal = constant->getContentValue<fzlib::String>();
-
-                        if (stringPool.contains(strVal)) return stringPool[strVal];
-
-                        auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
-
-                        auto string_creater = curFn->parent->lookup("create_string");
-
-                        llvm::Value* heapStr = builder->CreateCall(string_creater->content, {strVar}, "heap_str");
-                        stringPool[strVal] = heapStr;
-
-                        return heapStr;
-                    }
-                    break;
-                }
-                case IR::IRTypeID::CharTyID: {
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<char>());
-                }
-                case IR::IRTypeID::BoolTyID: {
-                    return llvm::ConstantInt::get(constant->getType()->toLLVMType(*context), constant->getContentValue<bool>());
-                }
-                default:
-                    return nullptr;
+            if (constant->getType()->getIRTypeID() != IR::IRTypeID::StringTyID) {
+                return boxConstant(constant, curFn);
             }
 
-            return nullptr;
+            fzlib::String strVal = constant->getContentValue<fzlib::String>();
+            auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
+            auto stringCreator = curFn->parent->lookup("create_string");
+            return builder->CreateCall(stringCreator->content, {strVar}, "boxed.string");
         }
 
         llvm::Value* toLLVMValue(IR::IRValue* value, LLVMFunction* curFn) {
+            if (protectedValueSlots.contains(value)) {
+                auto* slot = protectedValueSlots[value];
+                return builder->CreateLoad(slot->getAllocatedType(), slot, "gc.protected.load");
+            }
             if (instructionMap.find(value) != instructionMap.end()) {
                 return getRef(value);
             }
@@ -383,11 +704,11 @@ namespace sakuraE::Codegen {
         }
 
         bool hasLLVMValue(IR::IRValue* value) {
-            return instructionMap.contains(value);
+            return instructionMap.contains(value) || protectedValueSlots.contains(value);
         }
         // =====================================================================
 
-        // Calculation =========================================================
+        // 计算 =================================================================
 
     private:
         llvm::Type* promote(llvm::Value*& lhs, llvm::Value*& rhs) {
@@ -458,7 +779,34 @@ namespace sakuraE::Codegen {
                 builder->CreateFRem(lhs, rhs, "remftmp") : builder->CreateSRem(lhs, rhs, "remtmp");
         }
 
-        llvm::Value* compare(llvm::Value* lhs, llvm::Value* rhs, IR::OpKind kind, LLVMFunction* curFn) {
+        llvm::Value* compare(
+            llvm::Value* lhs,
+            llvm::Value* rhs,
+            IR::IRType* lhsType,
+            IR::IRType* rhsType,
+            IR::OpKind kind,
+            LLVMFunction* curFn
+        ) {
+            if (lhsType && rhsType && (lhsType->isString() || rhsType->isString())) {
+                if (!(lhsType->isString() && rhsType->isString())) {
+                    throw std::runtime_error("String values cannot be compared with raw pointer values.");
+                }
+
+                if (kind != IR::OpKind::lgc_equal && kind != IR::OpKind::lgc_not_equal) {
+                    throw std::runtime_error("Only '==' and '!=' are supported for string values.");
+                }
+
+                llvm::FunctionCallee strcmpFunc = curFn->parent->content->getOrInsertFunction(
+                    "strcmp", builder->getInt32Ty(), builder->getPtrTy(), builder->getPtrTy()
+                );
+                llvm::Value* res = builder->CreateCall(strcmpFunc, {lhs, rhs}, "strcmp.tmp");
+
+                if (kind == IR::OpKind::lgc_equal) {
+                    return builder->CreateICmpEQ(res, builder->getInt32(0), "str.eq");
+                }
+                return builder->CreateICmpNE(res, builder->getInt32(0), "str.ne");
+            }
+
             auto targetTy = promote(lhs, rhs);
 
             if (targetTy && targetTy->isFloatingPointTy()) {
@@ -472,7 +820,7 @@ namespace sakuraE::Codegen {
                     case IR::OpKind::lgc_eq_ls_than:   pred = llvm::FCmpInst::FCMP_OLE; break;
                     default: return nullptr;
                 }
-                // Correcting the typo FCInst to FCmpInst
+                // 修正 FCInst 到 FCmpInst 的类型名称错误
                 return builder->CreateFCmp(pred, lhs, rhs, "fcmp.tmp");
             }
 
@@ -490,18 +838,14 @@ namespace sakuraE::Codegen {
                 return builder->CreateICmp(pred, lhs, rhs, "icmp.tmp");
             }
 
-            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy()) {
-                if (kind == IR::OpKind::lgc_equal || kind == IR::OpKind::lgc_not_equal) {
-                    llvm::FunctionCallee strcmpFunc = curFn->parent->content->getOrInsertFunction(
-                        "strcmp", builder->getInt32Ty(), builder->getPtrTy(), builder->getPtrTy()
-                    );
-                    llvm::Value* res = builder->CreateCall(strcmpFunc, {lhs, rhs}, "strcmp.tmp");
+            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy() &&
+                kind == IR::OpKind::lgc_equal) {
+                return builder->CreateICmpEQ(lhs, rhs, "ptr.eq");
+            }
 
-                    if (kind == IR::OpKind::lgc_equal)
-                        return builder->CreateICmpEQ(res, builder->getInt32(0), "str.eq");
-                    else
-                        return builder->CreateICmpNE(res, builder->getInt32(0), "str.ne");
-                }
+            if (lhs->getType()->isPointerTy() && rhs->getType()->isPointerTy() &&
+                kind == IR::OpKind::lgc_not_equal) {
+                return builder->CreateICmpNE(lhs, rhs, "ptr.ne");
             }
 
             return nullptr;
@@ -509,7 +853,7 @@ namespace sakuraE::Codegen {
 
         // =====================================================================
 
-        // Optimizer ===========================================================
+        // 优化器 ===============================================================
         void moduleOptimize(llvm::Module* mod) {
             llvm::LoopAnalysisManager LAM;
             llvm::FunctionAnalysisManager FAM;
@@ -543,4 +887,4 @@ namespace sakuraE::Codegen {
     };
 }
 
-#endif // !SAKURAE_LLVMCODEGENERATOR_HPP
+#endif /* !SAKURAE_LLVMCODEGENERATOR_HPP */

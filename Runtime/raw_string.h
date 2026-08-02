@@ -13,11 +13,14 @@
 #include <cstring>
 #include <cstdio>
 #include "alloc.h"
+#include "value.h"
 
-extern "C" char* create_string(const char* literal);
+extern "C" sakuraE::runtime::RuntimeValue* create_string(const char* literal);
 
-extern "C" void free_string(char* str);
+extern "C" void free_string(sakuraE::runtime::RuntimeValue* str);
 
-extern "C" char* concat_string(const char* s1, const char* s2);
+extern "C" sakuraE::runtime::RuntimeValue* concat_string(
+    sakuraE::runtime::RuntimeValue* s1,
+    sakuraE::runtime::RuntimeValue* s2);
 
 #endif

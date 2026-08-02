@@ -55,9 +55,13 @@ namespace sakuraE::IR {
         }
 
         static void clearArrayPool() {
-            for (auto arrPtr: arrPool) delete arrPtr;
+            for (auto*& arrPtr: arrPool) {
+                delete arrPtr;
+                arrPtr = nullptr;
+            }
+            arrPool.clear();
         }
     };
 }
 
-#endif // ! SAKURAE_ARRAY_HPP
+#endif /* ! SAKURAE_ARRAY_HPP */

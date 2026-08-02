@@ -1,12 +1,38 @@
 #ifndef SAKURAE_ATRI_UTILS_HPP
 #define SAKURAE_ATRI_UTILS_HPP
 
+#include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <string>
 
+#include "Compiler/IR/type/type_info.hpp"
+#include "Compiler/IR/value/array.hpp"
+#include "Compiler/IR/value/constant.hpp"
 #include "includes/String.hpp"
+#include "Runtime/errors.h"
+#include "Runtime/gc.h"
 
 namespace atri {
+    inline void clearCompilerSessionState() {
+        sakuraE::IR::Constant::clearAll();
+        sakuraE::IR::TypeInfo::clearAll();
+        sakuraE::IR::IRArray::clearArrayPool();
+    }
+
+    struct CompilerSessionGuard {
+        ~CompilerSessionGuard() {
+            clearCompilerSessionState();
+        }
+    };
+
+    struct RuntimeSessionGuard {
+        ~RuntimeSessionGuard() {
+            sakuraE::runtime::__gc_reset();
+            sakuraE::runtime::__runtime_reset_error();
+        }
+    };
+
     inline fzlib::String readSourceFile(fzlib::String path) {
         std::ifstream file(path.c_str(), std::ios::binary | std::ios::ate);
 
@@ -39,6 +65,29 @@ namespace atri {
         file.write(content.c_str(), content.len());
 
         file.close();
+    }
+
+    inline void writeFile(const std::filesystem::path& path, fzlib::String content) {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+
+        if (!file.is_open()) {
+            throw std::runtime_error("Could not open file for writing: " + path.string());
+        }
+
+        std::vector<char> buffer(65536);
+        file.rdbuf()->pubsetbuf(buffer.data(), buffer.size());
+
+        file.write(content.c_str(), content.len());
+
+        file.close();
+    }
+
+    inline std::filesystem::path executableDirectory() {
+#if defined(__linux__)
+        return std::filesystem::read_symlink("/proc/self/exe").parent_path();
+#else
+        return std::filesystem::current_path();
+#endif
     }
 
     inline bool contains(std::vector<fzlib::String> arr, fzlib::String target) {

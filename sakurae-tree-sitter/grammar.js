@@ -34,7 +34,7 @@ module.exports = grammar({
             ),
 
         number: ($) =>
-            token(/\d+(\.\d+)?[f]?|0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+/),
+            token(/\d+(\.\d+)?(UL|U|L|f)?|0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+/),
         string: ($) => token(seq('"', repeat(/[^"\\]|\\./), '"')),
         char: ($) => token(/'([^'\\\\]|\\.)'/),
         boolean: ($) => choice("true", "false"),
@@ -102,7 +102,7 @@ module.exports = grammar({
                 PREC.MUL,
                 seq(
                     choice($.mul_expr, $.prim_expr),
-                    choice("*", "/"),
+                    choice("*", "/", "%"),
                     choice($.mul_expr, $.prim_expr),
                 ),
             ),
@@ -110,13 +110,18 @@ module.exports = grammar({
         array_expr: ($) => seq("[", commaSep1($.whole_expr), "]"),
 
         prim_expr: ($) =>
-            choice($.literal, $.identifier_expr, seq("(", $.whole_expr, ")")),
+            choice(
+                $.literal,
+                $.array_expr,
+                $.identifier_expr,
+                seq("(", $.whole_expr, ")"),
+            ),
 
         identifier_expr: ($) =>
             prec(
                 PREC.UNARY,
                 seq(
-                    optional(choice("!", "++", "--", "*", "&")),
+                    optional(choice("!", "++", "--", "*", "&", "ref")),
                     $.atom_identifier_expr,
                     optional(seq(".", $.identifier)),
                     repeat(choice("++", "--")),
@@ -144,10 +149,11 @@ module.exports = grammar({
                     "bool",
                     "char",
                     "string",
+                    "void",
                     $.identifier,
                 ),
                 repeat(seq("[", $.number, "]")),
-                repeat("*"),
+                repeat(choice("*", "&")),
             ),
 
         stmt: ($) =>
@@ -158,7 +164,9 @@ module.exports = grammar({
                 $.if_stmt,
                 $.while_stmt,
                 $.for_stmt,
+                $.repeat_stmt,
                 $.func_define_stmt,
+                $.match_stmt,
                 $.return_stmt,
                 $.break_stmt,
                 $.continue_stmt,
@@ -196,12 +204,54 @@ module.exports = grammar({
             seq(
                 "for",
                 "(",
-                optional($.declare_stmt),
-                optional($.whole_expr),
-                ";",
-                optional($.whole_expr),
+                choice($.traditional_for_clause, $.range_for_clause),
                 ")",
                 $.stmt,
+            ),
+
+        traditional_for_clause: ($) =>
+            seq(
+                $.declare_stmt,
+                $.binary_expr,
+                ";",
+                $.whole_expr,
+            ),
+
+        range_for_clause: ($) =>
+            seq(
+                "let",
+                $.identifier,
+                optional(seq(":", $.type_modifier)),
+                "=",
+                $.range_expr,
+            ),
+
+        range_expr: ($) => seq("range", choice($.array_expr, $.identifier_expr)),
+
+        repeat_stmt: ($) =>
+            seq(
+                "repeat",
+                "(",
+                $.whole_expr,
+                ")",
+                $.block_stmt,
+            ),
+
+        match_stmt: ($) =>
+            seq(
+                "match",
+                "(",
+                $.identifier_expr,
+                ")",
+                "[",
+                repeat(
+                    seq(
+                        choice($.whole_expr, "default"),
+                        "=>",
+                        $.block_stmt,
+                    ),
+                ),
+                "]",
             ),
 
         func_define_stmt: ($) =>

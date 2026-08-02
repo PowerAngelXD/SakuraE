@@ -49,7 +49,7 @@ SakuraE/
 │   │   ├── generator.hpp           # IR 生成工具
 │   │   ├── README-zh_cn.md         # IR 文档 (中文)
 │   │   ├── README.md               # IR 文档 (英文)
-│   │   ├── struct/                 # IR 结构组件
+│   │   ├── model/                  # IR 结构组件
 │   │   │   ├── block.hpp           # 基本块表示
 │   │   │   ├── function.hpp        # 带有作用域管理的函数表示
 │   │   │   ├── instruction.hpp     # 指令定义与 OpKind 枚举
@@ -143,7 +143,7 @@ SakuraE/
    }
    
    func main() -> i32 {
-        __println(\"Hello world, check fib(21):\");
+        println(\"Hello world, check fib(21):\");
         return fib(21);
    }" >> test.sak
    ```
