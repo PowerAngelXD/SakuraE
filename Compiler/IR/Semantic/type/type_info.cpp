@@ -1,6 +1,6 @@
 #include "type_info.hpp"
 
-#include "Compiler/IR/context.hpp"
+#include "Compiler/IR/Backend/context/context.hpp"
 
 namespace sakuraE::IR {
     bool isAssignableTo(const TypeInfo* source, const TypeInfo* target) {
@@ -12,34 +12,30 @@ namespace sakuraE::IR {
             && target->isNullable();
     }
 
-    namespace {
-        IRType* tid2IRType(IRContext& context, TypeID typeID) {
-            switch (typeID) {
-                case TypeID::Int32:
-                    return context.getInt32Ty();
-                case TypeID::Int64:
-                    return context.getInt64Ty();
-                case TypeID::UInt32:
-                    return context.getUInt32Ty();
-                case TypeID::UInt64:
-                    return context.getUInt64Ty();
-                case TypeID::Float32:
-                    return context.getFloat32Ty();
-                case TypeID::Float64:
-                    return context.getFloat64Ty();
-                case TypeID::Char:
-                    return context.getCharTy();
-                case TypeID::Bool:
-                    return context.getBoolTy();
-                case TypeID::String:
-                    return context.getStringTy();
-                case TypeID::Void:
-                    return context.getVoidTy();
-                default:
-                    throw SakuraError(OccurredTerm::IR_GENERATING,
-                                      "Unknown TypeID to convert to IRType",
-                                      {0, 0, "InsideError"});
-            }
+    IRType* tid2IRType(IRContext& context, TypeID typeID) {
+        switch (typeID) {
+            case TypeID::Int32:
+                return context.getInt32Ty();
+            case TypeID::Int64:
+                return context.getInt64Ty();
+            case TypeID::UInt32:
+                return context.getUInt32Ty();
+            case TypeID::UInt64:
+                return context.getUInt64Ty();
+            case TypeID::Float32:
+                return context.getFloat32Ty();
+            case TypeID::Float64:
+                return context.getFloat64Ty();
+            case TypeID::Char:
+                return context.getCharTy();
+            case TypeID::Bool:
+                return context.getBoolTy();
+            case TypeID::Void:
+                return context.getVoidTy();
+            default:
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                  "Unknown TypeID to convert to IRType",
+                                  {0, 0, "InsideError"});
         }
     }
 
@@ -68,7 +64,7 @@ namespace sakuraE::IR {
         return tid2IRType(context, typeID);
     }
 
-    TypeInfo* TypeInfoPool::makeBasicTypeID(TypeID typeID) {
+    TypeInfo* TypeInfoContext::makeBasicTypeID(TypeID typeID) {
         if (typeID == TypeID::Struct) {
             throw std::runtime_error("A struct TypeInfo requires an IRStructType");
         }
@@ -82,7 +78,7 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    TypeInfo* TypeInfoPool::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
+    TypeInfo* TypeInfoContext::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
         const auto key = std::make_pair(element, count);
         auto it = arrayTypes.find(key);
         if (it == arrayTypes.end()) {
@@ -93,7 +89,7 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    TypeInfo* TypeInfoPool::makePointerTypeID(TypeInfo* typeID) {
+    TypeInfo* TypeInfoContext::makePointerTypeID(TypeInfo* typeID) {
         auto it = pointerTypes.find(typeID);
         if (it == pointerTypes.end()) {
             it = pointerTypes.emplace(
@@ -103,7 +99,7 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    TypeInfo* TypeInfoPool::makeRefTypeID(TypeInfo* typeID) {
+    TypeInfo* TypeInfoContext::makeRefTypeID(TypeInfo* typeID) {
         auto it = refTypes.find(typeID);
         if (it == refTypes.end()) {
             it = refTypes.emplace(
@@ -113,7 +109,7 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    TypeInfo* TypeInfoPool::makeStructTypeID(IRStructType* type) {
+    TypeInfo* TypeInfoContext::makeStructTypeID(IRStructType* type) {
         if (!type) {
             throw std::invalid_argument("Cannot create TypeInfo for a null IRStructType");
         }
@@ -127,7 +123,18 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    TypeInfo* TypeInfoPool::wrapTypeAsNullable(TypeInfo* type, PositionInfo info) {
+    TypeInfo *TypeInfoContext::makeFunctionTypeID(TypeInfo *retTy, std::vector<TypeInfo *> argTys) {
+        const auto key = std::make_pair(retTy, argTys);
+        auto it = funcTypes.find(key);
+        if (it == funcTypes.end()) {
+            it = funcTypes.emplace(
+                key,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, retTy, argTys))).first;
+        }
+        return it->second.get();
+    }
+
+    TypeInfo* TypeInfoContext::wrapTypeAsNullable(TypeInfo* type, PositionInfo info) {
         if (!type) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
@@ -159,7 +166,7 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    void TypeInfoPool::clear() {
+    void TypeInfoContext::clear() {
         refTypes.clear();
         pointerTypes.clear();
         arrayTypes.clear();
@@ -168,31 +175,35 @@ namespace sakuraE::IR {
         nullableTypes.clear();
     }
 
-    TypeInfo* TypeInfo::makeBasicTypeID(TypeID typeID) {
-        return IRContext::current().typeInfoPool().makeBasicTypeID(typeID);
+    TypeInfo* TypeInfo::makeBasicTypeID(const TypeID typeID) {
+        return IRContext::current().getTypeInfoManager().makeBasicTypeID(typeID);
     }
 
-    TypeInfo* TypeInfo::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
-        return IRContext::current().typeInfoPool().makeArrayTypeID(element, count);
+    TypeInfo* TypeInfo::makeArrayTypeID(TypeInfo* element, const std::uint64_t count) {
+        return IRContext::current().getTypeInfoManager().makeArrayTypeID(element, count);
     }
 
     TypeInfo* TypeInfo::makePointerTypeID(TypeInfo* typeID) {
-        return IRContext::current().typeInfoPool().makePointerTypeID(typeID);
+        return IRContext::current().getTypeInfoManager().makePointerTypeID(typeID);
     }
 
     TypeInfo* TypeInfo::makeRefTypeID(TypeInfo* typeID) {
-        return IRContext::current().typeInfoPool().makeRefTypeID(typeID);
+        return IRContext::current().getTypeInfoManager().makeRefTypeID(typeID);
     }
 
     TypeInfo* TypeInfo::makeStructTypeID(IRStructType* type) {
-        return IRContext::current().typeInfoPool().makeStructTypeID(type);
+        return IRContext::current().getTypeInfoManager().makeStructTypeID(type);
+    }
+
+    TypeInfo* TypeInfo::makeFunctionTypeID(TypeInfo* retTy, std::vector<TypeInfo*> argTys) {
+        return IRContext::current().getTypeInfoManager().makeFunctionTypeID(retTy, std::move(argTys));
     }
 
     TypeInfo* TypeInfo::wrapTypeAsNullable(TypeInfo* type, PositionInfo info) {
-        return IRContext::current().typeInfoPool().wrapTypeAsNullable(type, info);
+        return IRContext::current().getTypeInfoManager().wrapTypeAsNullable(type, std::move(info));
     }
 
     void TypeInfo::clearAll() {
-        IRContext::current().typeInfoPool().clear();
+        IRContext::current().getTypeInfoManager().clear();
     }
 }
