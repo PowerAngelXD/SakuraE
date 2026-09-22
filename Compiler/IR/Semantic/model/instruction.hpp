@@ -1,7 +1,7 @@
 #ifndef SAKURAE_INSTRUCTION_HPP
 #define SAKURAE_INSTRUCTION_HPP
 
-#include "Compiler/IR/value/constant.hpp"
+#include "Compiler/IR/Semantic/value/constant.hpp"
 
 namespace sakuraE::IR {
     enum class OpKind {

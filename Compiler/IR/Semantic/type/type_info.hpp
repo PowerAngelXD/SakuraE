@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdexcept>
 #include <variant>
+#include <cstdint>
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Utils/Logger.hpp"
@@ -13,6 +14,24 @@
 namespace sakuraE::IR {
     class IRContext;
     class TypeInfo;
+
+    struct StructDeclId {
+        fzlib::String module;
+        std::uint64_t localId = 0;
+
+        bool operator==(const StructDeclId& other) const {
+            return module == other.module && localId == other.localId;
+        }
+        bool operator<(const StructDeclId& other) const {
+            return module < other.module || (module == other.module && localId < other.localId);
+        }
+    };
+
+    struct SemanticField {
+        fzlib::String name;
+        TypeInfo* type = nullptr;
+        PositionInfo info;
+    };
 
     enum TypeID {
         // 词法单元
@@ -32,7 +51,7 @@ namespace sakuraE::IR {
         Pointer,
         Ref,
         Struct,
-        Function
+        FunctionType
     };
 
     enum class TypeQualifier {
@@ -73,12 +92,12 @@ namespace sakuraE::IR {
     };
 
     class StructTypeInfo {
-        IRStructType* type;
+        StructDeclId declaration;
 
     public:
-        explicit StructTypeInfo(IRStructType* structType): type(structType) {}
+        explicit StructTypeInfo(StructDeclId id): declaration(std::move(id)) {}
 
-        IRStructType* getType() const { return type; }
+        const StructDeclId& getDeclId() const { return declaration; }
     };
 
     class FunctionTypeInfo {
@@ -123,11 +142,11 @@ namespace sakuraE::IR {
             }()) {}
 
         TypeInfo(IRContext& ctx, TypeInfo* retTy, std::vector<TypeInfo*> argTys):
-            context(ctx), qualifier(TypeQualifier::Normal), typeID(Function),
+            context(ctx), qualifier(TypeQualifier::Normal), typeID(FunctionType),
             complexTypeInfo(FunctionTypeInfo(retTy, argTys)) {}
 
-        TypeInfo(IRContext& ctx, IRStructType* structType)
-            : context(ctx), qualifier(TypeQualifier::Normal), typeID(Struct), complexTypeInfo(StructTypeInfo(structType)) {}
+        TypeInfo(IRContext& ctx, StructDeclId id)
+            : context(ctx), qualifier(TypeQualifier::Normal), typeID(Struct), complexTypeInfo(StructTypeInfo(std::move(id))) {}
 
         TypeInfo(TypeInfo* b, const TypeQualifier qk)
             : context(b->context), qualifier(qk), typeID(b->typeID),
@@ -143,7 +162,7 @@ namespace sakuraE::IR {
         bool isPointer() const { return typeID == Pointer; }
         bool isRef() const { return typeID == Ref; }
         bool isStruct() const { return typeID == Struct; }
-        bool isFunction() const { return typeID == Function; }
+        bool isFunction() const { return typeID == FunctionType; }
         bool isBasic() const {
             return !isArray() && !isPointer() && !isRef() && !isStruct();
         }
@@ -177,12 +196,14 @@ namespace sakuraE::IR {
 
         TypeInfo* getFunctionType() const {
             if (!isFunction()) return nullptr;
-            return std::get<FunctionTypeInfo>(complexTypeInfo);
+            return std::get<FunctionTypeInfo>(complexTypeInfo).getReturnType();
         }
 
-        IRStructType* getStructType() const {
+        const ComplexTypeUnion& getComplexTypeInfo() const { return complexTypeInfo; }
+
+        const StructDeclId* getStructDeclId() const {
             if (!isStruct()) return nullptr;
-            return std::get<StructTypeInfo>(complexTypeInfo).getType();
+            return &std::get<StructTypeInfo>(complexTypeInfo).getDeclId();
         }
 
         IRType* toIRType() const;
@@ -191,7 +212,7 @@ namespace sakuraE::IR {
         static TypeInfo* makeArrayTypeID(TypeInfo* element, const std::uint64_t count);
         static TypeInfo* makePointerTypeID(TypeInfo* typeID);
         static TypeInfo* makeRefTypeID(TypeInfo* typeID);
-        static TypeInfo* makeStructTypeID(IRStructType* type);
+        static TypeInfo* makeStructTypeID(StructDeclId id);
         static TypeInfo* makeFunctionTypeID(TypeInfo* retTy, std::vector<TypeInfo*> argTys);
         static TypeInfo* wrapTypeAsNullable(TypeInfo* type, PositionInfo info);
         static void clearAll();
@@ -203,7 +224,7 @@ namespace sakuraE::IR {
         std::map<std::pair<TypeInfo*, std::uint64_t>, std::unique_ptr<TypeInfo>> arrayTypes;
         std::map<TypeInfo*, std::unique_ptr<TypeInfo>> pointerTypes;
         std::map<TypeInfo*, std::unique_ptr<TypeInfo>> refTypes;
-        std::map<IRStructType*, std::unique_ptr<TypeInfo>> structTypes;
+        std::map<StructDeclId, std::unique_ptr<TypeInfo>> structTypes;
         std::map<std::pair<TypeInfo*, std::vector<TypeInfo*>>, std::unique_ptr<TypeInfo>> funcTypes;
         std::map<TypeInfo*, std::unique_ptr<TypeInfo>> nullableTypes;
 
@@ -217,7 +238,7 @@ namespace sakuraE::IR {
         TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
         TypeInfo* makePointerTypeID(TypeInfo* typeID);
         TypeInfo* makeRefTypeID(TypeInfo* typeID);
-        TypeInfo* makeStructTypeID(IRStructType* type);
+        TypeInfo* makeStructTypeID(StructDeclId id);
         TypeInfo* makeFunctionTypeID(TypeInfo* retTy, std::vector<TypeInfo*> argTys);
         TypeInfo* wrapTypeAsNullable(TypeInfo* type, PositionInfo info);
         void clear();

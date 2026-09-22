@@ -28,8 +28,8 @@ namespace sakuraE::IR {
         FloatNTyID,
         CharTyID,
         BoolTyID,
-        TypeInfoTyID,
         StringTyID,
+        TypeInfoTyID,
         // 复合类型
         RefTyID,
         PointerTyID,
@@ -62,11 +62,11 @@ namespace sakuraE::IR {
         IRType* unwrapPointer();
         IRType* getStorageType();
         IRTypeID getIRTypeID() const { return irTypeID; }
-        bool isString() { return irTypeID == StringTyID; }
         bool isPointer() { return irTypeID == PointerTyID; }
         bool isRef() { return irTypeID == RefTyID; }
         bool isArray() { return irTypeID == ArrayTyID; }
         bool isStruct() { return irTypeID == StructTyID; }
+        bool isString() { return irTypeID == PointerTyID && toString() == "char*"; }
         bool isComplexType() { return isString() || isPointer() || isArray() || isRef() || isStruct(); }
         bool isEqual(IRType* ty);
 
@@ -170,15 +170,6 @@ namespace sakuraE::IR {
         fzlib::String toString() override;
     };
 
-    class IRStringType : public IRType {
-        friend class IRType;
-        friend class IRContext;
-        IRStringType() : IRType(StringTyID) {}
-    public:
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
-        fzlib::String toString() override;
-    };
-
     class IRPointerType : public IRType {
         friend class IRType;
         friend class IRContext;
@@ -253,7 +244,6 @@ namespace sakuraE::IR {
         struct FieldInfo {
             fzlib::String name;
             IRType* type;
-            TypeInfo* semanticType;
             PositionInfo info;
         };
 
@@ -268,14 +258,12 @@ namespace sakuraE::IR {
         bool isComplete() const;
     private:
         friend class IRType;
+        friend class IRContext;
         friend class NamingContext;
         friend class IRStructDecl;
         explicit IRStructType(fzlib::String modID, fzlib::String n, std::vector<FieldInfo> list):
-            IRType(StructTyID), parentModID(modID), name(n), isCompleteType(true), fields(std::move(list))
-        {
-            for (std::size_t i = 0; i < fields.size(); i ++) {
-                fieldIndices[fields[i].name] = i;
-            }
+            IRType(StructTyID), parentModID(modID), name(n), isCompleteType(true), fields(std::move(list)) {
+            for (std::size_t i = 0; i < fields.size(); ++i) fieldIndices[fields[i].name] = i;
         }
 
         explicit IRStructType(fzlib::String modID, fzlib::String n):

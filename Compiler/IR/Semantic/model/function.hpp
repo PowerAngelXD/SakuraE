@@ -104,7 +104,7 @@ namespace sakuraE::IR {
             setFuncSemanticSignature(std::make_shared<FuncSemanticSignature>(
                 FuncSemanticSignature{std::move(semanticParams), semanticReturn}));
 
-            setType(IRType::getFunctionTy(retType,
+            setStorageType(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
                     std::vector<IRType*> result;
                     for (auto param: params) {

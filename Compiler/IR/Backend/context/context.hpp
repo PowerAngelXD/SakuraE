@@ -1,8 +1,9 @@
 #ifndef SAKURAE_IR_CONTEXT_HPP
 #define SAKURAE_IR_CONTEXT_HPP
 
-#include "Compiler/IR/type/type.hpp"
-#include "Compiler/IR/type/type_info.hpp"
+#include "Compiler/IR/Backend/type/type.hpp"
+#include "Compiler/IR/Semantic/type/type_info.hpp"
+#include "Compiler/IR/Semantic/model/struct.hpp"
 
 #include <Compiler/Error/error.hpp>
 #include <map>
@@ -13,7 +14,7 @@
 namespace sakuraE::IR {
     class IRStructDecl;
 
-    class NamingContext {
+    class NamingContext : public StructDeclRegistry {
         fzlib::String moduleID;
         std::map<fzlib::String, std::unique_ptr<IRStructDecl>> structDecls;
 
@@ -25,11 +26,13 @@ namespace sakuraE::IR {
         NamingContext& operator=(const NamingContext&) = delete;
 
         IRStructDecl* lookupStructDecl(const fzlib::String& name) const;
+        const IRStructDecl* resolveStruct(const StructDeclId& id) const override;
         IRStructType* lookupStructType(const fzlib::String& name) const;
+        StructDeclId lookupStructId(const fzlib::String& name) const;
         IRStructDecl* declareOpaqueStruct(fzlib::String name, PositionInfo info);
-        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields,
+        void implStruct(fzlib::String name, std::vector<SemanticField> fields,
                         std::map<fzlib::String, Constant*> defaults, PositionInfo info);
-        IRStructDecl* defineStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info);
+        IRStructDecl* defineStruct(fzlib::String name, std::vector<SemanticField> fields, PositionInfo info);
     };
 
     // 作用于整个Program的Context
@@ -46,7 +49,6 @@ namespace sakuraE::IR {
         std::unique_ptr<IRFloatType> float32Type;
         std::unique_ptr<IRFloatType> float64Type;
         std::unique_ptr<IRTypeInfoType> typeInfoType;
-        std::unique_ptr<IRStringType> stringType;
         std::unique_ptr<IRBlockType> blockType;
 
         std::map<unsigned, std::unique_ptr<IRIntegerType>> integerTypes;
@@ -55,7 +57,7 @@ namespace sakuraE::IR {
         std::map<IRType*, std::unique_ptr<IRRefType>> refTypes;
         std::map<std::pair<IRType*, uint64_t>, std::unique_ptr<IRArrayType>> arrayTypes;
         std::map<std::pair<IRType*, std::vector<IRType*>>, std::unique_ptr<IRFunctionType>> functionTypes;
-        std::unique_ptr<TypeInfoPool> typeInfoPool_;
+        std::unique_ptr<TypeInfoContext> typeInfoPool_;
 
         IRContext* previousContext = nullptr;
         static thread_local IRContext* activeContext;
@@ -73,7 +75,8 @@ namespace sakuraE::IR {
 
         llvm::LLVMContext& llvmContext() { return *llvmContext_; }
         std::unique_ptr<llvm::LLVMContext> releaseLLVMContext();
-        TypeInfoPool& typeInfoPool() { return *typeInfoPool_; }
+        TypeInfoContext& getTypeInfoManager() const { return *typeInfoPool_; }
+        TypeInfoContext& typeInfoPool() const { return *typeInfoPool_; }
 
         IRType* getVoidTy();
         IRType* getBoolTy();
@@ -87,12 +90,12 @@ namespace sakuraE::IR {
         IRType* getFloat32Ty();
         IRType* getFloat64Ty();
         IRType* getTypeInfoTy();
-        IRType* getStringTy();
         IRType* getPointerTo(IRType* elementType);
         IRType* getRefTo(IRType* elementType);
         IRType* getArrayTy(IRType* elementType, uint64_t numElements);
         IRType* getBlockTy();
         IRType* getFunctionTy(IRType* returnType, std::vector<IRType*> params);
+        IRStructType* createStructType(fzlib::String module, fzlib::String name);
     };
 }
 

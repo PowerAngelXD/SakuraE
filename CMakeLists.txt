@@ -44,11 +44,12 @@ add_executable(
     main.cpp
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
-    Compiler/IR/generator.cpp
-    Compiler/IR/context.cpp
-    Compiler/IR/type/type.cpp
-    Compiler/IR/type/type_info.cpp
-    Compiler/IR/value/constant.cpp
+    Compiler/IR/Semantic/generator.cpp
+        Compiler/IR/Backend/context/context.cpp
+        Compiler/IR/Backend/type/type.cpp
+    Compiler/IR/Semantic/type/type_info.cpp
+    Compiler/IR/Semantic/value/constant.cpp
+    Compiler/IR/Lowering/type_lowering.cpp
     Compiler/LLVMCodegen/LLVMCodegenerator.cpp
     Runtime/alloc.cpp
     Runtime/gc.cpp
@@ -108,9 +109,10 @@ add_executable(
 add_executable(
     sakurae-ir-context-tests
     Compiler/IR/tests/context_tests.cpp
-    Compiler/IR/type/type.cpp
-    Compiler/IR/type/type_info.cpp
-    Compiler/IR/context.cpp
+        Compiler/IR/Backend/type/type.cpp
+    Compiler/IR/Semantic/type/type_info.cpp
+        Compiler/IR/Backend/context/context.cpp
+    Compiler/IR/Lowering/type_lowering.cpp
 )
 
 add_executable(
@@ -118,11 +120,12 @@ add_executable(
     Compiler/IR/tests/generator_tests.cpp
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
-    Compiler/IR/generator.cpp
-    Compiler/IR/context.cpp
-    Compiler/IR/type/type.cpp
-    Compiler/IR/type/type_info.cpp
-    Compiler/IR/value/constant.cpp
+    Compiler/IR/Semantic/generator.cpp
+        Compiler/IR/Backend/context/context.cpp
+        Compiler/IR/Backend/type/type.cpp
+    Compiler/IR/Semantic/type/type_info.cpp
+    Compiler/IR/Semantic/value/constant.cpp
+    Compiler/IR/Lowering/type_lowering.cpp
 )
 
 target_include_directories(
@@ -258,6 +261,11 @@ target_link_libraries(
         ${LLVM_LINK_FLAGS}
         Threads::Threads
 )
+
+enable_testing()
+add_test(NAME sakurae-ir-context-tests COMMAND sakurae-ir-context-tests)
+add_test(NAME sakurae-ir-generator-tests COMMAND sakurae-ir-generator-tests)
+add_test(NAME sakurae-language-server-tests COMMAND sakurae-language-server-tests)
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 

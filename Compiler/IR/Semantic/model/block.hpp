@@ -1,7 +1,7 @@
 #ifndef SAKURAE_BLOCK_HPP
 #define SAKURAE_BLOCK_HPP
 
-#include "Compiler/IR/value/value.hpp"
+#include "Compiler/IR/Semantic/value/value.hpp"
 #include "instruction.hpp"
 #include <cstddef>
 

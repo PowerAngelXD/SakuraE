@@ -9,10 +9,10 @@
 #include <llvm/IR/Type.h>
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/value/value.hpp"
+#include "Compiler/IR/Semantic/value/value.hpp"
 #include "array.hpp"
 #include "Compiler/Frontend/lexer.h"
-#include "Compiler/IR/type/type_info.hpp"
+#include "Compiler/IR/Semantic/type/type_info.hpp"
 
 namespace sakuraE::IR {
     class Type;

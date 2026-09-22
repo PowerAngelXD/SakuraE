@@ -1,8 +1,8 @@
-#include "Compiler/IR/context.hpp"
+#include "context.hpp"
 
-#include "Compiler/IR/model/struct.hpp"
+#include "Compiler/IR/Semantic/model/struct.hpp"
 
-#include <Compiler/IR/type/type.hpp>
+#include <Compiler/IR/Backend/type/type.hpp>
 #include <memory>
 #include <stdexcept>
 
@@ -18,9 +18,25 @@ namespace sakuraE::IR {
         return it == structDecls.end() ? nullptr : it->second.get();
     }
 
+    const IRStructDecl* NamingContext::resolveStruct(const StructDeclId& id) const {
+        for (const auto& [name, declaration] : structDecls) {
+            if (declaration->getDeclId() == id) return declaration.get();
+        }
+        return nullptr;
+    }
+
     IRStructType* NamingContext::lookupStructType(const fzlib::String& name) const {
-        auto* decl = lookupStructDecl(name);
-        return decl ? decl->getType() : nullptr;
+        return nullptr;
+    }
+
+    IRStructType* IRContext::createStructType(fzlib::String module, fzlib::String name) {
+        return new IRStructType(std::move(module), std::move(name));
+    }
+
+    StructDeclId NamingContext::lookupStructId(const fzlib::String& name) const {
+        auto* declaration = lookupStructDecl(name);
+        if (!declaration) throw std::invalid_argument("Unknown struct declaration");
+        return declaration->getDeclId();
     }
 
     IRStructDecl* NamingContext::declareOpaqueStruct(fzlib::String name, PositionInfo info) {
@@ -29,14 +45,13 @@ namespace sakuraE::IR {
                               "Duplicate struct definition: '" + name + "'",
                               info);
         }
-        auto opaqueType = std::unique_ptr<IRStructType>(new IRStructType(moduleID, name));
-        auto decl = std::make_unique<IRStructDecl>(moduleID, name, std::move(opaqueType), std::move(info));
+        auto decl = std::make_unique<IRStructDecl>(StructDeclId{moduleID, structDecls.size()}, moduleID, name, std::move(info));
         auto* result = decl.get();
         structDecls.emplace(name, std::move(decl));
         return result;
     }
 
-    void NamingContext::implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields,
+    void NamingContext::implStruct(fzlib::String name, std::vector<SemanticField> fields,
                                    std::map<fzlib::String, Constant*> defaults, PositionInfo info) {
         if (!lookupStructDecl(name)) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
@@ -44,7 +59,7 @@ namespace sakuraE::IR {
                               info);
         }
 
-        if (lookupStructDecl(name)->getType()->isComplete()) {
+        if (lookupStructDecl(name)->isComplete()) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
                               "You cannot redefine a struct that has already been defined.",
                               info);
@@ -53,17 +68,16 @@ namespace sakuraE::IR {
         lookupStructDecl(name)->complete(std::move(fields), std::move(defaults));
     }
 
-    IRStructDecl* NamingContext::defineStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
+    IRStructDecl* NamingContext::defineStruct(fzlib::String name, std::vector<SemanticField> fields, PositionInfo info) {
         if (lookupStructDecl(name)) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
                               "Duplicate struct definition: '" + name + "'",
                               info);
         }
 
-        auto type = std::unique_ptr<IRStructType>(
-            new IRStructType(moduleID, name, std::move(fields)));
         auto decl = std::make_unique<IRStructDecl>(
-            moduleID, name, std::move(type), std::move(info));
+            StructDeclId{moduleID, structDecls.size()}, moduleID, name, std::move(info));
+        decl->complete(std::move(fields));
         auto* result = decl.get();
         structDecls.emplace(std::move(name), std::move(decl));
         return result;
@@ -71,7 +85,7 @@ namespace sakuraE::IR {
 
     IRContext::IRContext():
         llvmContext_(std::make_unique<llvm::LLVMContext>()),
-        typeInfoPool_(new TypeInfoPool(*this)),
+        typeInfoPool_(new TypeInfoContext(*this)),
         previousContext(activeContext) {
         activeContext = this;
     }
@@ -157,11 +171,6 @@ namespace sakuraE::IR {
     IRType* IRContext::getTypeInfoTy() {
         if (!typeInfoType) typeInfoType = std::unique_ptr<IRTypeInfoType>(new IRTypeInfoType());
         return typeInfoType.get();
-    }
-
-    IRType* IRContext::getStringTy() {
-        if (!stringType) stringType = std::unique_ptr<IRStringType>(new IRStringType());
-        return stringType.get();
     }
 
     IRType* IRContext::getPointerTo(IRType* elementType) {

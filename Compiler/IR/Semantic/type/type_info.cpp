@@ -58,7 +58,7 @@ namespace sakuraE::IR {
         }
 
         if (isStruct()) {
-            return std::get<StructTypeInfo>(complexTypeInfo).getType();
+            throw std::runtime_error("Struct TypeInfo must be lowered with a StructResolver");
         }
 
         return tid2IRType(context, typeID);
@@ -109,16 +109,12 @@ namespace sakuraE::IR {
         return it->second.get();
     }
 
-    TypeInfo* TypeInfoContext::makeStructTypeID(IRStructType* type) {
-        if (!type) {
-            throw std::invalid_argument("Cannot create TypeInfo for a null IRStructType");
-        }
-
-        auto it = structTypes.find(type);
+    TypeInfo* TypeInfoContext::makeStructTypeID(StructDeclId id) {
+        auto it = structTypes.find(id);
         if (it == structTypes.end()) {
             it = structTypes.emplace(
-                type,
-                std::unique_ptr<TypeInfo>(new TypeInfo(context, type))).first;
+                id,
+                std::unique_ptr<TypeInfo>(new TypeInfo(context, id))).first;
         }
         return it->second.get();
     }
@@ -191,8 +187,8 @@ namespace sakuraE::IR {
         return IRContext::current().getTypeInfoManager().makeRefTypeID(typeID);
     }
 
-    TypeInfo* TypeInfo::makeStructTypeID(IRStructType* type) {
-        return IRContext::current().getTypeInfoManager().makeStructTypeID(type);
+    TypeInfo* TypeInfo::makeStructTypeID(StructDeclId id) {
+        return IRContext::current().getTypeInfoManager().makeStructTypeID(std::move(id));
     }
 
     TypeInfo* TypeInfo::makeFunctionTypeID(TypeInfo* retTy, std::vector<TypeInfo*> argTys) {

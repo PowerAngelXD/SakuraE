@@ -2,7 +2,7 @@
 #define SAKURAE_PROGRAM_HPP
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/context.hpp"
+#include "Compiler/IR/Backend/context/context.hpp"
 #include "module.hpp"
 #include <cstddef>
 
@@ -73,6 +73,7 @@ namespace sakuraE::IR {
                 info
             );
 
+            // declareRuntimeFunction 需要有对语义类型的设置，当前实现还没有这种体现
             runtimeMod->declareRuntimeFunction(
                 "input",
                 IRType::getStringTy(),

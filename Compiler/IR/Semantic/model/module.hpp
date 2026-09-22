@@ -2,9 +2,9 @@
 #define SAKURAE_MODULE_HPP
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/context.hpp"
-#include "Compiler/IR/model/scope.hpp"
-#include "Compiler/IR/type/type.hpp"
+#include "Compiler/IR/Backend/context/context.hpp"
+#include "Compiler/IR/Semantic/model/scope.hpp"
+#include "Compiler/IR/Backend/type/type.hpp"
 #include "function.hpp"
 #include <map>
 #include <cstring>
@@ -91,6 +91,12 @@ namespace sakuraE::IR {
             return namingContext.lookupStructDecl(name);
         }
 
+        const IRStructDecl* resolveStruct(const StructDeclId& id) const {
+            return namingContext.resolveStruct(id);
+        }
+
+        const NamingContext& structRegistry() const { return namingContext; }
+
         IRStructType* lookupStructType(const fzlib::String& name) const {
             return namingContext.lookupStructType(name);
         }
@@ -99,12 +105,12 @@ namespace sakuraE::IR {
             namingContext.declareOpaqueStruct(name, info);
         }
 
-        void implStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields,
+        void implStruct(fzlib::String name, std::vector<SemanticField> fields,
                         std::map<fzlib::String, Constant*> defaults, PositionInfo info) {
             namingContext.implStruct(name, std::move(fields), std::move(defaults), info);
         }
 
-        void declareAndImplStruct(fzlib::String name, std::vector<IRStructType::FieldInfo> fields, PositionInfo info) {
+        void declareAndImplStruct(fzlib::String name, std::vector<SemanticField> fields, PositionInfo info) {
             namingContext.defineStruct(std::move(name), std::move(fields), std::move(info));
         }
 

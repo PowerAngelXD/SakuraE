@@ -1,5 +1,5 @@
 #include "type.hpp"
-#include "Compiler/IR/context.hpp"
+#include "Compiler/IR/Backend/context/context.hpp"
 #include <Compiler/Error/error.hpp>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/LLVMContext.h>
@@ -49,7 +49,6 @@ namespace sakuraE::IR {
             case CharTyID:
             case BoolTyID:
             case TypeInfoTyID:
-            case StringTyID:
             case Float32TyID:
             case Float64TyID:
             case VoidTyID:
@@ -133,7 +132,7 @@ namespace sakuraE::IR {
     }
 
     IRType* IRType::getStringTy() {
-        return IRContext::current().getStringTy();
+        return IRContext::current().getPointerTo(IRContext::current().getCharTy());
     }
 
     IRType* IRType::getFloat32Ty() {
@@ -180,10 +179,6 @@ namespace sakuraE::IR {
 
     llvm::Type* IRPointerType::toLLVMType(llvm::LLVMContext& ctx) {
         return llvm::PointerType::get(ctx, 0);
-    }
-
-    llvm::Type* IRStringType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::PointerType::getUnqual(ctx);
     }
 
     llvm::Type* IRRefType::toLLVMType(llvm::LLVMContext& ctx) {
@@ -261,10 +256,6 @@ namespace sakuraE::IR {
 
     fzlib::String IRTypeInfoType::toString() {
         return "tinfo";
-    }
-
-    fzlib::String IRStringType::toString() {
-        return "string";
     }
 
     fzlib::String IRPointerType::toString() {

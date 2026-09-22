@@ -1,7 +1,7 @@
 #include "constant.hpp"
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/type/type.hpp"
-#include "Compiler/IR/value/array.hpp"
+#include "Compiler/IR/Backend/type/type.hpp"
+#include "Compiler/IR/Semantic/value/array.hpp"
 #include <cstdint>
 #include <limits>
 
@@ -276,8 +276,8 @@ namespace sakuraE::IR {
     }
 
     llvm::Type* Constant::toLLVMType(llvm::LLVMContext& ctx) {
-        if (type) {
-            return type->toLLVMType(ctx);
+        if (storageType) {
+            return storageType->toLLVMType(ctx);
         }
         return nullptr;
     }

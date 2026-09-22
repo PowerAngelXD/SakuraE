@@ -4,7 +4,7 @@
 #include <stack>
 #include <utility>
 
-#include "Compiler/IR/value/constant.hpp"
+#include "Compiler/IR/Semantic/value/constant.hpp"
 
 namespace sakuraE::IR {
     template<typename T>

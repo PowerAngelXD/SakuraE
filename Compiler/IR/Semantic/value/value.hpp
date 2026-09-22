@@ -1,9 +1,8 @@
 #ifndef SAKURAE_VALUE_HPP
 #define SAKURAE_VALUE_HPP
 
-#include "Compiler/IR/type/type.hpp"
-#include "Compiler/IR/type/type_info.hpp"
-#include "Compiler/Frontend/lexer.h"
+#include "Compiler/IR/Backend/type/type.hpp"
+#include "Compiler/IR/Semantic/type/type_info.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -17,35 +16,24 @@ namespace sakuraE::IR {
 
     class IRValue {
     protected:
-        IRType* type = nullptr;
-        TypeInfo* semanticType = nullptr;
-        fzlib::String name;
+        TypeInfo* semanticType = nullptr;   // 实际在Semantic处理阶段中使用的type
+        IRType* storageType = nullptr;      // lowering 目标，仅作储存用
+        fzlib::String name;                 // 值的别名
     public:
-        IRValue(IRType* storageType, TypeInfo* semanticType,
-            fzlib::String valueName)
-        : type(storageType),
-          semanticType(semanticType),
-          name(std::move(valueName)) {}
+        explicit IRValue(TypeInfo* seType = nullptr, fzlib::String valueName = {})
+        : semanticType(seType), storageType(nullptr), name(std::move(valueName)) {}
 
-        explicit IRValue(IRType* storageType, TypeInfo* semanticType)
-            : IRValue(storageType, semanticType, {}) {}
+        explicit IRValue(IRType* storage, fzlib::String valueName = {})
+        : semanticType(nullptr), storageType(storage), name(std::move(valueName)) {}
 
-        explicit IRValue(IRType* storageType, fzlib::String valueName)
-            : IRValue(storageType, nullptr, std::move(valueName)) {}
-
-        explicit IRValue(IRType* storageType)
-            : IRValue(storageType, nullptr, {}) {}
+        IRValue(IRType* storage, TypeInfo* seType, fzlib::String valueName = {})
+        : semanticType(seType), storageType(storage), name(std::move(valueName)) {}
 
         virtual ~IRValue() = default;
 
-        IRType* getType() const { return type; }
 
         void setName(const fzlib::String& n) {
             name = n;
-        }
-
-        void setType(IRType* t) {
-            type = t;
         }
 
         const fzlib::String& getName() {
@@ -60,6 +48,18 @@ namespace sakuraE::IR {
             semanticType = newTypeInfo;
         }
 
+        IRType* getStorageType() const {
+            return storageType;
+        }
+
+        IRType* getType() const {
+            return storageType;
+        }
+
+        void setStorageType(IRType* newType) {
+            storageType = newType;
+        }
+
     };
 
     // 可调用的值，用于实现函数调用等功能
@@ -69,7 +69,7 @@ namespace sakuraE::IR {
     protected:
         CallableValue(IRType* storageType, fzlib::String valueName,
                       std::shared_ptr<FuncSemanticSignature> signature = nullptr)
-            : IRValue(storageType, std::move(valueName)),
+            : IRValue(storageType, nullptr, std::move(valueName)),
               funcSemanticSignature(std::move(signature)) {}
 
     public:
