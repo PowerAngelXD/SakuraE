@@ -25,7 +25,7 @@ Program
 
 ## 2. IRContext
 
-`IRContext` 声明于 `Compiler/IR/context.hpp`，负责拥有不依赖源语言名称的资源：
+`IRContext` 声明于 `../Backend/context/context.hpp`，负责拥有不依赖源语言名称的资源：
 
 - 一个 `llvm::LLVMContext`；
 - 规范化的基础类型，包括整数、浮点、void、string、block 和 type-info 类型；

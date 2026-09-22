@@ -25,7 +25,7 @@ Program
 
 ## 2. IRContext
 
-`IRContext`, declared in `Compiler/IR/context.hpp`, owns resources that are independent of source-level names:
+`IRContext`, declared in `../Backend/context/context.hpp`, owns resources that are independent of source-level names:
 
 - one `llvm::LLVMContext`;
 - canonical basic types, including integer, floating-point, void, string, block, and type-info types;
