@@ -1,4 +1,5 @@
-#include "Compiler/IR/context.hpp"
+#include "Compiler/IR/Backend/context/context.hpp"
+#include "Compiler/IR/Lowering/session.hpp"
 
 #include <cassert>
 
@@ -24,23 +25,25 @@ int main() {
     const sakuraE::PositionInfo definitionInfo {1, 1, "context test"};
     names.defineStruct(
         "Point",
-        {{"x", first.getInt32Ty(), firstTypeInfo, definitionInfo},
-         {"y", first.getInt32Ty(), firstTypeInfo, definitionInfo}},
+        {{"x", firstTypeInfo, definitionInfo},
+         {"y", firstTypeInfo, definitionInfo}},
         definitionInfo);
 
     assert(names.lookupStructDecl("Point") != nullptr);
-    auto* pointType = names.lookupStructType("Point");
-    assert(pointType != nullptr);
-
-    auto* pointTypeInfo = first.typeInfoPool().makeStructTypeID(pointType);
-    assert(pointTypeInfo->toIRType() == pointType);
+    auto* pointTypeInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Point"));
     auto* nullablePointTypeInfo = first.typeInfoPool().wrapTypeAsNullable(pointTypeInfo, definitionInfo);
     assert(nullablePointTypeInfo != pointTypeInfo);
     assert(!pointTypeInfo->isNullable());
     assert(nullablePointTypeInfo->isNullable());
     assert(nullablePointTypeInfo->getBase() == pointTypeInfo);
     assert(nullablePointTypeInfo == first.typeInfoPool().wrapTypeAsNullable(pointTypeInfo, definitionInfo));
-    assert(nullablePointTypeInfo->toIRType() == pointTypeInfo->toIRType());
+    LoweringSession firstLowering(first, &names);
+    LoweringSession secondLowering(second, &names);
+    auto* firstPoint = firstLowering.lowerType(pointTypeInfo);
+    auto* secondPoint = secondLowering.lowerType(pointTypeInfo);
+    assert(firstPoint != secondPoint);
+    assert(firstPoint->isStruct());
+    assert(secondPoint->isStruct());
     assert(isAssignableTo(pointTypeInfo, pointTypeInfo));
     assert(isAssignableTo(nullablePointTypeInfo, nullablePointTypeInfo));
     assert(isAssignableTo(pointTypeInfo, nullablePointTypeInfo));
@@ -52,7 +55,7 @@ int main() {
     assert(nullablePointArrayTypeInfo->isNullable());
     assert(nullablePointArrayTypeInfo->getBase() == pointArrayTypeInfo);
     assert(nullablePointArrayTypeInfo->getElementType() == pointTypeInfo);
-    assert(nullablePointArrayTypeInfo->toIRType() == pointArrayTypeInfo->toIRType());
+    assert(firstLowering.lowerType(nullablePointArrayTypeInfo) == firstLowering.lowerType(pointArrayTypeInfo));
 
     bool rejectedScalarNullable = false;
     try {
@@ -72,10 +75,8 @@ int main() {
     }
     assert(rejectedRepeatedNullable);
 
-    assert(first.typeInfoPool().makePointerTypeID(pointTypeInfo)->toIRType()
-           == first.getPointerTo(pointType));
-    assert(first.typeInfoPool().makeArrayTypeID(pointTypeInfo, 4)->toIRType()
-           == first.getArrayTy(pointType, 4));
+    assert(firstLowering.lowerType(first.typeInfoPool().makePointerTypeID(pointTypeInfo))->isPointer());
+    assert(firstLowering.lowerType(first.typeInfoPool().makeArrayTypeID(pointTypeInfo, 4))->isArray());
 
     bool rejectedDuplicate = false;
     try {

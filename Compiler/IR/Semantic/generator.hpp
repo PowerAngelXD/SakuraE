@@ -2,18 +2,20 @@
 #define SAKURAE_GENERATOR_HPP
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/model/function.hpp"
-#include "Compiler/IR/model/instruction.hpp"
-#include "Compiler/IR/model/scope.hpp"
-#include "Compiler/IR/type/type.hpp"
-#include "Compiler/IR/type/type_info.hpp"
-#include "Compiler/IR/value/value.hpp"
+#include "Compiler/IR/Semantic/model/function.hpp"
+#include "Compiler/IR/Semantic/model/instruction.hpp"
+#include "Compiler/IR/Semantic/model/scope.hpp"
+#include "Compiler/IR/Semantic/model/struct.hpp"
+#include "Compiler/IR/Backend/type/type.hpp"
+#include "Compiler/IR/Semantic/type/type_info.hpp"
+#include "Compiler/IR/Semantic/value/value.hpp"
 #include "Compiler/Utils/Logger.hpp"
 #include "includes/String.hpp"
 #include "includes/magic_enum.hpp"
 #include "model/program.hpp"
 #include "Compiler/Frontend/AST.hpp"
-#include "Compiler/IR/value/constant.hpp"
+#include "Compiler/IR/Semantic/value/constant.hpp"
+#include "Compiler/IR/Lowering/session.hpp"
 #include "Compiler/Frontend/lexer.h"
 
 #include <algorithm>
@@ -30,6 +32,10 @@ namespace sakuraE::IR {
         Program program;
         std::vector<NodePtr> parsedStatements;
         bool hasGenerated = false;
+
+        IRType* lowerStorageType(const TypeInfo* type) {
+            return LoweringSession(program.getContext(), &program.curMod()->structRegistry()).lowerType(type);
+        }
 
         TypeInfo* semanticTypeForStorage(IRType* type) {
             switch (type->getIRTypeID()) {
@@ -90,8 +96,7 @@ namespace sakuraE::IR {
                                     info);
                 }
 
-                if (!addr->getType()->isEqual(value->getType()) ||
-                    !isAssignableTo(value->getSemanticType(), addr->getSemanticType())) {
+                if (!isAssignableTo(value->getSemanticType(), addr->getSemanticType())) {
                     throw SakuraError(OccurredTerm::IR_GENERATING,
                             "Cannot assign a value to a target with an incompatible type.",
                             info);
@@ -130,7 +135,7 @@ namespace sakuraE::IR {
         }
 
         IRValue* createAlloca(fzlib::String n, IRType* ty, TypeInfo* semanticType, IRValue* initVal, PositionInfo info) {
-            if (initVal && !ty->isEqual(initVal->getType())) {
+            if (initVal && !isAssignableTo(initVal->getSemanticType(), semanticType)) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Cannot declare a variable with a type that differs from the assigned value's type. Target is: " + ty->toString() + ", but actually is: " + initVal->getType()->toString(),
                                 info);
@@ -217,19 +222,19 @@ namespace sakuraE::IR {
 
                 auto constant = Constant::getFromToken(token);
                 switch (constant->getType()->getIRTypeID()) {
-                    case IRTypeID::Integer32TyID: {
+                    case Integer32TyID: {
                         auto value = constant->getContentValue<std::int32_t>();
                         if (value > 0) return static_cast<std::uint64_t>(value);
                         break;
                     }
-                    case IRTypeID::Integer64TyID: {
+                    case Integer64TyID: {
                         auto value = constant->getContentValue<std::int64_t>();
                         if (value > 0) return static_cast<std::uint64_t>(value);
                         break;
                     }
-                    case IRTypeID::UInteger32TyID:
+                    case UInteger32TyID:
                         return constant->getContentValue<std::uint32_t>();
-                    case IRTypeID::UInteger64TyID:
+                    case UInteger64TyID:
                         return constant->getContentValue<std::uint64_t>();
                     default:
                         break;
@@ -326,14 +331,15 @@ namespace sakuraE::IR {
                         break;
                     }
                     case TokenType::IDENTIFIER: {
-                        auto* structType = curModule()->lookupStructType(token.content);
-                        if (!structType) {
+                        auto* structDecl = curModule()->lookupStruct(token.content);
+                        if (!structDecl) {
                             throw SakuraError(
                                 OccurredTerm::IR_GENERATING,
                                 "Unknown struct type: '" + token.content + "'",
                                 token.info);
                         }
-                        resultTyInfo = TypeInfo::makeStructTypeID(structType);
+                        resultTyInfo = TypeInfo::makeStructTypeID(
+                            structDecl->getDeclId());
                         break;
                     }
                     default:
@@ -426,27 +432,8 @@ namespace sakuraE::IR {
             return result;
         }
 
-        bool isSizeofSupportedType(IRType* ty) {
-            if (!ty) return false;
-
-            switch (ty->getIRTypeID()) {
-                case IRTypeID::CharTyID:
-                case IRTypeID::BoolTyID:
-                case IRTypeID::Integer32TyID:
-                case IRTypeID::Integer64TyID:
-                case IRTypeID::UInteger32TyID:
-                case IRTypeID::UInteger64TyID:
-                case IRTypeID::Float32TyID:
-                case IRTypeID::Float64TyID:
-                case IRTypeID::PointerTyID:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        void validateSizeofType(IRType* ty, PositionInfo info) {
-            if (!isSizeofSupportedType(ty)) {
+        void validateSizeofType(const TypeInfo* ty, PositionInfo info) {
+            if (semanticRank(ty) < 0 && !(ty && ty->isPointer())) {
                 throw SakuraError(
                     OccurredTerm::IR_GENERATING,
                     "'sizeof' only supports char, i32, i64, ui32, ui64, bool, f32, f64, and pointer types.",
@@ -455,7 +442,22 @@ namespace sakuraE::IR {
             }
         }
 
-        IRType* inferExprType(NodePtr node, PositionInfo info = {0, 0, "sizeof"}) {
+        static int semanticRank(const TypeInfo* type) {
+            if (!type || type->isNullable() || !type->isBasic()) return -1;
+            switch (type->getTypeID()) {
+                case TypeID::Bool: return 1;
+                case TypeID::Char: return 2;
+                case TypeID::UInt32: return 3;
+                case TypeID::Int32: return 4;
+                case TypeID::UInt64: return 5;
+                case TypeID::Int64: return 6;
+                case TypeID::Float32: return 7;
+                case TypeID::Float64: return 8;
+                default: return -1;
+            }
+        }
+
+        TypeInfo* inferExprType(NodePtr node, PositionInfo info = {0, 0, "sizeof"}) {
             if (!node) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                   "Cannot infer the type of an empty expression.",
@@ -479,25 +481,25 @@ namespace sakuraE::IR {
             if (node->getTag() == ASTTag::AddExprNode ||
                 node->getTag() == ASTTag::MulExprNode) {
                 auto exprs = (*node)[ASTTag::Exprs]->getChildren();
-                IRType* result = inferExprType(exprs.front(), info);
+                TypeInfo* result = inferExprType(exprs.front(), info);
                 for (std::size_t i = 1; i < exprs.size(); ++i) {
                     auto rhs = inferExprType(exprs[i], info);
-                    auto lhsRank = rankList.find(result->getIRTypeID());
-                    auto rhsRank = rankList.find(rhs->getIRTypeID());
-                    if (lhsRank == rankList.end() || rhsRank == rankList.end()) {
+                    auto lhsRank = semanticRank(result);
+                    auto rhsRank = semanticRank(rhs);
+                    if (lhsRank < 0 || rhsRank < 0) {
                         throw SakuraError(OccurredTerm::IR_GENERATING,
                                           "'sizeof' expression contains an unsupported arithmetic type.",
                                           node->getPosInfo());
                     }
-                    switch (std::max(lhsRank->second, rhsRank->second)) {
-                        case 1: result = IRType::getBoolTy(); break;
-                        case 2: result = IRType::getCharTy(); break;
-                        case 3: result = IRType::getUInt32Ty(); break;
-                        case 4: result = IRType::getInt32Ty(); break;
-                        case 5: result = IRType::getUInt64Ty(); break;
-                        case 6: result = IRType::getInt64Ty(); break;
-                        case 7: result = IRType::getFloat32Ty(); break;
-                        case 8: result = IRType::getFloat64Ty(); break;
+                    switch (std::max(lhsRank, rhsRank)) {
+                        case 1: result = TypeInfo::makeBasicTypeID(TypeID::Bool); break;
+                        case 2: result = TypeInfo::makeBasicTypeID(TypeID::Char); break;
+                        case 3: result = TypeInfo::makeBasicTypeID(TypeID::UInt32); break;
+                        case 4: result = TypeInfo::makeBasicTypeID(TypeID::Int32); break;
+                        case 5: result = TypeInfo::makeBasicTypeID(TypeID::UInt64); break;
+                        case 6: result = TypeInfo::makeBasicTypeID(TypeID::Int64); break;
+                        case 7: result = TypeInfo::makeBasicTypeID(TypeID::Float32); break;
+                        case 8: result = TypeInfo::makeBasicTypeID(TypeID::Float64); break;
                         default:
                             throw SakuraError(OccurredTerm::IR_GENERATING,
                                               "Internal error: unhandled sizeof expression type.",
@@ -510,11 +512,11 @@ namespace sakuraE::IR {
             if (node->getTag() == ASTTag::LogicExprNode ||
                 node->getTag() == ASTTag::BinaryExprNode) {
                 auto exprs = (*node)[ASTTag::Exprs]->getChildren();
-                IRType* result = inferExprType(exprs.front(), info);
+                TypeInfo* result = inferExprType(exprs.front(), info);
                 if (node->hasNode(ASTTag::Ops)) {
                     for (auto expr : exprs)
                         inferExprType(expr, info);
-                    return IRType::getBoolTy();
+                    return TypeInfo::makeBasicTypeID(TypeID::Bool);
                 }
                 return result;
             }
@@ -523,7 +525,7 @@ namespace sakuraE::IR {
                 if (node->hasNode(ASTTag::Literal)) {
                     auto literal = Constant::getFromToken(
                         (*(*node)[ASTTag::Literal])[ASTTag::Literal]->getToken());
-                    return literal->getType();
+                    return semanticTypeForStorage(literal->getType());
                 }
                 if (node->hasNode(ASTTag::Identifier)) {
                     auto identifier = (*node)[ASTTag::Identifier];
@@ -552,13 +554,13 @@ namespace sakuraE::IR {
                                           identifier->getPosInfo());
                     }
                     return lookup((*atom)[ASTTag::Identifier]->getToken().content,
-                                  identifier->getPosInfo())->getType();
+                                  identifier->getPosInfo())->address->getSemanticType();
                 }
                 if (node->hasNode(ASTTag::InnerCallableOpExprNode)) {
                     auto inner = (*node)[ASTTag::InnerCallableOpExprNode];
                     if (inner->hasNode(ASTTag::Sizeof))
-                        return IRType::getUInt64Ty();
-                    return IRType::getTypeInfoTy();
+                        return TypeInfo::makeBasicTypeID(TypeID::UInt64);
+                    return TypeInfo::makeBasicTypeID(TypeID::String);
                 }
                 return inferExprType((*node)[ASTTag::HeadExpr], info);
             }
@@ -569,30 +571,27 @@ namespace sakuraE::IR {
         }
 
         // 用于获取非逻辑二元运算的结果类型
-        IRType* handleUnlogicalBinaryCalc(IRValue* lhs, IRValue* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
-            auto lTy = lhs->getType();
-            auto rTy = rhs->getType();
-
-            auto lIt = rankList.find(lTy->getIRTypeID());
-            auto rIt = rankList.find(rTy->getIRTypeID());
-
-            if (lIt == rankList.end() || rIt == rankList.end()) {
+        TypeInfo* handleUnlogicalBinaryCalc(IRValue* lhs, IRValue* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
+            auto lTy = lhs->getSemanticType();
+            auto rTy = rhs->getSemanticType();
+            const int lRank = semanticRank(lTy);
+            const int rRank = semanticRank(rTy);
+            if (lRank < 0 || rRank < 0) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                        "Types '" + lTy->toString() + "' and '" + rTy->toString() +
-                        "' do not support '+', '-', '*', '%', and '/' operations",
+                        "Semantic types do not support '+', '-', '*', '%', and '/' operations",
                         info);
             }
 
-            int resultRank = std::max(lIt->second, rIt->second);
+            int resultRank = std::max(lRank, rRank);
             switch (resultRank) {
-                case 1: return IRType::getBoolTy();
-                case 2: return IRType::getCharTy();
-                case 3: return IRType::getUInt32Ty();
-                case 4: return IRType::getInt32Ty();
-                case 5: return IRType::getUInt64Ty();
-                case 6: return IRType::getInt64Ty();
-                case 7: return IRType::getFloat32Ty();
-                case 8: return IRType::getFloat64Ty();
+                case 1: return TypeInfo::makeBasicTypeID(TypeID::Bool);
+                case 2: return TypeInfo::makeBasicTypeID(TypeID::Char);
+                case 3: return TypeInfo::makeBasicTypeID(TypeID::UInt32);
+                case 4: return TypeInfo::makeBasicTypeID(TypeID::Int32);
+                case 5: return TypeInfo::makeBasicTypeID(TypeID::UInt64);
+                case 6: return TypeInfo::makeBasicTypeID(TypeID::Int64);
+                case 7: return TypeInfo::makeBasicTypeID(TypeID::Float32);
+                case 8: return TypeInfo::makeBasicTypeID(TypeID::Float64);
                 default: break;
             }
 

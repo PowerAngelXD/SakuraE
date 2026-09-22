@@ -30,7 +30,7 @@
 #include "Runtime/rttype.h"
 
 
-#include "Compiler/IR/generator.hpp"
+#include "Compiler/IR/Semantic/generator.hpp"
 #include "Compiler/LLVMCodegen/LLVMCodegenerator.hpp"
 #include "utils.hpp"
 #include "config/config.hpp"
@@ -48,7 +48,6 @@ namespace atri::cmds {
     }
 
     inline void cmdRun(std::vector<fzlib::String> args) {
-        CompilerSessionGuard compilerSessionGuard;
         RuntimeSessionGuard runtimeSessionGuard;
 
         if (args.size() < 1) {
@@ -71,6 +70,9 @@ namespace atri::cmds {
         std::ostringstream log;
 
         sakuraE::IR::IRGenerator generator("__main");
+        // Keep compiler-session cleanup inside the generator's IRContext lifetime.
+        // The guard clears TypeInfo through IRContext::current().
+        CompilerSessionGuard compilerSessionGuard;
         generator.startGenerate(content, "__main");
 
         if (config.displayAST) {

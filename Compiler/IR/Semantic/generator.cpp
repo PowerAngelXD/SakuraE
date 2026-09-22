@@ -2,14 +2,14 @@
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Frontend/AST.hpp"
 #include "Compiler/Frontend/parser.hpp"
-#include "Compiler/IR/model/function.hpp"
-#include "Compiler/IR/model/instruction.hpp"
-#include "Compiler/IR/model/scope.hpp"
-#include "Compiler/IR/type/type.hpp"
-#include "Compiler/IR/type/type_info.hpp"
-#include "Compiler/IR/value/array.hpp"
-#include "Compiler/IR/value/constant.hpp"
-#include "Compiler/IR/value/value.hpp"
+#include "Compiler/IR/Semantic/model/function.hpp"
+#include "Compiler/IR/Semantic/model/instruction.hpp"
+#include "Compiler/IR/Semantic/model/scope.hpp"
+#include "Compiler/IR/Backend/type/type.hpp"
+#include "Compiler/IR/Semantic/type/type_info.hpp"
+#include "Compiler/IR/Semantic/value/array.hpp"
+#include "Compiler/IR/Semantic/value/constant.hpp"
+#include "Compiler/IR/Semantic/value/value.hpp"
 #include "Compiler/Utils/Logger.hpp"
 #include "includes/magic_enum.hpp"
 #include <string>
@@ -103,10 +103,10 @@ namespace sakuraE::IR {
                               "null can only initialize a nullable struct or array type.", info);
         }
 
-        auto* constant = Constant::getNullHandle(targetType->toIRType(), info);
+        auto* constant = Constant::getNullHandle(lowerStorageType(targetType), info);
         return curFunc()->curBlock()->createInstruction(
             OpKind::constant,
-            targetType->toIRType(),
+            lowerStorageType(targetType),
             targetType,
             {constant},
             "null"
@@ -128,8 +128,12 @@ namespace sakuraE::IR {
         auto ty = addr->getType();
         TypeInfo* semanticTy = addr->getSemanticType();
         TypeInfo* semanticElementTy = nullptr;
-        if (semanticTy && semanticTy->isArray()) {
-            semanticElementTy = semanticTy->getBase()->getElementType();
+        const TypeInfo* semanticBase = semanticTy ? semanticTy->getBase() : nullptr;
+        if (semanticBase && semanticBase->isArray()) semanticElementTy = semanticBase->getElementType();
+        else if (semanticBase && semanticBase->isPointer()) semanticElementTy = semanticBase->getPointeeType();
+        else if (semanticBase && semanticBase->isRef()) semanticElementTy = semanticBase->getPointeeType();
+        if (!semanticElementTy) {
+            throw SakuraError(OccurredTerm::IR_GENERATING, "Cannot index a non-array value.", node->getPosInfo());
         }
 
         // 检查是否为左值
@@ -141,8 +145,7 @@ namespace sakuraE::IR {
         }
         else if (ty->isPointer()) {
             ty = static_cast<IRPointerType*>(ty)->getElementType();
-            if (ty->getIRTypeID() == CharTyID) {}
-            else goto err_case;
+            if (!semanticElementTy || !semanticElementTy->isBasic() || semanticElementTy->getTypeID() != TypeID::Char) goto err_case;
         }
         else if (ty->isRef()) {
             ty = static_cast<IRRefType*>(ty)->getElementType();
@@ -154,7 +157,7 @@ namespace sakuraE::IR {
             }
             else if (ty->isPointer()) {
                 ty = static_cast<IRPointerType*>(ty)->getElementType();
-                if (ty->getIRTypeID() != CharTyID) goto err_case;
+                if (!semanticElementTy || semanticElementTy->getTypeID() != TypeID::Char) goto err_case;
             }
             else {
                 goto err_case;
@@ -165,7 +168,7 @@ namespace sakuraE::IR {
             if (ty->isArray()) {
                 ty = static_cast<IRArrayType*>(ty)->getElementType();
             }
-            else goto error_indexing;
+            else goto err_case;
         }
         else {
             err_case:
@@ -214,10 +217,8 @@ namespace sakuraE::IR {
             }
         }
         else if (auto callable = dynamic_cast<CallableValue*>(addr)) {
-            auto ty = addr->getType();
-            if (ty->isPointer()) ty = ty->unwrapPointer();
-            if (ty->getIRTypeID() == IRTypeID::FunctionTyID) {
-                auto signature = callable->getFuncSemanticSignature();
+            auto signature = callable->getFuncSemanticSignature();
+            if (signature) {
                 if (!signature) {
                     throw SakuraError(
                         OccurredTerm::IR_GENERATING,
@@ -225,7 +226,7 @@ namespace sakuraE::IR {
                         node->getPosInfo());
                 }
 
-                retType = signature->returnType->toIRType();
+                retType = lowerStorageType(signature->returnType);
                 semanticType = signature->returnType;
                 if (signature->paramTypes.size() != args.size()) {
                     throw SakuraError(
@@ -285,7 +286,7 @@ namespace sakuraE::IR {
                             ? signature->paramTypes[i]
                             : nullptr);
                     argValues.push_back(val);
-                    argTypes.push_back(val->getType());
+                    argTypes.push_back(lowerStorageType(val->getSemanticType()));
                 }
 
                 auto mangledName = mangleFnName(name, argTypes);
@@ -358,8 +359,11 @@ namespace sakuraE::IR {
 
             auto* baseType = resultAddr->getSemanticType();
             if (!baseType || !baseType->getBase()->isStruct()) return nullptr;
-            auto field = baseType->getBase()->getStructType()->findMember(name);
-            TypeInfo* resultSemanticTy = (field && field->semanticType ? field->semanticType : nullptr);
+            TypeInfo* resultSemanticTy = nullptr;
+            if (const auto* decl = curModule()->resolveStruct(*baseType->getBase()->getStructDeclId());
+                decl && decl->find(name)) {
+                resultSemanticTy = decl->find(name)->type;
+            }
 
             resultAddr = curFunc()
                 ->curBlock()
@@ -413,8 +417,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::add,
+                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
-                            semanticTypeForStorage(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             {resultValue, Constant::get(1)},
                             "add"
                         );
@@ -428,8 +432,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::sub,
+                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
-                            semanticTypeForStorage(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             {resultValue, Constant::get(1)},
                             "sub"
                         );
@@ -523,6 +527,7 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::add,
+                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
                             {resultValue, Constant::get(1)},
                             "add"
@@ -538,6 +543,7 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::sub,
+                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
                             handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
                             {resultValue, Constant::get(1)},
                             "sub"
@@ -576,9 +582,9 @@ namespace sakuraE::IR {
                     IRType::getUInt64Ty(),
                     TypeInfo::makeBasicTypeID(TypeID::UInt64),
                     {},
-                    "sizeof." + argType->toString()
+                    "sizeof"
                 );
-            static_cast<Instruction*>(sizeofValue)->setTypeOperand(argType);
+            static_cast<Instruction*>(sizeofValue)->setTypeOperand(lowerStorageType(argType));
             return sizeofValue;
         }
 
@@ -646,24 +652,24 @@ namespace sakuraE::IR {
                     case TokenType::MUL: {
                         lhs = curFunc()
                             ->curBlock()
-                            ->createInstruction(OpKind::mul, handleUnlogicalBinaryCalc(lhs, rhs),
-                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                            ->createInstruction(OpKind::mul, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "mul");
                         break;
                     }
                     case TokenType::DIV: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::div, handleUnlogicalBinaryCalc(lhs, rhs),
-                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                ->createInstruction(OpKind::div, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "div");
                         break;
                     }
                     case TokenType::MOD: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::mod, handleUnlogicalBinaryCalc(lhs, rhs),
-                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                ->createInstruction(OpKind::mod, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "mod");
                         break;
                     }
@@ -692,16 +698,16 @@ namespace sakuraE::IR {
                     case TokenType::ADD: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::add, handleUnlogicalBinaryCalc(lhs, rhs),
-                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                            ->createInstruction(OpKind::add, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "add");
                         break;
                     }
                     case TokenType::SUB: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::sub, handleUnlogicalBinaryCalc(lhs, rhs),
-                                                semanticTypeForStorage(handleUnlogicalBinaryCalc(lhs, rhs)),
+                            ->createInstruction(OpKind::sub, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                                handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "sub");
                         break;
                     }
@@ -874,7 +880,7 @@ namespace sakuraE::IR {
 
         for (std::size_t i = 1; i < chain.size(); i ++) {
             auto element = visitWholeExprNode(chain[i]);
-            if (head->getType() != element->getType()) {
+            if (!isAssignableTo(element->getSemanticType(), head->getSemanticType())) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "The types of elements in an array literal must be the same.",
                                 node->getPosInfo());
@@ -912,6 +918,7 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::add,
+                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "add"
@@ -925,6 +932,7 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::sub,
+                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "sub"
@@ -938,6 +946,7 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::mul,
+                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "mul"
@@ -951,6 +960,7 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::div,
+                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "div"
@@ -1023,7 +1033,7 @@ namespace sakuraE::IR {
             auto inst = dynamic_cast<Instruction*>(typeInfoIRValue);
             auto typeInfoConst = static_cast<Constant*>(inst->getOperands()[0]);
             auto typeInfo = typeInfoConst->getContentValue<TypeInfo*>();
-            allocaTy = typeInfo->toIRType();
+            allocaTy = lowerStorageType(typeInfo);
         }
 
         TypeInfo* semanticType = declaredSemanticType
@@ -1418,7 +1428,7 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
         TypeInfo* semanticReturnType = getTypeInfoFromNode((*node)[ASTTag::Type]);
-        IRType* retType = semanticReturnType->toIRType();
+        IRType* retType = lowerStorageType(semanticReturnType);
         FormalParamsDefine params;
         std::vector<TypeInfo*> paramSemanticTypes;
 
@@ -1427,7 +1437,7 @@ namespace sakuraE::IR {
             auto nameList = (*node)[ASTTag::Args]->getChildren()[1];
             for (std::size_t i = 0; i < typeList->getChildren().size(); i ++) {
                 auto tyInfo = getTypeInfoFromNode(typeList->getChildren()[i]);
-                IRType* argType = tyInfo->toIRType();
+                IRType* argType = lowerStorageType(tyInfo);
                 paramSemanticTypes.push_back(tyInfo);
                 fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
@@ -1473,7 +1483,7 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitStructDefineStmtNode(NodePtr node) {
         const auto name = (*node)[ASTTag::Identifier]->getToken();
-        std::vector<IRStructType::FieldInfo> members;
+        std::vector<SemanticField> members;
         std::map<fzlib::String, Constant*> defaultValues;
         std::map<fzlib::String, bool> memberNames;
         if (node->hasNode(ASTTag::Members)) {
@@ -1487,10 +1497,9 @@ namespace sakuraE::IR {
                     );
                 }
 
-                IRStructType::FieldInfo info;
+                SemanticField info;
                 info.name = memberToken.content;
-                info.semanticType = getTypeInfoFromNode((*member)[ASTTag::TypeModifierNode]);
-                info.type = info.semanticType->toIRType();
+                info.type = getTypeInfoFromNode((*member)[ASTTag::TypeModifierNode]);
                 info.info = memberToken.info;
 
                 Constant* defaultValue = nullptr;
@@ -1503,18 +1512,18 @@ namespace sakuraE::IR {
                             "Struct member defaults must be literal values.",
                             defaultExpr->getPosInfo());
                     }
-                    const auto* baseType = info.semanticType->getBase();
-                    if (!info.semanticType->isNullable() ||
+                    const auto* baseType = info.type->getBase();
+                    if (!info.type->isNullable() ||
                         (!baseType->isStruct() && !baseType->isArray())) {
                         throw SakuraError(
                             OccurredTerm::IR_GENERATING,
                             "null can only default-initialize a nullable struct or array member.",
                             defaultExpr->getPosInfo());
                     }
-                    defaultValue = Constant::getNullHandle(info.type, defaultExpr->getPosInfo());
+                    defaultValue = Constant::getNullHandle(lowerStorageType(info.type), defaultExpr->getPosInfo());
                 }
 
-                if (info.type->isEqual(IRType::getVoidTy())) {
+                if (info.type->getBase()->isBasic() && info.type->getBase()->getTypeID() == TypeID::Void) {
                     throw SakuraError(
                         OccurredTerm::IR_GENERATING,
                         "A struct member cannot have type 'void'.",
@@ -1556,16 +1565,6 @@ namespace sakuraE::IR {
             retValue = visitWholeExprNode(
                 (*node)[ASTTag::HeadExpr],
                 curFunc()->getSemanticReturnType());
-            if (!retValue->getType()->isEqual(curFunc()->getReturnType())) {
-                throw SakuraError(
-                    OccurredTerm::IR_GENERATING,
-                    "The type of the value in a return statement must match the function's return type. Function's return type is: " +
-                        curFunc()->getReturnType()->toString() +
-                        ", but your given type is: " +
-                        (retValue?retValue->getType()->toString():"void type"),
-                    (*node)[ASTTag::HeadExpr]->getPosInfo()
-                );
-            }
             if (!isAssignableTo(retValue->getSemanticType(),
                                 curFunc()->getSemanticReturnType())) {
                 throw SakuraError(

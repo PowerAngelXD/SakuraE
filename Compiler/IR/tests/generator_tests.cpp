@@ -1,10 +1,12 @@
-#include "Compiler/IR/generator.hpp"
-#include "Compiler/IR/model/struct.hpp"
+#include "Compiler/IR/Semantic/generator.hpp"
+#include "Compiler/IR/Semantic/model/struct.hpp"
 
 #include <cassert>
 
 int main() {
     using namespace sakuraE::IR;
+
+    try {
 
     IRGenerator generator("generator-test");
     generator.startGenerate(
@@ -14,19 +16,18 @@ int main() {
     const auto& statements = generator.getParsedStatements();
     assert(statements.size() == 2);
 
-    auto* aType = generator.getProgram().curMod()->lookupStructType("A");
-    auto* bType = generator.getProgram().curMod()->lookupStructType("B");
-    assert(aType != nullptr);
-    assert(bType != nullptr);
-    assert(aType->isComplete());
-    assert(bType->isComplete());
+    auto* aDecl = generator.getProgram().curMod()->lookupStruct("A");
+    auto* bDecl = generator.getProgram().curMod()->lookupStruct("B");
+    assert(aDecl != nullptr);
+    assert(bDecl != nullptr);
+    assert(aDecl->isComplete());
+    assert(bDecl->isComplete());
 
-    const auto bMember = aType->findMember("b");
-    assert(bMember.has_value());
-    assert(bMember->type == bType);
-    assert(bMember->semanticType != nullptr);
-    assert(bMember->semanticType->isStruct());
-    assert(!bMember->semanticType->isNullable());
+    const auto* bMember = aDecl->find("b");
+    assert(bMember != nullptr);
+    assert(bMember->type != nullptr);
+    assert(bMember->type->isStruct());
+    assert(!bMember->type->isNullable());
     assert(bMember->info.line == 1);
     assert(bMember->info.column == 12);
 
@@ -35,28 +36,21 @@ int main() {
         "struct Node { next: Node? }",
         "nullable-generator-test");
 
-    auto* nodeType = nullableGenerator.getProgram().curMod()->lookupStructType("Node");
-    assert(nodeType != nullptr);
-    const auto nextMember = nodeType->findMember("next");
-    assert(nextMember.has_value());
-    assert(nextMember->type == nodeType);
-    assert(nextMember->semanticType != nullptr);
-    assert(nextMember->semanticType->isStruct());
-    assert(nextMember->semanticType->isNullable());
-    assert(nextMember->semanticType->getBase()->toIRType() == nodeType);
     auto* nodeDecl = nullableGenerator.getProgram().curMod()->lookupStruct("Node");
     assert(nodeDecl != nullptr);
+    const auto* nextMember = nodeDecl->find("next");
+    assert(nextMember != nullptr);
+    assert(nextMember->type->isStruct());
+    assert(nextMember->type->isNullable());
     assert(!nodeDecl->hasDefaultValue("next"));
 
     IRGenerator defaultGenerator("default-generator-test");
     defaultGenerator.startGenerate(
         "struct DefaultNode { next: DefaultNode? = null }",
         "default-generator-test");
-    auto* defaultNode = defaultGenerator.getProgram().curMod()->lookupStructType("DefaultNode");
-    auto defaultMember = defaultNode->findMember("next");
-    assert(defaultMember.has_value());
     auto* defaultDecl = defaultGenerator.getProgram().curMod()->lookupStruct("DefaultNode");
     assert(defaultDecl != nullptr);
+    assert(defaultDecl->find("next") != nullptr);
     assert(defaultDecl->hasDefaultValue("next"));
     assert(defaultDecl->getDefaultValue("next")->isNullHandle());
 
@@ -67,14 +61,12 @@ int main() {
         "func getValues() -> i32[2]? { return null; } "
         "func main() -> i32 { let values: i32[2]? = null; consume(null); return 0; }",
         "nullable-array-test");
-    auto* container = nullableArrayGenerator.getProgram().curMod()->lookupStructType("Container");
-    auto valuesMember = container->findMember("values");
-    assert(valuesMember.has_value());
-    assert(valuesMember->semanticType != nullptr);
-    assert(valuesMember->semanticType->isNullable());
-    assert(valuesMember->semanticType->getBase()->isArray());
     auto* containerDecl = nullableArrayGenerator.getProgram().curMod()->lookupStruct("Container");
     assert(containerDecl != nullptr);
+    const auto* valuesMember = containerDecl->find("values");
+    assert(valuesMember != nullptr);
+    assert(valuesMember->type->isNullable());
+    assert(valuesMember->type->getBase()->isArray());
     assert(containerDecl->hasDefaultValue("values"));
     assert(containerDecl->getDefaultValue("values")->isNullHandle());
 
@@ -107,13 +99,13 @@ int main() {
     NamingContext functionNames("function-semantic-test");
     const sakuraE::PositionInfo functionInfo {1, 1, "function semantic test"};
     functionNames.defineStruct("Node", {}, functionInfo);
-    auto* functionNodeType = functionNames.lookupStructType("Node");
-    auto* functionNodeTypeInfo = functionContext.typeInfoPool().makeStructTypeID(functionNodeType);
+    auto* functionNodeDecl = functionNames.lookupStructDecl("Node");
+    auto* functionNodeTypeInfo = functionContext.typeInfoPool().makeStructTypeID(functionNodeDecl->getDeclId());
     auto* nullableFunctionNodeTypeInfo = functionContext.typeInfoPool().wrapTypeAsNullable(
         functionNodeTypeInfo, functionInfo);
-    FormalParamsDefine functionParams {{"node", functionNodeType}};
+    FormalParamsDefine functionParams {{"node", nullptr}};
     Function function(
-        "keep", functionNodeType, functionParams, functionInfo,
+        "keep", nullptr, functionParams, functionInfo,
         {nullableFunctionNodeTypeInfo}, nullableFunctionNodeTypeInfo);
     assert(function.getSemanticReturnType() == nullableFunctionNodeTypeInfo);
     assert(function.getSemanticParamTypes().size() == 1);
@@ -139,7 +131,7 @@ int main() {
     }
     catch (const sakuraE::SakuraError& error) {
         std::cerr << error.toString().c_str();
-        throw;
+        return 1;
     }
 
     bool rejectedUntypedNull = false;
@@ -177,5 +169,10 @@ int main() {
     }
     assert(rejectedCompositeNull);
 
+    }
+    catch (const sakuraE::SakuraError& error) {
+        std::cerr << error.toString().c_str() << '\n';
+        return 1;
+    }
     return 0;
 }

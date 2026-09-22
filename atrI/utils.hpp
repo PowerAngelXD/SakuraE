@@ -6,9 +6,9 @@
 #include <fstream>
 #include <string>
 
-#include "Compiler/IR/type/type_info.hpp"
-#include "Compiler/IR/value/array.hpp"
-#include "Compiler/IR/value/constant.hpp"
+#include "Compiler/IR/Semantic/type/type_info.hpp"
+#include "Compiler/IR/Semantic/value/array.hpp"
+#include "Compiler/IR/Semantic/value/constant.hpp"
 #include "includes/String.hpp"
 #include "Runtime/errors.h"
 #include "Runtime/gc.h"
