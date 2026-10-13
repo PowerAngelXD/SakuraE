@@ -20,7 +20,7 @@ namespace sakuraE::IR {
 
     public:
         explicit NamingContext(fzlib::String id);
-        ~NamingContext();
+        ~NamingContext() override;
 
         NamingContext(const NamingContext&) = delete;
         NamingContext& operator=(const NamingContext&) = delete;
