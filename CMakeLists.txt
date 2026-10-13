@@ -49,8 +49,7 @@ add_executable(
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp
     Compiler/IR/Semantic/value/constant.cpp
-    Compiler/IR/Lowering/type_lowering.cpp
-    Compiler/LLVMCodegen/LLVMCodegenerator.cpp
+        Compiler/LLVMCodegen/LLVMCodegenerator.cpp
     Runtime/alloc.cpp
     Runtime/gc.cpp
     Runtime/input.cpp
@@ -58,6 +57,8 @@ add_executable(
     Runtime/print.cpp
     Runtime/raw_string.cpp
     Runtime/rttype.cpp
+        Compiler/IR/Lowering/session.hpp
+        Compiler/IR/Lowering/session.cpp
 )
 
 add_executable(
@@ -109,15 +110,16 @@ add_executable(
 add_executable(
     sakurae-ir-context-tests
     Compiler/IR/tests/context_tests.cpp
+    Compiler/IR/Lowering/session.cpp
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp
         Compiler/IR/Backend/context/context.cpp
-    Compiler/IR/Lowering/type_lowering.cpp
 )
 
 add_executable(
     sakurae-ir-generator-tests
     Compiler/IR/tests/generator_tests.cpp
+    Compiler/IR/Lowering/session.cpp
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
     Compiler/IR/Semantic/generator.cpp
@@ -125,7 +127,6 @@ add_executable(
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp
     Compiler/IR/Semantic/value/constant.cpp
-    Compiler/IR/Lowering/type_lowering.cpp
 )
 
 target_include_directories(
