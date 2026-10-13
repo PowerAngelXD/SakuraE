@@ -34,7 +34,7 @@ namespace sakuraE::IR {
         bool hasGenerated = false;
 
         IRType* lowerStorageType(const TypeInfo* type) {
-            return LoweringSession(program.getContext(), &program.curMod()->structRegistry()).lowerType(type);
+            return program.getLoweringSession().lowerType(type);
         }
 
         TypeInfo* semanticTypeForStorage(IRType* type) {
@@ -262,7 +262,7 @@ namespace sakuraE::IR {
         }
 
         TypeInfo* getTypeInfoFromNode(sakuraE::NodePtr node) {
-            TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Null);
+            TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Void);
 
             if (node->getTag() == ASTTag::TypeModifierNode) {
                 if (node->hasNode(ASTTag::BasicTypeModifierNode)) {
@@ -398,6 +398,7 @@ namespace sakuraE::IR {
             return resultTyInfo;
         }
 
+        // TODO: 只能使用TypeInfo
         fzlib::String mangleTypeName(IRType* type) {
             if (type->isStruct()) {
                 return static_cast<IRStructType*>(type)->getName();

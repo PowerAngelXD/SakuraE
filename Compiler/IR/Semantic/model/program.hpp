@@ -3,17 +3,20 @@
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/Backend/context/context.hpp"
+#include "Compiler/IR/Lowering/session.hpp"
 #include "module.hpp"
 #include <cstddef>
+#include <memory>
 
 namespace sakuraE::IR {
-    class Program {
+    class Program : public StructDeclRegistry {
         IRContext context;
         fzlib::String ID;
 
         std::vector<Module*> moduleList;
         // moduleList 当前索引的最大值
         int cursor = -1;
+        std::unique_ptr<LoweringSession> loweringSession;
     public:
         Program(fzlib::String id): ID(id) {
             PositionInfo info = {0, 0, "System"};
@@ -220,6 +223,7 @@ namespace sakuraE::IR {
         }
 
         ~Program() {
+            loweringSession.reset();
             for (auto mod: moduleList) {
                 delete mod;
             }
@@ -245,6 +249,7 @@ namespace sakuraE::IR {
         }
 
         void reset() {
+            loweringSession.reset();
             cursor = 0;
             for (auto mod: moduleList) {
                 mod->reset();
@@ -257,6 +262,22 @@ namespace sakuraE::IR {
 
         IRContext& getContext() {
             return context;
+        }
+
+        LoweringSession& getLoweringSession() {
+            if (!loweringSession) {
+                loweringSession = std::make_unique<LoweringSession>(context, this);
+            }
+            return *loweringSession;
+        }
+
+        const IRStructDecl* resolveStruct(const StructDeclId& id) const override {
+            for (const auto* module: moduleList) {
+                if (const auto* declaration = module->resolveStruct(id)) {
+                    return declaration;
+                }
+            }
+            return nullptr;
         }
 
         std::vector<Module*> getMods() {
