@@ -13,14 +13,15 @@ namespace sakuraE::IR {
         const StructDeclRegistry* structResolver;
         std::unordered_map<const TypeInfo*, IRType*> typeMap;
         std::map<StructDeclId, IRStructType*> structMap;
+
+        IRType* loweringBasicType(const TypeInfo* tyInfo);
     public:
         explicit LoweringSession(IRContext& ctx, const StructDeclRegistry* resolver = nullptr):
             irContext(ctx), structResolver(resolver) {}
 
-        IRContext& context() { return irContext; }
+        IRContext& context() const { return irContext; }
 
         IRType* lowerType(const TypeInfo* tyInfo);
-        IRStructType* lowerStruct(const StructDeclId& id);
         void prepareStructs();
     };
 }
