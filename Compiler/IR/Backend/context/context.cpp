@@ -45,7 +45,7 @@ namespace sakuraE::IR {
                               "Duplicate struct definition: '" + name + "'",
                               info);
         }
-        auto decl = std::make_unique<IRStructDecl>(StructDeclId{moduleID, structDecls.size()}, moduleID, name, std::move(info));
+        auto decl = std::make_unique<IRStructDecl>(StructDeclId {moduleID, structDecls.size()}, moduleID, name, std::move(info));
         auto* result = decl.get();
         structDecls.emplace(name, std::move(decl));
         return result;
