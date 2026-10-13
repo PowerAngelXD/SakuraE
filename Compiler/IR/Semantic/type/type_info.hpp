@@ -45,7 +45,6 @@ namespace sakuraE::IR {
         Char,
         Void,
         String,
-        Null,
         // 结构
         Array,
         Pointer,
@@ -205,8 +204,6 @@ namespace sakuraE::IR {
             if (!isStruct()) return nullptr;
             return &std::get<StructTypeInfo>(complexTypeInfo).getDeclId();
         }
-
-        IRType* toIRType() const;
 
         static TypeInfo* makeBasicTypeID(const TypeID typeID);
         static TypeInfo* makeArrayTypeID(TypeInfo* element, const std::uint64_t count);
