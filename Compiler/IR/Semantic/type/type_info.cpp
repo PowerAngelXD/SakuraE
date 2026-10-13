@@ -12,58 +12,6 @@ namespace sakuraE::IR {
             && target->isNullable();
     }
 
-    IRType* tid2IRType(IRContext& context, TypeID typeID) {
-        switch (typeID) {
-            case TypeID::Int32:
-                return context.getInt32Ty();
-            case TypeID::Int64:
-                return context.getInt64Ty();
-            case TypeID::UInt32:
-                return context.getUInt32Ty();
-            case TypeID::UInt64:
-                return context.getUInt64Ty();
-            case TypeID::Float32:
-                return context.getFloat32Ty();
-            case TypeID::Float64:
-                return context.getFloat64Ty();
-            case TypeID::Char:
-                return context.getCharTy();
-            case TypeID::Bool:
-                return context.getBoolTy();
-            case TypeID::Void:
-                return context.getVoidTy();
-            default:
-                throw SakuraError(OccurredTerm::IR_GENERATING,
-                                  "Unknown TypeID to convert to IRType",
-                                  {0, 0, "InsideError"});
-        }
-    }
-
-    IRType* TypeInfo::toIRType() const {
-        if (isArray()) {
-            const auto& arrayType = std::get<ArrayTypeInfo>(complexTypeInfo);
-            return context.getArrayTy(
-                arrayType.getElementTy()->toIRType(),
-                arrayType.length());
-        }
-
-        if (isPointer()) {
-            const auto& pointerType = std::get<PointerTypeInfo>(complexTypeInfo);
-            return context.getPointerTo(pointerType.getElementTy()->toIRType());
-        }
-
-        if (isRef()) {
-            const auto& refType = std::get<RefTypeInfo>(complexTypeInfo);
-            return context.getRefTo(refType.getElementTy()->toIRType());
-        }
-
-        if (isStruct()) {
-            throw std::runtime_error("Struct TypeInfo must be lowered with a StructResolver");
-        }
-
-        return tid2IRType(context, typeID);
-    }
-
     TypeInfo* TypeInfoContext::makeBasicTypeID(TypeID typeID) {
         if (typeID == TypeID::Struct) {
             throw std::runtime_error("A struct TypeInfo requires an IRStructType");
