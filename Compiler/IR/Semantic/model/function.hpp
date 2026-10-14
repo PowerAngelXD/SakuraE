@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "Compiler/Error/error.hpp"
+#include "Compiler/IR/Backend/context/context.hpp"
 #include "block.hpp"
 #include "scope.hpp"
 
@@ -39,8 +40,10 @@ namespace sakuraE::IR {
         Module* parent;
     public:
         Function(fzlib::String n, IRType* retType, PositionInfo info):
-            CallableValue(IRType::getFunctionTy(retType, {}), n),
-            returnType(retType), funcScope(info), createInfo(info) {}
+            CallableValue(nullptr, n),
+            returnType(retType), funcScope(info), createInfo(info) {
+            setStorageType(IRType::getFunctionTy(retType, {}));
+        }
 
         // 仅用于预声明
         Function(fzlib::String n, PositionInfo info):
@@ -49,28 +52,20 @@ namespace sakuraE::IR {
 
         Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info,
                  std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr):
-            CallableValue(IRType::getFunctionTy(retType,
-                [&]() -> std::vector<IRType*> {
-                    std::vector<IRType*> result;
-                    for (auto param: params) {
-                        result.push_back(param.second);
-                    }
-                    return result;
-                }()), n), returnType(retType), formalParams(params),
+            CallableValue(nullptr, n), returnType(retType), formalParams(params),
                 funcScope(info), createInfo(info) {
-            setFuncSemanticSignature(std::make_shared<FuncSemanticSignature>(
-                FuncSemanticSignature{std::move(semanticParams), semanticReturn}));
+            std::vector<IRType*> storageParams;
+            for (const auto& parameter : params) storageParams.push_back(parameter.second);
+            setStorageType(IRType::getFunctionTy(retType, std::move(storageParams)));
+            if (semanticReturn) setFunctionType(semanticReturn->getContext().typeInfoPool().makeFunctionTypeID(semanticReturn, std::move(semanticParams)));
         }
 
         Function(fzlib::String n, fzlib::String raw, IRType* retType, FormalParamsDefine params, PositionInfo info):
-            CallableValue(IRType::getFunctionTy(retType,
-                [&]() -> std::vector<IRType*> {
-                    std::vector<IRType*> result;
-                    for (auto param: params) {
-                        result.push_back(param.second);
-                    }
-                    return result;
-                }()), n), rawName(raw), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {}
+            CallableValue(nullptr, n), rawName(raw), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {
+            std::vector<IRType*> storageParams;
+            for (const auto& parameter : params) storageParams.push_back(parameter.second);
+            setStorageType(IRType::getFunctionTy(retType, std::move(storageParams)));
+        }
 
         ~Function() {
             for (auto blk: blocks) {
@@ -101,8 +96,7 @@ namespace sakuraE::IR {
                                TypeInfo* semanticReturn = nullptr) {
             formalParams = params;
             returnType = retType;
-            setFuncSemanticSignature(std::make_shared<FuncSemanticSignature>(
-                FuncSemanticSignature{std::move(semanticParams), semanticReturn}));
+            if (semanticReturn) setFunctionType(semanticReturn->getContext().typeInfoPool().makeFunctionTypeID(semanticReturn, std::move(semanticParams)));
 
             setStorageType(IRType::getFunctionTy(retType,
                 [&]() -> std::vector<IRType*> {
@@ -132,14 +126,14 @@ namespace sakuraE::IR {
         }
 
         TypeInfo* getSemanticReturnType() const {
-            auto signature = getFuncSemanticSignature();
-            return signature ? signature->returnType : nullptr;
+            const auto* signature = getFunctionTypeInfo();
+            return signature ? signature->getReturnType() : nullptr;
         }
 
         const std::vector<TypeInfo*>& getSemanticParamTypes() const {
             static const std::vector<TypeInfo*> empty;
-            auto signature = getFuncSemanticSignature();
-            return signature ? signature->paramTypes : empty;
+            const auto* signature = getFunctionTypeInfo();
+            return signature ? signature->getArgTypes() : empty;
         }
 
         std::vector<IRType*> getParamsOnlyType() {

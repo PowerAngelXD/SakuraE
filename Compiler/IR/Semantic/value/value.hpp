@@ -9,11 +9,6 @@
 #include <utility>
 
 namespace sakuraE::IR {
-    struct FuncSemanticSignature {
-        std::vector<TypeInfo*> paramTypes;
-        TypeInfo* returnType = nullptr;
-    };
-
     class IRValue {
     protected:
         TypeInfo* semanticType = nullptr;   // 实际在Semantic处理阶段中使用的type
@@ -64,21 +59,18 @@ namespace sakuraE::IR {
 
     // 可调用的值，用于实现函数调用等功能
     class CallableValue: public IRValue {
-        std::shared_ptr<FuncSemanticSignature> funcSemanticSignature;
-
     protected:
-        CallableValue(IRType* storageType, fzlib::String valueName,
-                      std::shared_ptr<FuncSemanticSignature> signature = nullptr)
-            : IRValue(storageType, nullptr, std::move(valueName)),
-              funcSemanticSignature(std::move(signature)) {}
+        CallableValue(TypeInfo* signature, fzlib::String valueName)
+            : IRValue(signature, std::move(valueName)) {}
 
     public:
-        std::shared_ptr<FuncSemanticSignature> getFuncSemanticSignature() const {
-            return funcSemanticSignature;
+        const FunctionTypeInfo* getFunctionTypeInfo() const {
+            return semanticType ? semanticType->getFunctionTypeInfo() : nullptr;
         }
 
-        void setFuncSemanticSignature(std::shared_ptr<FuncSemanticSignature> signature) {
-            funcSemanticSignature = std::move(signature);
+        void setFunctionType(TypeInfo* signature) {
+            if (signature && !signature->isFunction()) throw std::invalid_argument("Callable requires a semantic function type");
+            setSemanticType(signature);
         }
     };
 

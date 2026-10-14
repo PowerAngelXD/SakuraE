@@ -2,11 +2,146 @@
 #include "Compiler/IR/Semantic/model/struct.hpp"
 
 #include <cassert>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
+void testSemanticOperations() {
+    using namespace sakuraE::IR;
+    IRGenerator generator("semantic-operations");
+    generator.startGenerate(
+        "func pick(value: i32) -> i32 { return value; } "
+        "func pick(value: i32*) -> i32 { return *value; } "
+        "struct Item { value: i32 } "
+        "func read(item: Item) -> i32 { return item.value; } "
+        "func main() -> i32 { let value = 7; let pointer = &value; "
+        "let array = [1, 2]; let text = \"text\"; let character = text[0]; "
+        "let element = array[0]; let size = sizeof(pointer); "
+        "let description = typeof(value); "
+        "let reference = ref array; let refElement = reference[0]; "
+        "let result = pick(pointer); println(result); return result; }",
+        "semantic-operations");
+    bool sawPointer = false;
+    bool sawDeref = false;
+    for (auto* function : generator.getProgram().curMod()->getFunctions()) {
+        for (auto* block : function->getBlocks()) {
+            for (auto* instruction : block->getInstructions()) {
+                assert(instruction->getSemanticType() != nullptr);
+                if (instruction->getKind() == OpKind::gaddr) {
+                    if (instruction->getSemanticType()->isPointer()) {
+                        sawPointer = true;
+                        assert(instruction->getSemanticType()->getPointeeType()->getTypeID() == TypeID::Int32);
+                    }
+                    else {
+                        assert(instruction->getSemanticType()->isRef());
+                        assert(instruction->getSemanticType()->getPointeeType()->isArray());
+                    }
+                }
+                if (instruction->getKind() == OpKind::deref) {
+                    sawDeref = true;
+                    assert(instruction->getSemanticType()->getTypeID() == TypeID::Int32);
+                }
+            }
+        }
+    }
+    assert(sawPointer && sawDeref);
+    auto* integer = generator.getProgram().getContext().typeInfoPool().makeBasicTypeID(Int32);
+    auto* signature = generator.getProgram().getContext().typeInfoPool().makeFunctionTypeID(integer, {integer});
+    IRValue semanticCallable(signature, "semantic-callable");
+    IRValue argument(integer, "semantic-argument");
+    assert(semanticCallable.getStorageType() == nullptr);
+    assert(argument.getStorageType() == nullptr);
+    generator.getProgram().curMod()->curFunc()->buildBlock("semantic-call-verification");
+    auto* call = generator.visitCallingOpNode(&semanticCallable, generator.getParsedStatements().front(), {&argument});
+    assert(call->getSemanticType() == integer);
+    const auto rejected = [](const fzlib::String& source) {
+        try {
+            IRGenerator invalid("invalid-semantic");
+            invalid.startGenerate(source, "invalid-semantic");
+        }
+        catch (const sakuraE::SakuraError&) {
+            return true;
+        }
+        return false;
+    };
+    assert(rejected("func main() -> i32 { let text = \"text\"; return *text; }"));
+    assert(rejected("func main() -> i32 { let array = [1, 2]; return array[true]; }"));
+    assert(rejected("func value() -> i32 { return; }"));
+    assert(rejected("func value() -> void { return 1; }"));
+    assert(rejected("func main() -> i32 { let text = \"text\"; let address = &text[0]; return 0; }"));
+    assert(rejected("func take(value: i32) -> i32 { return value; } func main() -> i32 { return take(true); }"));
+}
+
+void testSemanticTypeAcceptance() {
+    using namespace sakuraE::IR;
+    Program program("type-acceptance");
+    const sakuraE::PositionInfo info {1, 1, "Type acceptance"};
+    program.buildModule("types", info);
+    auto& types = program.getContext().typeInfoPool();
+    auto* integer = types.makeBasicTypeID(Int32);
+    const auto rejects = [](auto action) {
+        try { action(); }
+        catch (const std::exception&) { return true; }
+        return false;
+    };
+    for (const auto composite : {Array, Pointer, Ref, Struct, FunctionType}) {
+        assert(rejects([&] { types.makeBasicTypeID(composite); }));
+    }
+    assert(rejects([&] { types.makeArrayTypeID(nullptr, 2); }));
+    assert(rejects([&] { types.makePointerTypeID(nullptr); }));
+    assert(rejects([&] { types.makeFunctionTypeID(integer, {nullptr}); }));
+    IRContext foreign;
+    auto* foreignInteger = foreign.typeInfoPool().makeBasicTypeID(Int32);
+    assert(rejects([&] { types.makeRefTypeID(foreignInteger); }));
+    assert(rejects([&] { program.validateSemanticType(foreignInteger, info); }));
+    assert(rejects([&] { program.buildModule("types", info); }));
+    program.curMod()->declareStruct("Node", info);
+    auto* declaration = program.curMod()->lookupStruct("Node");
+    auto* node = types.makeStructTypeID(declaration->getDeclId());
+    assert(node == types.makeStructTypeID(declaration->getDeclId()));
+    auto* pointer = types.makePointerTypeID(node);
+    assert(pointer->getPointeeType() == node);
+    auto* array = types.makeArrayTypeID(pointer, 3);
+    assert(array->getElementType() == pointer);
+    auto* signature = types.makeFunctionTypeID(node, {array});
+    assert(signature->getFunctionTypeInfo()->getReturnType() == node);
+    assert(signature->getFunctionTypeInfo()->getArgTypes()[0] == array);
+    program.curMod()->implStruct("Node", {{"next", pointer, info}}, {}, info);
+    program.validateSemanticType(signature, info);
+    assert(program.curMod()->lookupStructType("Node") == nullptr);
+    assert(rejects([&] { declaration->complete({}); }));
+    assert(rejects([&] { program.curMod()->declareStruct("Node", info); }));
+    auto* missing = types.makeStructTypeID({"unknown-module", 0});
+    assert(rejects([&] { program.validateSemanticType(missing, info); }));
+    program.curMod()->declareStruct("Broken", info);
+    program.curMod()->implStruct("Broken", {{"value", types.makeArrayTypeID(types.makePointerTypeID(missing), 2), info}}, {}, info);
+    auto* broken = types.makeStructTypeID(program.curMod()->lookupStruct("Broken")->getDeclId());
+    assert(rejects([&] { program.validateSemanticType(broken, info); }));
+    assert(rejects([&] { types.wrapTypeAsNullable(signature, info); }));
+    auto* nullable = types.wrapTypeAsNullable(node, info);
+    assert(isAssignableTo(node, nullable));
+    assert(!isAssignableTo(nullable, node));
+}
+
+void testSemanticFixtures() {
+    const auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path();
+    for (const auto* fixture : {"sizeof_basic.sak", "test3.sak", "gc_pass_argument.sak"}) {
+        std::ifstream input(root / "test" / fixture);
+        assert(input.is_open());
+        std::stringstream source;
+        source << input.rdbuf();
+        sakuraE::IR::IRGenerator generator(fixture);
+        generator.startGenerate(source.str(), fixture);
+    }
+}
 
 int main() {
     using namespace sakuraE::IR;
 
     try {
+    testSemanticTypeAcceptance();
+    testSemanticOperations();
+    testSemanticFixtures();
 
     IRGenerator generator("generator-test");
     generator.startGenerate(
@@ -22,6 +157,11 @@ int main() {
     assert(bDecl != nullptr);
     assert(aDecl->isComplete());
     assert(bDecl->isComplete());
+
+    auto& lowering = generator.getProgram().lowering();
+    assert(&lowering == &generator.getProgram().lowering());
+    auto* aType = generator.getProgram().getContext().typeInfoPool().makeStructTypeID(aDecl->getDeclId());
+    assert(lowering.lowerType(aType) == lowering.lowerType(aType));
 
     const auto* bMember = aDecl->find("b");
     assert(bMember != nullptr);
@@ -90,7 +230,7 @@ int main() {
 
     IRGenerator argumentNullGenerator("argument-null-test");
     argumentNullGenerator.startGenerate(
-        "struct ArgumentNode { next: ArgumentNode? } "
+        "struct ArgumentNode { next: ArgumentNode* } "
         "func consume(node: ArgumentNode?) -> i32 { return 0; } "
         "func main() -> i32 { consume(null); return 0; }",
         "argument-null-test");
@@ -110,22 +250,22 @@ int main() {
     assert(function.getSemanticReturnType() == nullableFunctionNodeTypeInfo);
     assert(function.getSemanticParamTypes().size() == 1);
     assert(function.getSemanticParamTypes()[0] == nullableFunctionNodeTypeInfo);
-    assert(function.getFuncSemanticSignature() != nullptr);
-    assert(function.getFuncSemanticSignature()->returnType == nullableFunctionNodeTypeInfo);
-    assert(function.getFuncSemanticSignature()->paramTypes[0] == nullableFunctionNodeTypeInfo);
+    assert(function.getFunctionTypeInfo() != nullptr);
+    assert(function.getFunctionTypeInfo()->getReturnType() == nullableFunctionNodeTypeInfo);
+    assert(function.getFunctionTypeInfo()->getArgTypes()[0] == nullableFunctionNodeTypeInfo);
 
     class TestCallableValue: public CallableValue {
     public:
-        explicit TestCallableValue(IRType* type)
+        explicit TestCallableValue(TypeInfo* type)
             : CallableValue(type, "function-value") {}
-    } functionValue(function.getType());
-    functionValue.setFuncSemanticSignature(function.getFuncSemanticSignature());
-    assert(functionValue.getFuncSemanticSignature() == function.getFuncSemanticSignature());
+    } functionValue(function.getSemanticType());
+    functionValue.setFunctionType(function.getSemanticType());
+    assert(functionValue.getFunctionTypeInfo() == function.getFunctionTypeInfo());
 
     IRGenerator nullGenerator("null-generator-test");
     try {
         nullGenerator.startGenerate(
-            "struct Node { next: Node? } "
+            "struct Node { next: Node* } "
             "func getNode() -> Node? { return null; }",
             "null-generator-test");
     }

@@ -13,9 +13,10 @@ namespace sakuraE::IR {
         PositionInfo createInfo;
     public:
         IRArray(std::vector<IRValue*> arr, PositionInfo info) {
+            if (arr.empty()) throw SakuraError(OccurredTerm::IR_GENERATING, "Array literal cannot be empty.", info);
             auto head = arr[0];
             for (std::size_t i = 1; i < arr.size(); i ++) {
-                if (!head->getType()->isEqual(arr[i]->getType())) {
+                if (!isAssignableTo(arr[i]->getSemanticType(), head->getSemanticType())) {
                     throw SakuraError(OccurredTerm::IR_GENERATING,
                                     "Cannot create an array with elements of different types.",
                                     info);

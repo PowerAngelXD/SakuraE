@@ -63,6 +63,15 @@ namespace sakuraE::IR {
         for (const auto& node : parsedStatements) {
             visitStmt(node);
         }
+        for (const auto& node : parsedStatements) {
+            NodePtr statement = node->getTag() == ASTTag::Stmt ? (*node)[ASTTag::Stmt] : node;
+            if (statement->getTag() == ASTTag::StructDefineStmtNode) {
+                const auto token = (*statement)[ASTTag::Identifier]->getToken();
+                const auto* declaration = curModule()->lookupStruct(token.content);
+                auto* type = program.getContext().typeInfoPool().makeStructTypeID(declaration->getDeclId());
+                program.validateSemanticType(type, token.info);
+            }
+        }
     }
 
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
@@ -75,13 +84,13 @@ namespace sakuraE::IR {
         }
 
         auto literal = Constant::getFromToken(token);
-        auto semanticType = semanticTypeForStorage(literal->getType());
+        auto semanticType = semanticTypeOf(literal);
 
         return curFunc()
             ->curBlock()
             ->createInstruction(
                 OpKind::constant,
-                literal->getType(),
+                lowerStorageType(semanticType),
                 semanticType,
                 {literal},
                 "const." + literal->toString()
@@ -124,144 +133,60 @@ namespace sakuraE::IR {
     }
 
     IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
-        auto indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
-        auto ty = addr->getType();
-        TypeInfo* semanticTy = addr->getSemanticType();
-        TypeInfo* semanticElementTy = nullptr;
-        const TypeInfo* semanticBase = semanticTy ? semanticTy->getBase() : nullptr;
-        if (semanticBase && semanticBase->isArray()) semanticElementTy = semanticBase->getElementType();
-        else if (semanticBase && semanticBase->isPointer()) semanticElementTy = semanticBase->getPointeeType();
-        else if (semanticBase && semanticBase->isRef()) semanticElementTy = semanticBase->getPointeeType();
-        if (!semanticElementTy) {
-            throw SakuraError(OccurredTerm::IR_GENERATING, "Cannot index a non-array value.", node->getPosInfo());
+        auto* indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
+        const auto* indexType = indexValue->getSemanticType();
+        if (!indexType || (indexType->getTypeID() != Int32 && indexType->getTypeID() != Int64
+            && indexType->getTypeID() != UInt32 && indexType->getTypeID() != UInt64)) {
+            throw SakuraError(OccurredTerm::IR_GENERATING, "Array index must be an integer.", node->getPosInfo());
         }
-
-        // 检查是否为左值
-        if (ty->isArray()) {
-            ty = static_cast<IRArrayType*>(ty)->getElementType();
+        const auto* base = addr->getSemanticType();
+        if (base && base->isRef()) base = base->getPointeeType();
+        TypeInfo* element = nullptr;
+        if (base && base->isArray()) element = base->getElementType();
+        else if (base && base->isPointer()) element = base->getPointeeType();
+        else if (base && base->getTypeID() == String) {
+            element = program.getContext().typeInfoPool().makeBasicTypeID(Char);
         }
-        else if (ty->isString()) {
-            ty = IRType::getCharTy();
+        if (!element || element->getTypeID() == Void) {
+            throw SakuraError(OccurredTerm::IR_GENERATING, "Cannot index this semantic type.", node->getPosInfo());
         }
-        else if (ty->isPointer()) {
-            ty = static_cast<IRPointerType*>(ty)->getElementType();
-            if (!semanticElementTy || !semanticElementTy->isBasic() || semanticElementTy->getTypeID() != TypeID::Char) goto err_case;
-        }
-        else if (ty->isRef()) {
-            ty = static_cast<IRRefType*>(ty)->getElementType();
-            if (ty->isArray()) {
-                ty = static_cast<IRArrayType*>(ty)->getElementType();
-            }
-            else if (ty->isString()) {
-                ty = IRType::getCharTy();
-            }
-            else if (ty->isPointer()) {
-                ty = static_cast<IRPointerType*>(ty)->getElementType();
-                if (!semanticElementTy || semanticElementTy->getTypeID() != TypeID::Char) goto err_case;
-            }
-            else {
-                goto err_case;
-            }
-        }
-        else if (ty->isRef()) {
-            ty = static_cast<IRRefType*>(ty)->getElementType();
-            if (ty->isArray()) {
-                ty = static_cast<IRArrayType*>(ty)->getElementType();
-            }
-            else goto err_case;
-        }
-        else {
-            err_case:
-            throw SakuraError(
-                OccurredTerm::IR_GENERATING,
-                "Cannot index a non-array value.",
-                node->getPosInfo()
-            );
-        }
-
-        // 检查是否越界
-
-        return curFunc()
-            ->curBlock()
-            ->createInstruction(
-                OpKind::indexing,
-                ty,
-                semanticElementTy,
-                {addr, indexValue},
-                "indexing." + addr->getName()
-            );
+        return curFunc()->curBlock()->createInstruction(
+            OpKind::indexing, lowerStorageType(element), element, {addr, indexValue}, "indexing." + addr->getName());
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args) {
-        IRType* retType = IRType::getVoidTy();
-        TypeInfo* semanticType = TypeInfo::makeBasicTypeID(TypeID::Void);
-
-        if (auto fn = dynamic_cast<Function*>(addr)) {
-            retType = fn->getReturnType();
-            semanticType = fn->getSemanticReturnType();
-            if (auto signature = fn->getFuncSemanticSignature()) {
-                if (signature->paramTypes.size() != args.size()) {
-                    throw SakuraError(
-                        OccurredTerm::IR_GENERATING,
-                        "Function argument count does not match its declaration.",
-                        node->getPosInfo());
-                }
-                for (std::size_t i = 0; i < args.size(); ++i) {
-                    if (!isAssignableTo(args[i]->getSemanticType(), signature->paramTypes[i])) {
-                        throw SakuraError(
-                            OccurredTerm::IR_GENERATING,
-                            "Function argument has an incompatible semantic type.",
-                            node->getPosInfo());
-                    }
-                }
+        const auto* type = addr->getSemanticType();
+        const auto* signature = type ? type->getFunctionTypeInfo() : nullptr;
+        if (!signature) {
+            throw SakuraError(OccurredTerm::IR_GENERATING, "Value is not semantically callable.", node->getPosInfo());
+        }
+        auto* function = dynamic_cast<Function*>(addr);
+        const bool boxedPrint = function && (function->getRawName() == "print" || function->getRawName() == "println");
+        if (signature->getArgCount() != args.size()) {
+            throw SakuraError(OccurredTerm::IR_GENERATING, "Function argument count does not match its declaration.", node->getPosInfo());
+        }
+        for (std::size_t index = 0; index < args.size(); ++index) {
+            if (!args[index]->getSemanticType()
+                || (!boxedPrint && !isAssignableTo(args[index]->getSemanticType(), signature->getArgTypes()[index]))) {
+                throw SakuraError(OccurredTerm::IR_GENERATING, "Function argument has an incompatible semantic type.", node->getPosInfo());
             }
         }
-        else if (auto callable = dynamic_cast<CallableValue*>(addr)) {
-            auto signature = callable->getFuncSemanticSignature();
-            if (signature) {
-                if (!signature) {
-                    throw SakuraError(
-                        OccurredTerm::IR_GENERATING,
-                        "Indirect calls require a semantic function signature.",
-                        node->getPosInfo());
-                }
-
-                retType = lowerStorageType(signature->returnType);
-                semanticType = signature->returnType;
-                if (signature->paramTypes.size() != args.size()) {
-                    throw SakuraError(
-                        OccurredTerm::IR_GENERATING,
-                        "Function argument count does not match its declaration.",
-                        node->getPosInfo());
-                }
-                for (std::size_t i = 0; i < args.size(); ++i) {
-                    if (!isAssignableTo(args[i]->getSemanticType(), signature->paramTypes[i])) {
-                        throw SakuraError(
-                            OccurredTerm::IR_GENERATING,
-                            "Function argument has an incompatible semantic type.",
-                            node->getPosInfo());
-                    }
-                }
-            }
-        }
-
-        return curFunc()
-            ->curBlock()
-            ->createInstruction(
-                OpKind::call,
-                retType,
-                semanticType,
-                args,
-                "call." + addr->getName()
-            );
+        auto* result = signature->getReturnType();
+        return curFunc()->curBlock()->createInstruction(
+            OpKind::call, lowerStorageType(result), result, args, "call." + addr->getName());
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node) {
-        std::vector<IRValue*> params;
-        for (auto argExpr : (*node)[ASTTag::Exprs]->getChildren()) {
-            params.push_back(visitWholeExprNode(argExpr));
+        std::vector<IRValue*> arguments;
+        const auto* type = addr->getSemanticType();
+        const auto* signature = type ? type->getFunctionTypeInfo() : nullptr;
+        if (!signature) throw SakuraError(OccurredTerm::IR_GENERATING, "Value is not semantically callable.", node->getPosInfo());
+        auto expressions = (*node)[ASTTag::Exprs]->getChildren();
+        for (std::size_t index = 0; index < expressions.size(); ++index) {
+            arguments.push_back(visitWholeExprNode(expressions[index],
+                index < signature->getArgCount() ? signature->getArgTypes()[index] : nullptr));
         }
-        return visitCallingOpNode(addr, node, params);
+        return visitCallingOpNode(addr, node, arguments);
     }
 
     IRValue* IRGenerator::visitAtomIdentifierNode(NodePtr node) {
@@ -272,55 +197,36 @@ namespace sakuraE::IR {
             auto ops = (*node)[ASTTag::Ops]->getChildren();
 
             if (!ops.empty() && ops[0]->getTag() == ASTTag::CallingOpNode) {
-                std::vector<IRType*> argTypes;
                 std::vector<IRValue*> argValues;
                 auto argExprs = (*ops[0])[ASTTag::Exprs]->getChildren();
                 auto candidates = curModule()->findFunctionCandidates(name, argExprs.size());
-                auto signature = candidates.size() == 1
-                    ? candidates[0]->getFuncSemanticSignature()
-                    : nullptr;
-                for (std::size_t i = 0; i < argExprs.size(); ++i) {
-                    auto val = visitWholeExprNode(
-                        argExprs[i],
-                        signature && i < signature->paramTypes.size()
-                            ? signature->paramTypes[i]
-                            : nullptr);
-                    argValues.push_back(val);
-                    argTypes.push_back(lowerStorageType(val->getSemanticType()));
+                const auto* expected = candidates.size() == 1 ? candidates[0]->getFunctionTypeInfo() : nullptr;
+                for (std::size_t index = 0; index < argExprs.size(); ++index) {
+                    argValues.push_back(visitWholeExprNode(argExprs[index],
+                        expected ? expected->getArgTypes()[index] : nullptr));
                 }
-
-                auto mangledName = mangleFnName(name, argTypes);
-
-                auto symbol = curModule()->lookup(mangledName);
-                IRValue* callee = nullptr;
-                if (!symbol) {
-                    /* 打印是通用的 RuntimeValue API。其 IR 声明以字符串重载表示，
-                     * 但对于每一种源语言类型，LLVM ABI 都使用 RuntimeValue*。
-                     */
-                    auto* runtimeFn = curModule()->lookupRuntimeFunction(name);
-                    if (runtimeFn) {
-                        callee = runtimeFn;
+                Function* callee = nullptr;
+                std::size_t bestScore = argValues.size() + 1;
+                bool ambiguous = false;
+                for (auto* candidate : candidates) {
+                    const auto* signature = candidate->getFunctionTypeInfo();
+                    if (!signature) continue;
+                    std::size_t score = 0;
+                    bool matches = true;
+                    for (std::size_t index = 0; index < argValues.size(); ++index) {
+                        auto* actual = argValues[index]->getSemanticType();
+                        auto* required = signature->getArgTypes()[index];
+                        if (!isAssignableTo(actual, required)) { matches = false; break; }
+                        if (actual != required) ++score;
                     }
+                    if (!matches) continue;
+                    if (score < bestScore) { callee = candidate; bestScore = score; ambiguous = false; }
+                    else if (score == bestScore) ambiguous = true;
                 }
-                if (!symbol) {
-                    if (callee) {
-                        currentAddr = visitCallingOpNode(callee, ops[0], argValues);
-                        for (size_t i = 1; i < ops.size(); ++i) {
-                            if (ops[i]->getTag() == ASTTag::IndexOpNode)
-                                currentAddr = visitIndexOpNode(currentAddr, ops[i]);
-                            else
-                                currentAddr = visitCallingOpNode(currentAddr, ops[i]);
-                        }
-                        return currentAddr;
-                    }
-                    throw SakuraError(
-                        OccurredTerm::IR_GENERATING,
-                        "Unknown identifier: " + mangledName,
-                        node->getPosInfo());
-                }
-
-                currentAddr = symbol->address;
-                currentAddr = visitCallingOpNode(currentAddr, ops[0], argValues);
+                if (ambiguous) throw SakuraError(OccurredTerm::IR_GENERATING, "Ambiguous semantic function overload.", node->getPosInfo());
+                if (!callee) callee = curModule()->lookupRuntimeFunction(name);
+                if (!callee) throw SakuraError(OccurredTerm::IR_GENERATING, "No compatible function overload: " + name, node->getPosInfo());
+                currentAddr = visitCallingOpNode(callee, ops[0], argValues);
 
                 for (size_t i = 1; i < ops.size(); ++i) {
                     if (ops[i]->getTag() == ASTTag::IndexOpNode)
@@ -358,18 +264,22 @@ namespace sakuraE::IR {
             auto name = (*chain[i])[ASTTag::Identifier]->getToken().content;
 
             auto* baseType = resultAddr->getSemanticType();
-            if (!baseType || !baseType->getBase()->isStruct()) return nullptr;
+            if (!baseType || !baseType->getBase()->isStruct()) {
+                throw SakuraError(OccurredTerm::IR_GENERATING, "Member access requires a struct type.", chain[i]->getPosInfo());
+            }
             TypeInfo* resultSemanticTy = nullptr;
-            if (const auto* decl = curModule()->resolveStruct(*baseType->getBase()->getStructDeclId());
+            if (const auto* decl = program.resolveStruct(*baseType->getBase()->getStructDeclId());
                 decl && decl->find(name)) {
                 resultSemanticTy = decl->find(name)->type;
             }
+
+            if (!resultSemanticTy) throw SakuraError(OccurredTerm::IR_GENERATING, "Unknown struct member: " + name, chain[i]->getPosInfo());
 
             resultAddr = curFunc()
                 ->curBlock()
                 ->createInstruction(
                     OpKind::gmem,
-                    resultAddr->getType(),
+                    lowerStorageType(resultSemanticTy),
                     resultSemanticTy,
                     {resultAddr, Constant::get(name, (*chain[i])[ASTTag::Identifier]->getToken().info)},
                     "gmem." + name
@@ -403,8 +313,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::lgc_not,
-                            IRType::getBoolTy(),
-                            TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                             {resultValue},
                             "lgc_not." + resultValue->getName()
                         );
@@ -449,8 +359,8 @@ namespace sakuraE::IR {
                                 ->curBlock()
                                 ->createInstruction(
                                     OpKind::gaddr,
-                                    IRType::getPointerTo(resultAddr->getType()),
-                                    resultAddr->getSemanticType(),
+                                    lowerStorageType(program.getContext().typeInfoPool().makePointerTypeID(resultAddr->getSemanticType())),
+                                    program.getContext().typeInfoPool().makePointerTypeID(resultAddr->getSemanticType()),
                                     {resultAddr},
                                     "gaddr." + resultAddr->getName()
                                 );
@@ -469,8 +379,8 @@ namespace sakuraE::IR {
                                 ->curBlock()
                                 ->createInstruction(
                                     OpKind::gaddr,
-                                    IRType::getRefTo(resultAddr->getType()),
-                                    resultAddr->getSemanticType(),
+                                    lowerStorageType(program.getContext().typeInfoPool().makeRefTypeID(resultAddr->getSemanticType())),
+                                    program.getContext().typeInfoPool().makeRefTypeID(resultAddr->getSemanticType()),
                                     {resultAddr},
                                     "gaddr.ref." + resultAddr->getName()
                                 );
@@ -484,7 +394,7 @@ namespace sakuraE::IR {
                 case TokenType::MUL: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
                         if (inst->isLValue()) {
-                            if (!resultAddr->getType()->isPointer()) {
+                            if (!resultAddr->getSemanticType() || !resultAddr->getSemanticType()->isPointer()) {
                                 throw SakuraError(
                                     OccurredTerm::IR_GENERATING,
                                     "Cannot deref a non pointer identifier.",
@@ -492,16 +402,14 @@ namespace sakuraE::IR {
                                 );
                             }
                             auto load = createLoad(resultAddr, preOp.info);
-                            auto loadedType = load->getType();
-                            loadedType = dynamic_cast<IRPointerType*>(loadedType)->getElementType();
+                            auto* pointee = resultAddr->getSemanticType()->getPointeeType();
+                            if (pointee->getTypeID() == Void) throw SakuraError(OccurredTerm::IR_GENERATING, "Cannot dereference void pointer.", node->getPosInfo());
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
                                     OpKind::deref,
-                                    loadedType,
-                                    resultAddr->getSemanticType()
-                                        ? resultAddr->getSemanticType()->getPointeeType()
-                                        : nullptr,
+                                    lowerStorageType(pointee),
+                                    pointee,
                                     {load},
                                     "deref." + load->getName()
                                 );
@@ -579,8 +487,8 @@ namespace sakuraE::IR {
                 curBlock()->
                 createInstruction(
                     OpKind::_sizeof,
-                    IRType::getUInt64Ty(),
-                    TypeInfo::makeBasicTypeID(TypeID::UInt64),
+                    lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64)),
+                    program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64),
                     {},
                     "sizeof"
                 );
@@ -594,7 +502,7 @@ namespace sakuraE::IR {
         }
 
         if (node->hasNode(ASTTag::Typeof)) {
-            if (args.size() > 1) {
+            if (args.size() != 1) {
                 throw SakuraError(
                     OccurredTerm::IR_GENERATING,
                     "'typeof' Operator only support one argument!",
@@ -606,7 +514,8 @@ namespace sakuraE::IR {
                 curBlock()->
                 createInstruction(
                     OpKind::_typeof,
-                    IRType::getTypeInfoTy(),
+                    lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::TypeDescriptor)),
+                    program.getContext().typeInfoPool().makeBasicTypeID(TypeDescriptor),
                     args,
                     "typeof"
                 );
@@ -736,48 +645,48 @@ namespace sakuraE::IR {
                     case TokenType::LGC_LS_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_ls_than, IRType::getBoolTy(),
-                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            ->createInstruction(OpKind::lgc_ls_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                                program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_ls_than");
                         break;
                     }
                     case TokenType::LGC_LSEQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_eq_ls_than, IRType::getBoolTy(),
-                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            ->createInstruction(OpKind::lgc_eq_ls_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                                program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_eq_ls_than");
                         break;
                     }
                     case TokenType::LGC_MR_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_mr_than, IRType::getBoolTy(),
-                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            ->createInstruction(OpKind::lgc_mr_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                                program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_mr_than");
                         break;
                     }
                     case TokenType::LGC_MREQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_eq_mr_than, IRType::getBoolTy(),
-                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            ->createInstruction(OpKind::lgc_eq_mr_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                                program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_eq_mr_than");
                         break;
                     }
                     case TokenType::LGC_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_equal, IRType::getBoolTy(),
-                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            ->createInstruction(OpKind::lgc_equal, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                                program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_equal");
                         break;
                     }
                     case TokenType::LGC_NOT_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_not_equal, IRType::getBoolTy(),
-                                                TypeInfo::makeBasicTypeID(TypeID::Bool),
+                            ->createInstruction(OpKind::lgc_not_equal, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                                program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_not_equal");
                         break;
                     }
@@ -801,8 +710,8 @@ namespace sakuraE::IR {
         static int binaryID = 0;
         fzlib::String resultAddrName = "tbv." + std::to_string(binaryID);
         binaryID ++;
-        IRValue* resultAddr = createAlloca(resultAddrName, IRType::getBoolTy(),
-                                           TypeInfo::makeBasicTypeID(TypeID::Bool),
+        IRValue* resultAddr = createAlloca(resultAddrName, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                                           program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                            lhs, node->getPosInfo());
 
         if (node->hasNode(ASTTag::Ops)) {
@@ -865,7 +774,7 @@ namespace sakuraE::IR {
         }
         return curFunc()
                         ->curBlock()
-                        ->createInstruction(OpKind::load, resultAddr->getType(),
+                        ->createInstruction(OpKind::load, lowerStorageType(resultAddr->getSemanticType()),
                                             resultAddr->getSemanticType(),
                                             {resultAddr}, "load." + resultAddrName);
     }
@@ -894,15 +803,15 @@ namespace sakuraE::IR {
         return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::create_array,
-                                         arrConstant->getType(),
-                                         TypeInfo::makeArrayTypeID(head->getSemanticType(), rawArray.size()),
+                                         lowerStorageType(program.getContext().typeInfoPool().makeArrayTypeID(head->getSemanticType(), rawArray.size())),
+                                         program.getContext().typeInfoPool().makeArrayTypeID(head->getSemanticType(), rawArray.size()),
                                          {arrConstant},
                                         "create-array");
     }
 
     IRValue* IRGenerator::visitAssignExprNode(NodePtr node) {
         IRValue* resultAddr = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
-        IRValue* value = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
+        IRValue* value = visitWholeExprNode((*node)[ASTTag::HeadExpr], resultAddr->getSemanticType());
         auto op = (*node)[ASTTag::Op]->getToken();
 
         IRValue* resultValue = resultAddr;
@@ -996,7 +905,8 @@ namespace sakuraE::IR {
         return curFunc()
             ->curBlock()
             ->createInstruction(OpKind::constant,
-                                IRType::getTypeInfoTy(),
+                                lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::TypeDescriptor)),
+                                program.getContext().typeInfoPool().makeBasicTypeID(TypeDescriptor),
                                 {Constant::get(getTypeInfoFromNode(node))},
                                 "constant");
     }
@@ -1027,18 +937,10 @@ namespace sakuraE::IR {
                             node->getPosInfo());
         }
 
-        IRType* allocaTy = nullptr;
-        if (initVal && !typeInfoIRValue) allocaTy = initVal->getType();
-        else {
-            auto inst = dynamic_cast<Instruction*>(typeInfoIRValue);
-            auto typeInfoConst = static_cast<Constant*>(inst->getOperands()[0]);
-            auto typeInfo = typeInfoConst->getContentValue<TypeInfo*>();
-            allocaTy = lowerStorageType(typeInfo);
-        }
-
         TypeInfo* semanticType = declaredSemanticType
             ? declaredSemanticType
             : (initVal ? initVal->getSemanticType() : nullptr);
+        IRType* allocaTy = lowerStorageType(semanticType);
         return createAlloca(identifier.content, allocaTy, semanticType, initVal, node->getPosInfo());
     }
 
@@ -1057,7 +959,7 @@ namespace sakuraE::IR {
             curFunc()
                 ->block(beforeBlock)
                 ->createInstruction(OpKind::br,
-                                    IRType::getVoidTy(),
+                                    lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Void)),
                                     {block},
                                     "br." + blockName);
         }
@@ -1246,8 +1148,8 @@ namespace sakuraE::IR {
         static int repeat_counter = 1;
         IRValue* counter = createAlloca(
             "$repeat_counter." + std::to_string(repeat_counter),
-            IRType::getInt32Ty(),
-            TypeInfo::makeBasicTypeID(TypeID::Int32),
+            lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32)),
+            program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32),
             Constant::get((int)0), node->getPosInfo()
         );
         IRValue* limitValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
@@ -1261,7 +1163,8 @@ namespace sakuraE::IR {
             ->curBlock()
             ->createInstruction(
                 OpKind::lgc_ls_than,
-                IRType::getBoolTy(),
+                lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(Bool)),
+                program.getContext().typeInfoPool().makeBasicTypeID(Bool),
                 {counterLoadVal, limitValue},
                 "lgc_ls_than"
             );
@@ -1279,7 +1182,8 @@ namespace sakuraE::IR {
             ->curBlock()
             ->createInstruction(
                 OpKind::add,
-                IRType::getInt32Ty(),
+                lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(Int32)),
+                program.getContext().typeInfoPool().makeBasicTypeID(Int32),
                 {counterLoadVal, Constant::get((int)1)},
                 "add"
             );
@@ -1368,7 +1272,8 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::lgc_equal,
-                        IRType::getBoolTy(),
+                        lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(Bool)),
+                        program.getContext().typeInfoPool().makeBasicTypeID(Bool),
                         {idenValue, targetValue},
                         "lgc_equal"
                     );
@@ -1445,7 +1350,7 @@ namespace sakuraE::IR {
             }
         }
 
-        fnName = mangleFnName(fnName, params);
+        fnName = mangleFnName(fnName, paramSemanticTypes);
         IRValue* fn = curModule()->buildFunction(
             fnName, retType, params, node->getPosInfo(),
             paramSemanticTypes, semanticReturnType);
@@ -1458,7 +1363,7 @@ namespace sakuraE::IR {
             }
         }
 
-        if (fnName == "main" && !retType->isEqual(IRType::getInt32Ty())) {
+        if (fnName == "main" && semanticReturnType->getTypeID() != Int32) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
                 "'main' function must return 'i32' value.",
@@ -1475,7 +1380,7 @@ namespace sakuraE::IR {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
                 "A Function must have a return statement",
-                (*node)[ASTTag::HeadExpr]->getPosInfo()
+                node->getPosInfo()
             );
         }
         return fn;
@@ -1544,15 +1449,15 @@ namespace sakuraE::IR {
 
     IRValue* IRGenerator::visitReturnStmtNode(NodePtr node) {
         if (!node->hasNode(ASTTag::HeadExpr)) {
-            if (!curFunc()->getReturnType()->isEqual(IRType::getVoidTy())) {
+            if (curFunc()->getSemanticReturnType()->getTypeID() != Void) {
                 throw SakuraError(
                     OccurredTerm::IR_GENERATING,
                     "A non-void function must return a value of its declared return type.",
-                    (*node)[ASTTag::HeadExpr]->getPosInfo()
+                    node->getPosInfo()
                 );
             }
         }
-        else if (node->hasNode(ASTTag::HeadExpr) && curFunc()->getReturnType()->isEqual(IRType::getVoidTy())) {
+        else if (node->hasNode(ASTTag::HeadExpr) && curFunc()->getSemanticReturnType()->getTypeID() == Void) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
                 "A function with a void return type cannot return a value of any type.",

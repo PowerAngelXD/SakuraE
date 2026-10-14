@@ -590,7 +590,7 @@ namespace sakuraE::Codegen {
                     return boxRaw(builder->getInt1(constant->getContentValue<bool>()), constant->getType(), curFn);
                 case IR::IRTypeID::TypeInfoTyID:
                     return boxRaw(
-                        runtimeTypeInfo(constant->getContentValue<IR::TypeInfo*>()->toIRType(), curFn),
+                        runtimeTypeInfo(program->lowering().lowerType(constant->getContentValue<IR::TypeInfo*>()), curFn),
                         constant->getType(),
                         curFn);
                 default:

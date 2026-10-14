@@ -7,6 +7,8 @@
 #include "module.hpp"
 #include <cstddef>
 #include <memory>
+#include <functional>
+#include <set>
 
 namespace sakuraE::IR {
     class Program : public StructDeclRegistry {
@@ -23,203 +25,217 @@ namespace sakuraE::IR {
             size_t targetSize = sizeof(void*) * 8;
             buildModule("__runtime", info, true);
             auto runtimeMod = curMod();
+            loweringSession = std::make_unique<LoweringSession>(context, this);
+            auto& types = context.typeInfoPool();
+            const auto declareRuntime = [&](fzlib::String name, TypeInfo* resultType,
+                                            std::vector<std::pair<fzlib::String, TypeInfo*>> parameters,
+                                            PositionInfo declarationInfo) {
+                FormalParamsDefine storageParameters;
+                std::vector<TypeInfo*> semanticParameters;
+                for (const auto& parameter : parameters) {
+                    storageParameters.emplace_back(parameter.first, lowering().lowerType(parameter.second));
+                    semanticParameters.push_back(parameter.second);
+                }
+                runtimeMod->declareRuntimeFunction(name, lowering().lowerType(resultType), storageParameters,
+                                                   declarationInfo, semanticParameters, resultType);
+            };
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__alloc",
-                IRType::getPointerTo(IRType::getVoidTy()),
-                { {"size", IRType::getUIntNTy(targetSize)} },
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
+                { {"size", types.makeBasicTypeID(targetSize == 64 ? TypeID::UInt64 : TypeID::UInt32)} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__free",
-                IRType::getVoidTy(),
-                { {"ptr", IRType::getPointerTo(IRType::getVoidTy())} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"ptr", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "create_string",
-                IRType::getStringTy(),
-                { {"literal", IRType::getPointerTo(IRType::getCharTy())} },
+                types.makeBasicTypeID(TypeID::String),
+                { {"literal", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Char))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "free_string",
-                IRType::getVoidTy(),
-                { {"str", IRType::getStringTy()} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"str", types.makeBasicTypeID(TypeID::String)} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "concat_string",
-                IRType::getStringTy(),
+                types.makeBasicTypeID(TypeID::String),
                 {
-                    {"s1", IRType::getStringTy()},
-                    {"s2", IRType::getStringTy()}
+                    {"s1", types.makeBasicTypeID(TypeID::String)},
+                    {"s2", types.makeBasicTypeID(TypeID::String)}
                 },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "print",
-                IRType::getVoidTy(),
-                { {"value", IRType::getStringTy()} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"value", types.makeBasicTypeID(TypeID::String)} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "println",
-                IRType::getVoidTy(),
-                { {"value", IRType::getStringTy()} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"value", types.makeBasicTypeID(TypeID::String)} },
                 info
             );
 
-            // declareRuntimeFunction 需要有对语义类型的设置，当前实现还没有这种体现
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "input",
-                IRType::getStringTy(),
+                types.makeBasicTypeID(TypeID::String),
                 {},
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "inputc",
-                IRType::getCharTy(),
+                types.makeBasicTypeID(TypeID::Char),
                 {},
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_alloc_value",
-                IRType::getPointerTo(IRType::getVoidTy()),
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
                 {},
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_check_array_bounds",
-                IRType::getVoidTy(),
+                types.makeBasicTypeID(TypeID::Void),
                 {
-                    {"index", IRType::getInt64Ty()},
-                    {"length", IRType::getUInt64Ty()}
+                    {"index", types.makeBasicTypeID(TypeID::Int64)},
+                    {"length", types.makeBasicTypeID(TypeID::UInt64)}
                 },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_array_bounds_error",
-                IRType::getVoidTy(),
+                types.makeBasicTypeID(TypeID::Void),
                 {
-                    {"index", IRType::getInt64Ty()},
-                    {"length", IRType::getUInt64Ty()}
+                    {"index", types.makeBasicTypeID(TypeID::Int64)},
+                    {"length", types.makeBasicTypeID(TypeID::UInt64)}
                 },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_type_info_basic",
-                IRType::getPointerTo(IRType::getVoidTy()),
-                { {"kind", IRType::getUIntNTy(8)} },
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
+                { {"kind", types.makeBasicTypeID(TypeID::Char)} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_type_info_pointer",
-                IRType::getPointerTo(IRType::getVoidTy()),
-                { {"element", IRType::getPointerTo(IRType::getVoidTy())} },
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
+                { {"element", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_type_info_reference",
-                IRType::getPointerTo(IRType::getVoidTy()),
-                { {"element", IRType::getPointerTo(IRType::getVoidTy())} },
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
+                { {"element", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__runtime_type_info_array",
-                IRType::getPointerTo(IRType::getVoidTy()),
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
                 {
-                    {"element", IRType::getPointerTo(IRType::getVoidTy())},
-                    {"count", IRType::getUInt64Ty()}
+                    {"element", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void))},
+                    {"count", types.makeBasicTypeID(TypeID::UInt64)}
                 },
                 info
             );
 
             // GC 方法
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_alloc",
-                IRType::getPointerTo(IRType::getVoidTy()),
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
                 {
-                    { "size", IRType::getUIntNTy(targetSize) },
-                    { "ty", IRType::getPointerTo(IRType::getVoidTy()) },
-                    { "member_count", IRType::getUInt64Ty() }
+                    { "size", types.makeBasicTypeID(targetSize == 64 ? TypeID::UInt64 : TypeID::UInt32) },
+                    { "ty", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)) },
+                    { "member_count", types.makeBasicTypeID(TypeID::UInt64) }
                 },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_register",
-                IRType::getVoidTy(),
-                { {"addr", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"addr", types.makePointerTypeID(types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_register_value",
-                IRType::getVoidTy(),
-                { {"value", IRType::getPointerTo(IRType::getVoidTy())} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"value", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_register_value_slot",
-                IRType::getVoidTy(),
-                { {"slot", IRType::getPointerTo(IRType::getPointerTo(IRType::getVoidTy()))} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"slot", types.makePointerTypeID(types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)))} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_enter_scope",
-                IRType::getVoidTy(),
+                types.makeBasicTypeID(TypeID::Void),
                 {},
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_leave_scope",
-                IRType::getVoidTy(),
+                types.makeBasicTypeID(TypeID::Void),
                 {},
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_pop",
-                IRType::getVoidTy(),
-                { {"times", IRType::getUInt32Ty()} },
+                types.makeBasicTypeID(TypeID::Void),
+                { {"times", types.makeBasicTypeID(TypeID::UInt32)} },
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_collect",
-                IRType::getVoidTy(),
+                types.makeBasicTypeID(TypeID::Void),
                 {},
                 info
             );
 
-            runtimeMod->declareRuntimeFunction(
+            declareRuntime(
                 "__gc_get_struct_type",
-                IRType::getPointerTo(IRType::getVoidTy()),
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
                 {
-                    { "name", IRType::getPointerTo(IRType::getCharTy()) },
-                    { "ptr_count", IRType::getUInt32Ty() },
-                    { "ptr_offsets", IRType::getPointerTo(IRType::getVoidTy()) }
+                    { "name", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Char)) },
+                    { "ptr_count", types.makeBasicTypeID(TypeID::UInt32) },
+                    { "ptr_offsets", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)) }
                 },
                 info
             );
+
         }
 
         ~Program() {
@@ -230,7 +246,13 @@ namespace sakuraE::IR {
         }
 
         Program& buildModule(fzlib::String id, PositionInfo info, bool isRuntime = false) {
+            for (const auto* existing : moduleList) {
+                if (existing->structRegistry().moduleId() == id) {
+                    throw SakuraError(OccurredTerm::IR_GENERATING, "Duplicate module identifier.", info);
+                }
+            }
             Module* module = new Module(id, info);
+            module->setSourceProgram(this);
             // 使用运行时模块
             if (!isRuntime)
                 module->use(mod(0));
@@ -264,10 +286,29 @@ namespace sakuraE::IR {
             return context;
         }
 
-        LoweringSession& getLoweringSession() {
-            if (!loweringSession) {
-                loweringSession = std::make_unique<LoweringSession>(context, this);
-            }
+        void validateSemanticType(const TypeInfo* type, PositionInfo info) const {
+            std::set<const TypeInfo*> visited;
+            std::function<void(const TypeInfo*)> validate = [&](const TypeInfo* current) {
+                if (!current || &current->getContext() != &context) {
+                    throw SakuraError(OccurredTerm::IR_GENERATING, "Semantic type does not belong to this Program.", info);
+                }
+                if (!visited.insert(current).second) return;
+                if (current->isStruct()) {
+                    const auto* declaration = resolveStruct(*current->getStructDeclId());
+                    if (!declaration) throw SakuraError(OccurredTerm::IR_GENERATING, "Unknown semantic struct declaration.", info);
+                    for (const auto& field : declaration->getFields()) validate(field.type);
+                }
+                else if (current->isArray()) validate(current->getElementType());
+                else if (current->isPointer() || current->isRef()) validate(current->getPointeeType());
+                else if (const auto* signature = current->getFunctionTypeInfo()) {
+                    validate(signature->getReturnType());
+                    for (const auto* argument : signature->getArgTypes()) validate(argument);
+                }
+            };
+            validate(type);
+        }
+
+        LoweringSession& lowering() const {
             return *loweringSession;
         }
 

@@ -69,8 +69,10 @@ namespace sakuraE::IR {
             return func;
         }
 
-        IRValue* declareRuntimeFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info) {
+        IRValue* declareRuntimeFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info,
+                                       std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr) {
             Function* func = new Function(name, name, retType, params, info);
+            if (semanticReturn) func->setFunctionType(semanticReturn->getContext().typeInfoPool().makeFunctionTypeID(semanticReturn, std::move(semanticParams)));
             func->setParent(this);
             fnList.push_back(func);
             cursor = fnList.size() - 1;

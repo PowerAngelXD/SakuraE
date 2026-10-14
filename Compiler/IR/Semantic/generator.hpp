@@ -33,23 +33,21 @@ namespace sakuraE::IR {
         std::vector<NodePtr> parsedStatements;
         bool hasGenerated = false;
 
-        IRType* lowerStorageType(const TypeInfo* type) {
-            return program.getLoweringSession().lowerType(type);
+        TypeInfoContext& getTypeInfoContext() {
+            return program.getContext().getTypeInfoManager();
         }
 
-        TypeInfo* semanticTypeForStorage(IRType* type) {
-            switch (type->getIRTypeID()) {
-                case Integer32TyID: return TypeInfo::makeBasicTypeID(TypeID::Int32);
-                case Integer64TyID: return TypeInfo::makeBasicTypeID(TypeID::Int64);
-                case UInteger32TyID: return TypeInfo::makeBasicTypeID(TypeID::UInt32);
-                case UInteger64TyID: return TypeInfo::makeBasicTypeID(TypeID::UInt64);
-                case Float32TyID: return TypeInfo::makeBasicTypeID(TypeID::Float32);
-                case Float64TyID: return TypeInfo::makeBasicTypeID(TypeID::Float64);
-                case BoolTyID: return TypeInfo::makeBasicTypeID(TypeID::Bool);
-                case CharTyID: return TypeInfo::makeBasicTypeID(TypeID::Char);
-                case StringTyID: return TypeInfo::makeBasicTypeID(TypeID::String);
-                default: return nullptr;
+        IRType* lowerStorageType(const TypeInfo* type) {
+            program.validateSemanticType(type, {0, 0, "Type lowering"});
+            return program.lowering().lowerType(type);
+        }
+
+        TypeInfo* semanticTypeOf(const IRValue* value) {
+            if (value->getSemanticType()) return value->getSemanticType();
+            if (const auto* constant = dynamic_cast<const Constant*>(value)) {
+                return constant->getValueType(program.getContext().typeInfoPool());
             }
+            return nullptr;
         }
 
         Symbol<IRValue*>* lookup(fzlib::String n, PositionInfo info) {
@@ -78,7 +76,7 @@ namespace sakuraE::IR {
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        addr->getType(),
+                        lowerStorageType(addr->getSemanticType()),
                         addr->getSemanticType(),
                         {addr},
                         "load." + addr->getName());
@@ -105,7 +103,7 @@ namespace sakuraE::IR {
                 return curFunc()
                             ->curBlock()
                             ->createInstruction(OpKind::store,
-                                                addr->getType(),
+                                                lowerStorageType(addr->getSemanticType()),
                                                 addr->getSemanticType(),
                                                 {addr, value},
                                                 "store." + addr->getName());
@@ -135,9 +133,9 @@ namespace sakuraE::IR {
         }
 
         IRValue* createAlloca(fzlib::String n, IRType* ty, TypeInfo* semanticType, IRValue* initVal, PositionInfo info) {
-            if (initVal && !isAssignableTo(initVal->getSemanticType(), semanticType)) {
+            if (initVal && !isAssignableTo(semanticTypeOf(initVal), semanticType)) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Cannot declare a variable with a type that differs from the assigned value's type. Target is: " + ty->toString() + ", but actually is: " + initVal->getType()->toString(),
+                                "Cannot declare a variable with an incompatible semantic type.",
                                 info);
             }
 
@@ -146,7 +144,7 @@ namespace sakuraE::IR {
                 ->createInstruction(OpKind::create_alloca,
                                     ty,
                                     semanticType,
-                                    {initVal?initVal:(ty->isComplexType()?nullptr:Constant::getDefault(ty, info))},
+                                    {initVal?initVal:(semanticType->isBasic() && semanticType->getTypeID() != String && semanticType->getTypeID() != TypeDescriptor ? Constant::getDefault(semanticType, info) : nullptr)},
                                     "create_alloca." + n);
 
             curFunc()->fnScope().declare(n, addr, ty, semanticType);
@@ -154,7 +152,7 @@ namespace sakuraE::IR {
             return addr;
         }
 
-        bool isManagedHeapObjectType(IRType* ty) {
+        bool isManagedHeapObjectType(const TypeInfo* ty) {
             if (!ty) {
                 return false;
             }
@@ -162,13 +160,12 @@ namespace sakuraE::IR {
             /* 这里明确区分语言层 string object 与原生 char*。
              * 只有 GC 托管对象本身，才属于“不允许暴露稳定内部地址”的对象。
              */
-            if (ty->isString() || ty->isArray()) {
+            if (ty->getTypeID() == TypeID::String || ty->isArray()) {
                 return true;
             }
 
             if (ty->isRef()) {
-                auto* refTy = static_cast<IRRefType*>(ty);
-                return isManagedHeapObjectType(refTy->getElementType());
+                return isManagedHeapObjectType(ty->getPointeeType());
             }
 
             return false;
@@ -182,13 +179,13 @@ namespace sakuraE::IR {
 
             switch (inst->getKind()) {
                 case OpKind::indexing: {
-                    return isManagedHeapObjectType(inst->arg(0)->getType());
+                    return isManagedHeapObjectType(inst->arg(0)->getSemanticType());
                 }
                 case OpKind::gmem: {
                     /* 预留给后续 struct object：
                      * 一旦 gmem 的 base 成为 GC 托管对象，这里会统一拦截 field interior address。
                      */
-                    return isManagedHeapObjectType(inst->arg(0)->getType());
+                    return isManagedHeapObjectType(inst->arg(0)->getSemanticType());
                 }
                 default:
                     return false;
@@ -221,20 +218,20 @@ namespace sakuraE::IR {
                 }
 
                 auto constant = Constant::getFromToken(token);
-                switch (constant->getType()->getIRTypeID()) {
-                    case Integer32TyID: {
+                switch (semanticTypeOf(constant)->getTypeID()) {
+                    case Int32: {
                         auto value = constant->getContentValue<std::int32_t>();
                         if (value > 0) return static_cast<std::uint64_t>(value);
                         break;
                     }
-                    case Integer64TyID: {
+                    case Int64: {
                         auto value = constant->getContentValue<std::int64_t>();
                         if (value > 0) return static_cast<std::uint64_t>(value);
                         break;
                     }
-                    case UInteger32TyID:
+                    case UInt32:
                         return constant->getContentValue<std::uint32_t>();
-                    case UInteger64TyID:
+                    case UInt64:
                         return constant->getContentValue<std::uint64_t>();
                     default:
                         break;
@@ -262,7 +259,7 @@ namespace sakuraE::IR {
         }
 
         TypeInfo* getTypeInfoFromNode(sakuraE::NodePtr node) {
-            TypeInfo* resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Void);
+            TypeInfo* resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Void);
 
             if (node->getTag() == ASTTag::TypeModifierNode) {
                 if (node->hasNode(ASTTag::BasicTypeModifierNode)) {
@@ -281,7 +278,7 @@ namespace sakuraE::IR {
                             nullableInfo
                         );
                     }
-                    resultTyInfo = TypeInfo::wrapTypeAsNullable(resultTyInfo, nullableInfo);
+                    resultTyInfo = program.getContext().typeInfoPool().wrapTypeAsNullable(resultTyInfo, nullableInfo);
                 }
             }
 
@@ -291,43 +288,43 @@ namespace sakuraE::IR {
 
                 switch (token.type) {
                     case TokenType::TYPE_I32:    {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Int32);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32);
                         break;
                     }
                     case TokenType::TYPE_I64:    {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Int64);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int64);
                         break;
                     }
                     case TokenType::TYPE_UI32:   {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::UInt32);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt32);
                         break;
                     }
                     case TokenType::TYPE_UI64:   {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::UInt64);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64);
                         break;
                     }
                     case TokenType::TYPE_F32:    {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Float32);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Float32);
                         break;
                     }
                     case TokenType::TYPE_F64:    {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Float64);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Float64);
                         break;
                     }
                     case TokenType::TYPE_CHAR:   {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Char);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Char);
                         break;
                     }
                     case TokenType::TYPE_BOOL:   {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Bool);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool);
                         break;
                     }
                     case TokenType::TYPE_STRING: {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::String);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::String);
                         break;
                     }
                     case TokenType::TYPE_VOID: {
-                        resultTyInfo = TypeInfo::makeBasicTypeID(TypeID::Void);
+                        resultTyInfo = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Void);
                         break;
                     }
                     case TokenType::IDENTIFIER: {
@@ -338,7 +335,7 @@ namespace sakuraE::IR {
                                 "Unknown struct type: '" + token.content + "'",
                                 token.info);
                         }
-                        resultTyInfo = TypeInfo::makeStructTypeID(
+                        resultTyInfo = program.getContext().typeInfoPool().makeStructTypeID(
                             structDecl->getDeclId());
                         break;
                     }
@@ -357,7 +354,7 @@ namespace sakuraE::IR {
 
                 TypeInfo* currentType = headType;
                 for (auto it = dims.rbegin(); it != dims.rend(); it ++) {
-                    currentType = TypeInfo::makeArrayTypeID(
+                    currentType = program.getContext().typeInfoPool().makeArrayTypeID(
                         currentType,
                         getArrayDimension(*it)
                     );
@@ -369,7 +366,7 @@ namespace sakuraE::IR {
             // 指针或引用
             if (node->hasNode(ASTTag::Op)) {
                 // 判断是否为引用类型信息
-                resultTyInfo = TypeInfo::makeRefTypeID(resultTyInfo);
+                resultTyInfo = program.getContext().typeInfoPool().makeRefTypeID(resultTyInfo);
 
                 if (node->hasNode(ASTTag::NullableTag)) {
                     throw SakuraError(
@@ -384,7 +381,7 @@ namespace sakuraE::IR {
                 // 判断是否为指针类型信息
                 auto ptrDepth = (*node)[ASTTag::Ops]->getChildren().size();
                 for (std::size_t i = 0; i < ptrDepth; i ++)
-                    resultTyInfo = TypeInfo::makePointerTypeID(resultTyInfo);
+                    resultTyInfo = program.getContext().typeInfoPool().makePointerTypeID(resultTyInfo);
 
                 if (node->hasNode(ASTTag::NullableTag)) {
                     throw SakuraError(
@@ -395,42 +392,43 @@ namespace sakuraE::IR {
                 }
             }
 
+            program.validateSemanticType(resultTyInfo, node->getPosInfo());
             return resultTyInfo;
         }
 
-        // TODO: 只能使用TypeInfo
-        fzlib::String mangleTypeName(IRType* type) {
+        fzlib::String mangleTypeName(const TypeInfo* type) {
+            if (!type) throw std::invalid_argument("Missing semantic type");
+            if (type->isNullable()) return mangleTypeName(type->getBase()) + "?";
             if (type->isStruct()) {
-                return static_cast<IRStructType*>(type)->getName();
+                const auto* declaration = program.resolveStruct(*type->getStructDeclId());
+                if (!declaration) throw std::invalid_argument("Unknown semantic struct declaration");
+                return type->getStructDeclId()->module + "." + declaration->getName();
             }
             if (type->isArray()) {
-                auto* arrayType = static_cast<IRArrayType*>(type);
-                return mangleTypeName(arrayType->getElementType()) + "[" +
-                       std::to_string(arrayType->getNumElements()) + "]";
+                const auto& array = std::get<ArrayTypeInfo>(type->getComplexTypeInfo());
+                return mangleTypeName(array.getElementTy()) + "[" + std::to_string(array.length()) + "]";
             }
-            if (type->isPointer()) {
-                return mangleTypeName(static_cast<IRPointerType*>(type)->getElementType()) + "*";
+            if (type->isPointer()) return mangleTypeName(type->getPointeeType()) + "*";
+            if (type->isRef()) return mangleTypeName(type->getPointeeType()) + "&";
+            switch (type->getTypeID()) {
+                case Int32: return "i32";
+                case Int64: return "i64";
+                case UInt32: return "ui32";
+                case UInt64: return "ui64";
+                case Float32: return "f32";
+                case Float64: return "f64";
+                case Bool: return "bool";
+                case Char: return "char";
+                case String: return "string";
+                case Void: return "void";
+                case TypeDescriptor: return "typeinfo";
+                default: throw std::invalid_argument("Unsupported semantic signature type");
             }
-            if (type->isRef()) {
-                return mangleTypeName(static_cast<IRRefType*>(type)->getElementType()) + "&";
-            }
-            return type->toString();
         }
 
-        fzlib::String mangleFnName(fzlib::String n, FormalParamsDefine args) {
-            fzlib::String result = n;
-            for (auto ty: args) {
-                result += "_" + mangleTypeName(ty.second);
-            }
-            return result;
-        }
-
-        fzlib::String mangleFnName(fzlib::String n, std::vector<IRType*> args) {
-            fzlib::String result = n;
-            for (auto ty: args) {
-                result += "_" + mangleTypeName(ty);
-            }
-            return result;
+        fzlib::String mangleFnName(fzlib::String name, const std::vector<TypeInfo*>& arguments) {
+            for (const auto* type : arguments) name += "_" + mangleTypeName(type);
+            return name;
         }
 
         void validateSizeofType(const TypeInfo* ty, PositionInfo info) {
@@ -493,14 +491,14 @@ namespace sakuraE::IR {
                                           node->getPosInfo());
                     }
                     switch (std::max(lhsRank, rhsRank)) {
-                        case 1: result = TypeInfo::makeBasicTypeID(TypeID::Bool); break;
-                        case 2: result = TypeInfo::makeBasicTypeID(TypeID::Char); break;
-                        case 3: result = TypeInfo::makeBasicTypeID(TypeID::UInt32); break;
-                        case 4: result = TypeInfo::makeBasicTypeID(TypeID::Int32); break;
-                        case 5: result = TypeInfo::makeBasicTypeID(TypeID::UInt64); break;
-                        case 6: result = TypeInfo::makeBasicTypeID(TypeID::Int64); break;
-                        case 7: result = TypeInfo::makeBasicTypeID(TypeID::Float32); break;
-                        case 8: result = TypeInfo::makeBasicTypeID(TypeID::Float64); break;
+                        case 1: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool); break;
+                        case 2: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Char); break;
+                        case 3: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt32); break;
+                        case 4: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32); break;
+                        case 5: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64); break;
+                        case 6: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int64); break;
+                        case 7: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Float32); break;
+                        case 8: result = program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Float64); break;
                         default:
                             throw SakuraError(OccurredTerm::IR_GENERATING,
                                               "Internal error: unhandled sizeof expression type.",
@@ -517,7 +515,7 @@ namespace sakuraE::IR {
                 if (node->hasNode(ASTTag::Ops)) {
                     for (auto expr : exprs)
                         inferExprType(expr, info);
-                    return TypeInfo::makeBasicTypeID(TypeID::Bool);
+                    return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool);
                 }
                 return result;
             }
@@ -526,7 +524,7 @@ namespace sakuraE::IR {
                 if (node->hasNode(ASTTag::Literal)) {
                     auto literal = Constant::getFromToken(
                         (*(*node)[ASTTag::Literal])[ASTTag::Literal]->getToken());
-                    return semanticTypeForStorage(literal->getType());
+                    return semanticTypeOf(literal);
                 }
                 if (node->hasNode(ASTTag::Identifier)) {
                     auto identifier = (*node)[ASTTag::Identifier];
@@ -560,8 +558,8 @@ namespace sakuraE::IR {
                 if (node->hasNode(ASTTag::InnerCallableOpExprNode)) {
                     auto inner = (*node)[ASTTag::InnerCallableOpExprNode];
                     if (inner->hasNode(ASTTag::Sizeof))
-                        return TypeInfo::makeBasicTypeID(TypeID::UInt64);
-                    return TypeInfo::makeBasicTypeID(TypeID::String);
+                        return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64);
+                    return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::TypeDescriptor);
                 }
                 return inferExprType((*node)[ASTTag::HeadExpr], info);
             }
@@ -573,8 +571,8 @@ namespace sakuraE::IR {
 
         // 用于获取非逻辑二元运算的结果类型
         TypeInfo* handleUnlogicalBinaryCalc(IRValue* lhs, IRValue* rhs, PositionInfo info = {0, 0, "Normal Calc"}) {
-            auto lTy = lhs->getSemanticType();
-            auto rTy = rhs->getSemanticType();
+            auto lTy = semanticTypeOf(lhs);
+            auto rTy = semanticTypeOf(rhs);
             const int lRank = semanticRank(lTy);
             const int rRank = semanticRank(rTy);
             if (lRank < 0 || rRank < 0) {
@@ -585,14 +583,14 @@ namespace sakuraE::IR {
 
             int resultRank = std::max(lRank, rRank);
             switch (resultRank) {
-                case 1: return TypeInfo::makeBasicTypeID(TypeID::Bool);
-                case 2: return TypeInfo::makeBasicTypeID(TypeID::Char);
-                case 3: return TypeInfo::makeBasicTypeID(TypeID::UInt32);
-                case 4: return TypeInfo::makeBasicTypeID(TypeID::Int32);
-                case 5: return TypeInfo::makeBasicTypeID(TypeID::UInt64);
-                case 6: return TypeInfo::makeBasicTypeID(TypeID::Int64);
-                case 7: return TypeInfo::makeBasicTypeID(TypeID::Float32);
-                case 8: return TypeInfo::makeBasicTypeID(TypeID::Float64);
+                case 1: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool);
+                case 2: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Char);
+                case 3: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt32);
+                case 4: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32);
+                case 5: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64);
+                case 6: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int64);
+                case 7: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Float32);
+                case 8: return program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Float64);
                 default: break;
             }
 
