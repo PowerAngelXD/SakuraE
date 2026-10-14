@@ -16,7 +16,7 @@ namespace sakuraE::IR {
         switch (typeID) {
             case Int32: case Int64: case UInt32: case UInt64:
             case Float32: case Float64: case Bool: case Char:
-            case Void: case String:
+            case Void: case String: case TypeDescriptor:
                 break;
             default:
                 throw std::invalid_argument("Composite TypeInfo requires its component types or declaration ID");

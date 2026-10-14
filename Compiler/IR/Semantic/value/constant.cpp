@@ -146,6 +146,20 @@ namespace sakuraE::IR {
         return &newEntry.first->second;
     }
 
+    Constant* Constant::getDefault(const TypeInfo* type, PositionInfo info) {
+        switch (type->getTypeID()) {
+            case Int32: return get(std::int32_t{0}, info);
+            case Int64: return get(std::int64_t{0}, info);
+            case UInt32: return get(std::uint32_t{0}, info);
+            case UInt64: return get(std::uint64_t{0}, info);
+            case Bool: return get(false, info);
+            case Char: return get(std::int8_t{' '}, info);
+            case Float32: return get(0.0f, info);
+            case Float64: return get(0.0, info);
+            default: throw SakuraError(OccurredTerm::IR_GENERATING, "Unsupported semantic default initialization.", info);
+        }
+    }
+
     Constant* Constant::getDefault(IRType* ty, PositionInfo info) {
         switch (ty->getIRTypeID())
         {

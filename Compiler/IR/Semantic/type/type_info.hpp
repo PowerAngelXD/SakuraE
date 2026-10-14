@@ -52,7 +52,8 @@ namespace sakuraE::IR {
         Pointer,
         Ref,
         Struct,
-        FunctionType
+        FunctionType,
+        TypeDescriptor
     };
 
     enum class TypeQualifier {

@@ -85,6 +85,7 @@ namespace sakuraE::IR {
                 return irContext.getPointerTo(irContext.getCharTy());
                 break;
             }
+            case TypeID::TypeDescriptor: return irContext.getTypeInfoTy();
             default: throw std::runtime_error("method: 'loweringBasicType' only receive basic type info");
         }
     }

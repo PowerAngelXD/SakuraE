@@ -74,6 +74,7 @@ namespace sakuraE::IR {
         static Constant* get(IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* getNullHandle(IRType* ty, PositionInfo info);
         static Constant* getDefault(IRType* ty, PositionInfo info);
+        static Constant* getDefault(const TypeInfo* type, PositionInfo info);
         static Constant* getFromToken(const Token& tok);
         static void clearAll();
 
@@ -93,6 +94,26 @@ namespace sakuraE::IR {
 
         bool isNullHandle() const {
             return std::holds_alternative<std::monostate>(content);
+        }
+
+        TypeInfo* getValueType(TypeInfoContext& types) const {
+            return std::visit([&](const auto& value) -> TypeInfo* {
+                using ValueType = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<ValueType, std::int32_t>) return types.makeBasicTypeID(Int32);
+                else if constexpr (std::is_same_v<ValueType, std::int64_t>) return types.makeBasicTypeID(Int64);
+                else if constexpr (std::is_same_v<ValueType, std::uint32_t>) return types.makeBasicTypeID(UInt32);
+                else if constexpr (std::is_same_v<ValueType, std::uint64_t>) return types.makeBasicTypeID(UInt64);
+                else if constexpr (std::is_same_v<ValueType, float>) return types.makeBasicTypeID(Float32);
+                else if constexpr (std::is_same_v<ValueType, double>) return types.makeBasicTypeID(Float64);
+                else if constexpr (std::is_same_v<ValueType, std::int8_t>) return types.makeBasicTypeID(Char);
+                else if constexpr (std::is_same_v<ValueType, bool>) return types.makeBasicTypeID(Bool);
+                else if constexpr (std::is_same_v<ValueType, fzlib::String>) return types.makeBasicTypeID(String);
+                else if constexpr (std::is_same_v<ValueType, TypeInfo*>) return types.makeBasicTypeID(TypeDescriptor);
+                else if constexpr (std::is_same_v<ValueType, IRArray*>) {
+                    return types.makeArrayTypeID(value->getHead()->getSemanticType(), value->getSize());
+                }
+                else return nullptr;
+            }, content);
         }
 
         fzlib::String toString() {
