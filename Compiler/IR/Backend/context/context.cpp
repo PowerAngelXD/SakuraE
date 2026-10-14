@@ -26,11 +26,28 @@ namespace sakuraE::IR {
     }
 
     IRStructType* NamingContext::lookupStructType(const fzlib::String& name) const {
-        return nullptr;
+        const auto* declaration = lookupStructDecl(name);
+        if (!declaration) return nullptr;
+        const auto it = structTypes.find(declaration->getDeclId());
+        return it == structTypes.end() ? nullptr : it->second.get();
     }
 
-    IRStructType* IRContext::createStructType(fzlib::String module, fzlib::String name) {
-        return new IRStructType(std::move(module), std::move(name));
+    const NamingContext* NamingContext::resolveNamingContext(const StructDeclId& id) const {
+        return resolveStruct(id) ? this : nullptr;
+    }
+
+    IRStructType* NamingContext::getStructTy(IRContext& context, const StructDeclId& id) const {
+        const auto* declaration = resolveStruct(id);
+        if (!declaration) throw std::invalid_argument("Unknown struct declaration in NamingContext");
+        if (typeContext && typeContext != &context) {
+            throw std::invalid_argument("NamingContext struct types belong to another IRContext");
+        }
+        auto it = structTypes.find(id);
+        if (it == structTypes.end()) {
+            it = structTypes.emplace(id, std::unique_ptr<IRStructType>(new IRStructType(id.module, declaration->getName()))).first;
+        }
+        typeContext = &context;
+        return it->second.get();
     }
 
     StructDeclId NamingContext::lookupStructId(const fzlib::String& name) const {

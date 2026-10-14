@@ -314,12 +314,17 @@ namespace sakuraE::IR {
     }
 
     void IRStructType::complete(std::vector<IRStructType::FieldInfo> fs) {
-        fields = std::move(fs);
-        isCompleteType = true;
-
-        for (std::size_t i = 0; i < fields.size(); i ++) {
-            fieldIndices[fields[i].name] = i;
+        if (isCompleteType) throw std::logic_error("Cannot complete an already completed struct type");
+        std::map<fzlib::String, std::size_t> indices;
+        for (std::size_t index = 0; index < fs.size(); ++index) {
+            if (!fs[index].type) throw std::invalid_argument("Struct field has no storage type");
+            if (!indices.emplace(fs[index].name, index).second) {
+                throw std::invalid_argument("Duplicate struct field name");
+            }
         }
+        fields.swap(fs);
+        fieldIndices.swap(indices);
+        isCompleteType = true;
     }
 
 }

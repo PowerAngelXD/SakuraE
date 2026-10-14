@@ -2,7 +2,7 @@
 
 [Chinese Version](context-zh_cn.md)
 
-This document describes the Context implementation currently used by SakuraE IR. It records the ownership boundaries that exist in the code today; it is not a specification for unimplemented features such as forward-declared structures or cross-module named types.
+This document describes the current Context implementation. Forward declarations and completion refer to Context/Lowering APIs, not complete source-language syntax or generator support.
 
 ## 1. Overview
 
@@ -17,7 +17,7 @@ Program
   owns Module objects
     owns NamingContext
       owns IRStructDecl objects
-        owns IRStructType objects
+      owns IRStructType objects interned by StructDeclId
     owns Function and IRValue objects
 ```
 
@@ -25,7 +25,7 @@ Program
 
 ## 2. IRContext
 
-`IRContext`, declared in `../Backend/context/context.hpp`, owns resources that are independent of source-level names:
+`IRContext`, declared in `../Backend/context/context.hpp`, owns program-level types and LLVM resources:
 
 - one `llvm::LLVMContext`;
 - canonical basic types, including integer, floating-point, void, string, block, and type-info types;
@@ -49,7 +49,11 @@ Constructing an `IRContext` makes it the thread-local active context and preserv
 A `NamingContext` stores a module identifier and a map from a structure name to an `IRStructDecl`. It provides:
 
 - `lookupStructDecl(name)` to obtain the declaration;
-- `lookupStructType(name)` to obtain its `IRStructType`;
+- `resolveStruct(id)` for read-only semantic declaration resolution during lowering;
+- `resolveNamingContext(id)` to locate the declaration's owning namespace;
+- `getStructTy(context, id)` to obtain or create an opaque type owned by this namespace;
+- `lookupStructType(name)` to query an existing Backend type without triggering lowering;
+- `declareOpaqueStruct(name, info)` and `implStruct(...)` to register and complete semantic declarations;
 - `defineStruct(name, fields, info)` to create and register a structure.
 
 The map rejects a second definition with the same name in one module by raising `SakuraError`. Identical names in different modules are kept in different `NamingContext` instances and are therefore distinct named types.
@@ -57,16 +61,19 @@ The map rejects a second definition with the same name in one module by raising 
 The current ownership relationship is intentionally direct:
 
 ```text
-NamingContext -> IRStructDecl -> IRStructType
+NamingContext -> IRStructDecl (semantic declaration)
+NamingContext -> IRStructType (Backend type)
+IRContext -> basic and derived types, TypeInfo, LLVM Context
+LoweringSession -> non-owning declaration-ID/Backend-type mappings
 ```
 
-`IRStructDecl` stores source declaration data and owns the concrete `IRStructType`. `IRStructType` holds field names, field types, and field indices. It is not an `IRValue`.
+`IRStructDecl` stores semantic fields, defaults, and completion state; it does not own `IRStructType`. `NamingContext` owns Backend structure types in a separate container; field type pointers remain non-owning. Its Backend cache binds to one `IRContext` and rejects requests using another context. The lazily initialized cache is mutable, while semantic declaration resolution remains read-only.
 
 ## 4. TypeInfo and Named Types
 
 `TypeInfoPool` is owned by `IRContext`. It canonicalizes basic, array, pointer, reference, and structure type descriptions for that context.
 
-The `TypeID::Struct` case is represented by `StructTypeInfo`, which stores the resolved `IRStructType*`. This replaces the old information-free custom-type placeholder. Consequently, converting a structure `TypeInfo` back to IR returns the exact named type, while array, pointer, and reference `TypeInfo` objects recursively preserve that identity.
+`StructTypeInfo` stores a `StructDeclId`. `LoweringSession::lowerType()` resolves the semantic declaration, obtains the unique opaque type from the declaration's owning `NamingContext`, registers its identity, and recursively lowers its fields. Arrays, pointers, and references preserve both that identity and their outer wrappers.
 
 The IR generator resolves a type identifier through the current module's `NamingContext`. An unresolved identifier produces an IR-generation error instead of constructing a generic placeholder type.
 
@@ -78,6 +85,10 @@ LLVM types are created with the `llvm::LLVMContext` owned by `IRContext`. LLVM c
 
 ## 6. Scope and Current Limitations
 
-The current implementation provides complete definitions only. It does not yet provide a separate opaque-declaration and later-definition phase for recursive structures. Named-type lookup is module-local; cross-module type import and type aliases are not part of this Context implementation.
+Context/Lowering APIs support forward declarations and later completion. Lowering a structure or a composite containing it again reuses the same type and completes fields whose declarations are now available. Session processing state prevents recursive re-entry and is cleared after exceptions to allow retries. Backend `complete()` may succeed only once and checks null field types and duplicate names before committing fields.
 
-The derived-type caches keep non-owning `IRType*` keys. Their lifetime is valid for normal `Program` use, where all modules are destroyed as the program ends. Types and values must not be retained after their owning `Program` has been destroyed.
+Layout validation follows by-value structures and array fields to detect cycles; pointers and references break layout dependencies. Direct or indirect by-value recursion, void fields, and function-type fields are rejected. A completed field list does not imply that all by-value dependencies have a finite LLVM size: forward dependencies may remain opaque and must be declared and lowered again before their sizes are used. Target DataLayout still determines LLVM field offsets, sizes, and alignment.
+
+Named-type lookup is module-local; cross-module type import and type aliases are outside this Context feature. Run `sakurae-ir-context-tests --struct-lowering` for focused validation; running without arguments still includes the original Context tests.
+
+Derived-type caches use non-owning `IRType*` keys and may reference structures owned by `NamingContext`. Program teardown destroys the Session first, then modules and their NamingContexts, and finally the IRContext, after related type use has stopped. Structure types and derived types referring to them must not be used after their owning NamingContext is destroyed.

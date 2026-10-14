@@ -17,9 +17,12 @@ namespace sakuraE::IR {
     class NamingContext : public StructDeclRegistry {
         fzlib::String moduleID;
         std::map<fzlib::String, std::unique_ptr<IRStructDecl>> structDecls;
+        mutable std::map<StructDeclId, std::unique_ptr<IRStructType>> structTypes;
+        mutable IRContext* typeContext = nullptr;
 
     public:
         explicit NamingContext(fzlib::String id);
+        const fzlib::String& moduleId() const { return moduleID; }
         ~NamingContext() override;
 
         NamingContext(const NamingContext&) = delete;
@@ -27,6 +30,8 @@ namespace sakuraE::IR {
 
         IRStructDecl* lookupStructDecl(const fzlib::String& name) const;
         const IRStructDecl* resolveStruct(const StructDeclId& id) const override;
+        const NamingContext* resolveNamingContext(const StructDeclId& id) const override;
+        IRStructType* getStructTy(IRContext& context, const StructDeclId& id) const;
         IRStructType* lookupStructType(const fzlib::String& name) const;
         StructDeclId lookupStructId(const fzlib::String& name) const;
         IRStructDecl* declareOpaqueStruct(fzlib::String name, PositionInfo info);
@@ -95,7 +100,6 @@ namespace sakuraE::IR {
         IRType* getArrayTy(IRType* elementType, uint64_t numElements);
         IRType* getBlockTy();
         IRType* getFunctionTy(IRType* returnType, std::vector<IRType*> params);
-        IRStructType* createStructType(fzlib::String module, fzlib::String name);
     };
 }
 

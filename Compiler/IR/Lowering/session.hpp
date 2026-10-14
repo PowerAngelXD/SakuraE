@@ -6,6 +6,7 @@
 #include <Compiler/IR/Backend/type/type.hpp>
 #include <unordered_map>
 #include <stdexcept>
+#include <set>
 
 namespace sakuraE::IR {
     class LoweringSession {
@@ -13,8 +14,10 @@ namespace sakuraE::IR {
         const StructDeclRegistry* structResolver;
         std::unordered_map<const TypeInfo*, IRType*> typeMap;
         std::map<StructDeclId, IRStructType*> structMap;
+        std::set<StructDeclId> fillingStructs;
 
-        IRType* loweringBasicType(const TypeInfo* tyInfo);
+        IRType* loweringBasicType(const TypeInfo* tyInfo) const;
+        void validateStructLayout(const StructDeclId& id) const;
     public:
         explicit LoweringSession(IRContext& ctx, const StructDeclRegistry* resolver = nullptr):
             irContext(ctx), structResolver(resolver) {}
@@ -22,7 +25,6 @@ namespace sakuraE::IR {
         IRContext& context() const { return irContext; }
 
         IRType* lowerType(const TypeInfo* tyInfo);
-        void prepareStructs();
     };
 }
 

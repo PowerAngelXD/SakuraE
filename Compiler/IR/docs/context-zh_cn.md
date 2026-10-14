@@ -2,7 +2,7 @@
 
 [English Version](context.md)
 
-本文档描述 SakuraE IR 当前已经实现的 Context 机制。内容以现有代码的所有权边界为准，不将结构体前置声明、跨模块命名类型等未实现能力视为既有功能。
+本文档描述 SakuraE IR 当前已经实现的 Context 机制。结构体前置声明与补全能力指 Context/Lowering 层接口，不代表源语言语法和生成器已完整支持。
 
 ## 1. 概览
 
@@ -17,7 +17,7 @@ Program
   拥有 Module 对象
     拥有 NamingContext
       拥有 IRStructDecl 对象
-        拥有 IRStructType 对象
+      拥有按 StructDeclId 驻留的 IRStructType
     拥有 Function 和 IRValue 对象
 ```
 
@@ -25,7 +25,7 @@ Program
 
 ## 2. IRContext
 
-`IRContext` 声明于 `../Backend/context/context.hpp`，负责拥有不依赖源语言名称的资源：
+`IRContext` 声明于 `../Backend/context/context.hpp`，负责拥有 Program 级类型和 LLVM 资源：
 
 - 一个 `llvm::LLVMContext`；
 - 规范化的基础类型，包括整数、浮点、void、string、block 和 type-info 类型；
@@ -49,7 +49,11 @@ Program
 一个 `NamingContext` 保存模块标识符，以及从结构体名称到 `IRStructDecl` 的映射，提供：
 
 - `lookupStructDecl(name)`：查询结构体声明；
-- `lookupStructType(name)`：查询对应的 `IRStructType`；
+- `resolveStruct(id)`：供 lowering 只读解析语义声明；
+- `resolveNamingContext(id)`：定位声明所属的命名空间；
+- `getStructTy(context, id)`：获取或创建本命名空间拥有的 opaque 类型；
+- `lookupStructType(name)`：查询已创建的 Backend 类型，不触发 lowering；
+- `declareOpaqueStruct(name, info)` 和 `implStruct(...)`：注册前置声明并补全语义字段；
 - `defineStruct(name, fields, info)`：创建并注册结构体。
 
 同一模块中重复定义同名结构体会抛出 `SakuraError`。不同模块各自拥有 `NamingContext`，即使结构体名称相同，也会得到不同的命名类型。
@@ -57,16 +61,19 @@ Program
 当前代码中的所有权关系是：
 
 ```text
-NamingContext -> IRStructDecl -> IRStructType
+NamingContext -> IRStructDecl（语义声明）
+NamingContext -> IRStructType（Backend 类型）
+IRContext -> 基础及派生类型、TypeInfo、LLVM Context
+LoweringSession -> 非拥有的声明 ID 与 Backend 类型映射
 ```
 
-`IRStructDecl` 保存源码声明相关数据，并拥有具体的 `IRStructType`。`IRStructType` 保存字段名、字段类型及字段索引；它不是 `IRValue`。
+`IRStructDecl` 保存语义字段、默认值和声明完成状态，不拥有 `IRStructType`。`NamingContext` 用独立容器拥有 Backend 结构体类型；字段类型指针为非拥有引用。同一命名空间的 Backend 类型缓存只能绑定一个 `IRContext`，传入其他 context 会被拒绝。类型缓存是延迟初始化的 mutable 状态，语义声明解析保持只读。
 
 ## 4. TypeInfo 与命名类型
 
 `TypeInfoPool` 由 `IRContext` 拥有，在该 Context 内规范化基础、数组、指针、引用和结构体类型描述。
 
-`TypeID::Struct` 由保存已解析 `IRStructType*` 的 `StructTypeInfo` 表示，取代了旧的无信息自定义类型占位符。因此，结构体 `TypeInfo` 转换回 IR 时会返回精确的命名类型；数组、指针和引用 `TypeInfo` 会递归保留该类型身份。
+`TypeID::Struct` 由保存 `StructDeclId` 的 `StructTypeInfo` 表示。`LoweringSession::lowerType()` 解析语义声明，在声明所属的 `NamingContext` 获取唯一的 opaque 类型，先登记身份再递归转换字段。数组、指针和引用保留该类型身份及外层包装。
 
 IR 生成器遇到类型标识符时，会通过当前模块的 `NamingContext` 解析。未定义的名称会产生 IR 生成错误，不会再构造通用占位类型。
 
@@ -78,6 +85,10 @@ LLVM 类型使用 `IRContext` 拥有的 `llvm::LLVMContext` 创建。LLVM Codege
 
 ## 6. 范围与当前限制
 
-当前实现只支持完整定义，不包含“先声明不透明结构体、后补充字段”的独立阶段，因此尚未支持递归结构体定义。命名类型解析限定在模块内部，跨模块类型导入和类型别名不属于当前 Context 功能。
+Context/Lowering 接口支持先声明、后补全：再次 lowering 结构体或包含它的复合类型时，会复用原类型并补全已完成声明的字段。正在处理的类型通过 Session 状态避免重复递归；异常后清除处理状态，允许重试。Backend `complete()` 只允许成功一次，并在提交字段前检查空类型和重复字段名。
 
-派生类型缓存以非拥有的 `IRType*` 作为键。在正常的 `Program` 生命周期中，该关系有效，因为 Program 结束时会销毁所有模块。类型或 IR 值不能在其所属 `Program` 销毁后继续保留或使用。
+布局检查沿按值结构体和数组字段检测递归环，指针和引用打断布局依赖。直接或间接按值递归、void 和函数类型字段会被拒绝。字段列表完成不代表所有按值依赖均已具有有限 LLVM 大小：前向依赖仍可能 opaque，使用其实际大小前须完成相关声明并再次 lowering。LLVM 字段偏移、大小和对齐仍由目标 DataLayout 决定。
+
+命名类型解析限定在模块内部，跨模块类型导入和类型别名不属于当前 Context 功能。针对性验证可运行 `sakurae-ir-context-tests --struct-lowering`；无参数运行仍包含原有 Context 测试。
+
+派生类型缓存以非拥有的 `IRType*` 作为键，可能引用 `NamingContext` 拥有的结构体。Program 销毁时先销毁 Session，再销毁模块和 NamingContext，最后销毁 IRContext；停止使用相关类型后才进行销毁。不得在所属 NamingContext 销毁后继续使用结构体或引用它的派生类型。

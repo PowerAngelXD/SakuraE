@@ -10,8 +10,10 @@
 #include <optional>
 #include <utility>
 #include <vector>
+#include <set>
 
 namespace sakuraE::IR {
+    class NamingContext;
     class IRStructDecl {
         StructDeclId declaration;
         fzlib::String parentModID;
@@ -57,6 +59,13 @@ namespace sakuraE::IR {
 
         void complete(std::vector<SemanticField> fs,
                       std::map<fzlib::String, Constant*> defaults = {}) {
+            if (completeState) throw std::logic_error("Cannot complete an already completed semantic struct declaration");
+            std::set<fzlib::String> names;
+            for (const auto& field : fs) {
+                if (!field.type || !names.insert(field.name).second) {
+                    throw SakuraError(OccurredTerm::IR_GENERATING, "Invalid or duplicate semantic struct field.", field.info);
+                }
+            }
             fields = std::move(fs);
             completeState = true;
             defaultValues = std::move(defaults);
@@ -67,6 +76,7 @@ namespace sakuraE::IR {
     public:
         virtual ~StructDeclRegistry() = default;
         virtual const IRStructDecl* resolveStruct(const StructDeclId& id) const = 0;
+        virtual const NamingContext* resolveNamingContext(const StructDeclId& id) const = 0;
     };
 
 }

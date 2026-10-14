@@ -280,6 +280,13 @@ namespace sakuraE::IR {
             return nullptr;
         }
 
+        const NamingContext* resolveNamingContext(const StructDeclId& id) const override {
+            for (const auto* module : moduleList) {
+                if (module->resolveStruct(id)) return &module->structRegistry();
+            }
+            return nullptr;
+        }
+
         std::vector<Module*> getMods() {
             return moduleList;
         }

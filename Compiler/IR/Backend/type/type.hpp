@@ -236,7 +236,7 @@ namespace sakuraE::IR {
     public:
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
-        IRType* getReturnType() { return returnType; }
+        IRType* getReturnType() const { return returnType; }
     };
 
     class IRStructType : public IRType {
