@@ -621,7 +621,7 @@ namespace sakuraE::Codegen {
             }
             case IR::OpKind::call: {
                 auto insName = ins->getName();
-                auto fnName = insName.split('.')[1];
+                auto fnName = insName.slice(5, insName.len() - 5);
 
                 auto fn = curFn->parent->lookup(fnName)->content;
 
