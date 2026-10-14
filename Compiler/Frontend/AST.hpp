@@ -47,7 +47,7 @@ namespace sakuraE {
         std::vector<std::pair<ASTTag, NodePtr>> children;
         PositionInfo createInfo;
 
-        int hasSub(ASTTag t) {
+        int hasSub(ASTTag t) const {
             for (std::size_t i = 0; i < children.size(); i ++) {
                 if (children.at(i).first == t) return i;
             }
