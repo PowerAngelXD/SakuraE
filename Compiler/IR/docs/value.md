@@ -4,6 +4,13 @@
 
 This document describes the value representations used by the frontend, SakuraE IR, LLVM code generation, and the runtime library. The layers are related by conversion; they are not an inheritance hierarchy across compiler and runtime layers.
 
+Semantic checks now use `TypeInfo`: `CallableValue` accepts only a semantic function type backed by
+`FunctionTypeInfo`, and calls and overload resolution do not inspect storage signatures. `typeof` and
+type-description values use `TypeID::TypeDescriptor`, lowered through the Session to `IRTypeInfoType`.
+Constant semantic types are derived from their content variant, not from `IRType`. Storage constructors
+and caches described below remain compatibility representations pending stages 4/6; they do not drive
+Generator semantic decisions.
+
 ## 1. Layered model
 
 ```mermaid
@@ -89,7 +96,7 @@ public:
     bool isPointer();
     bool isRef();
     const TypeID& getTypeID();
-    IRType* toIRType();
+    const FunctionTypeInfo* getFunctionTypeInfo() const;
 
     static TypeInfo* makeBasicTypeID(TypeID typeID);
     static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
@@ -99,7 +106,7 @@ public:
 };
 ```
 
-`TypeInfo::toIRType()` maps basic types to singleton-like `IRType` instances, arrays to `IRArrayType`, pointers to `IRPointerType`, and references to an IR pointer type with the referenced element type.
+`LoweringSession::lowerType()` maps basic types to context-owned `IRType` instances, arrays to `IRArrayType`, pointers to `IRPointerType`, and references to `IRRefType`. `TypeInfo::toIRType()` has been removed; the snippet above is a simplified view, and type construction is controlled by `TypeInfoContext`.
 
 ## 3. IR types and values
 
@@ -352,7 +359,7 @@ Runtime type metadata is immutable after construction and cached by type structu
 
 ## 9. Pointer and reference semantics
 
-`Ptr<T>`/pointer and reference types belong to the IR type and address-calculation layers. `Ref<T>` is currently lowered by `TypeInfo::toIRType()` to an IR pointer type, and IR instructions such as `create_alloca`, `indexing`, `gaddr`, and `deref` operate on storage addresses.
+`Ptr<T>`/pointer and reference types belong to the IR type and address-calculation layers. `Ref<T>` is lowered by `LoweringSession::lowerType()` to `IRRefType`, represented as an LLVM pointer during emission. Instructions such as `create_alloca`, `indexing`, `gaddr`, and `deref` operate on storage addresses.
 
 This does not make `RuntimeType::Pointer` redundant in the current implementation. The distinction is:
 

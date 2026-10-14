@@ -4,6 +4,12 @@
 
 本文档描述前端、SakuraE IR、LLVM Codegen 和 Runtime 之间的值表示。各层通过转换关联，并不是跨编译器层和运行时层的继承关系。
 
+当前语义检查以 `TypeInfo` 为准：`CallableValue` 只接受 `FunctionTypeInfo` 对应的语义类型，
+函数调用和重载不读取 storage 签名。`typeof` 和类型描述值使用 `TypeID::TypeDescriptor`，
+通过 Session lowering 得到 `IRTypeInfoType`。常量语义类型从内容 variant 推导，Generator
+不从 `IRType` 反推语义类型。下文中的 storage 构造与缓存仍是阶段 4/6 待迁移的兼容表示，
+不参与 Generator 的语义判断。
+
 ## 1. 分层模型
 
 ```mermaid
@@ -89,7 +95,7 @@ public:
     bool isPointer();
     bool isRef();
     const TypeID& getTypeID();
-    IRType* toIRType();
+    const FunctionTypeInfo* getFunctionTypeInfo() const;
 
     static TypeInfo* makeBasicTypeID(TypeID typeID);
     static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
@@ -99,7 +105,7 @@ public:
 };
 ```
 
-`TypeInfo::toIRType()` 将基础类型映射到对应的 `IRType`，将数组映射到 `IRArrayType`，将指针映射到 `IRPointerType`，并将引用映射为以被引用元素类型为目标的 IR 指针类型。
+`LoweringSession::lowerType()` 将基础类型映射到 Context 持有的 `IRType`，将数组映射到 `IRArrayType`，将指针映射到 `IRPointerType`，将引用映射到 `IRRefType`。`TypeInfo::toIRType()` 已删除；以上代码仅为简化示意，类型构造由 `TypeInfoContext` 管理。
 
 ## 3. IR 类型和值
 
@@ -352,7 +358,7 @@ Runtime 类型元数据构造后不可变，并按类型结构缓存：基础类
 
 ## 9. Pointer 和 Ref 语义
 
-`Ptr<T>`/指针和引用属于 IR 类型层与地址计算层。`Ref<T>` 当前由 `TypeInfo::toIRType()` 降低为 IR 指针类型，`create_alloca`、`indexing`、`gaddr` 和 `deref` 等指令操作的是存储地址。
+`Ptr<T>`/指针和引用属于 IR 类型层与地址计算层。`Ref<T>` 由 `LoweringSession::lowerType()` 转换为 `IRRefType`，在 LLVM emission 时表示为指针；`create_alloca`、`indexing`、`gaddr` 和 `deref` 等指令操作的是存储地址。
 
 这并不意味着当前 `RuntimeType::Pointer` 是多余的：
 
