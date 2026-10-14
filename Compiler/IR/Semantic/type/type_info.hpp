@@ -6,14 +6,16 @@
 #include <stdexcept>
 #include <variant>
 #include <cstdint>
+#include <vector>
+#include <utility>
 
 #include "Compiler/Error/error.hpp"
 #include "Compiler/Utils/Logger.hpp"
-#include "Compiler/IR/Backend/type/type.hpp"
 
 namespace sakuraE::IR {
     class IRContext;
     class TypeInfo;
+    class Constant;
 
     struct StructDeclId {
         fzlib::String module;
@@ -107,7 +109,7 @@ namespace sakuraE::IR {
         explicit FunctionTypeInfo(TypeInfo* retTy, std::vector<TypeInfo*> argTys): returnType(retTy), argTypes(std::move(argTys)) {}
 
         TypeInfo* getReturnType() const { return returnType; }
-        std::vector<TypeInfo*>  getArgTypes() const { return argTypes; }
+        const std::vector<TypeInfo*>& getArgTypes() const { return argTypes; }
         std::size_t getArgCount() const { return argTypes.size(); }
     };
 
@@ -163,7 +165,11 @@ namespace sakuraE::IR {
         bool isStruct() const { return typeID == Struct; }
         bool isFunction() const { return typeID == FunctionType; }
         bool isBasic() const {
-            return !isArray() && !isPointer() && !isRef() && !isStruct();
+            return !isArray() && !isPointer() && !isRef() && !isStruct() && !isFunction();
+        }
+        IRContext& getContext() const { return context; }
+        const FunctionTypeInfo* getFunctionTypeInfo() const {
+            return isFunction() ? &std::get<FunctionTypeInfo>(complexTypeInfo) : nullptr;
         }
         bool isNullable() const {
             return qualifier == TypeQualifier::Nullable;
@@ -224,6 +230,7 @@ namespace sakuraE::IR {
         std::map<StructDeclId, std::unique_ptr<TypeInfo>> structTypes;
         std::map<std::pair<TypeInfo*, std::vector<TypeInfo*>>, std::unique_ptr<TypeInfo>> funcTypes;
         std::map<TypeInfo*, std::unique_ptr<TypeInfo>> nullableTypes;
+        void validateComponent(const TypeInfo* type) const;
 
     public:
         explicit TypeInfoContext(IRContext& ctx): context(ctx) {}

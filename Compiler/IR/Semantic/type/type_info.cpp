@@ -13,8 +13,13 @@ namespace sakuraE::IR {
     }
 
     TypeInfo* TypeInfoContext::makeBasicTypeID(TypeID typeID) {
-        if (typeID == TypeID::Struct) {
-            throw std::runtime_error("A struct TypeInfo requires an IRStructType");
+        switch (typeID) {
+            case Int32: case Int64: case UInt32: case UInt64:
+            case Float32: case Float64: case Bool: case Char:
+            case Void: case String:
+                break;
+            default:
+                throw std::invalid_argument("Composite TypeInfo requires its component types or declaration ID");
         }
 
         auto it = primaryTypes.find(typeID);
@@ -27,6 +32,7 @@ namespace sakuraE::IR {
     }
 
     TypeInfo* TypeInfoContext::makeArrayTypeID(TypeInfo* element, std::uint64_t count) {
+        validateComponent(element);
         const auto key = std::make_pair(element, count);
         auto it = arrayTypes.find(key);
         if (it == arrayTypes.end()) {
@@ -38,6 +44,7 @@ namespace sakuraE::IR {
     }
 
     TypeInfo* TypeInfoContext::makePointerTypeID(TypeInfo* typeID) {
+        validateComponent(typeID);
         auto it = pointerTypes.find(typeID);
         if (it == pointerTypes.end()) {
             it = pointerTypes.emplace(
@@ -48,6 +55,7 @@ namespace sakuraE::IR {
     }
 
     TypeInfo* TypeInfoContext::makeRefTypeID(TypeInfo* typeID) {
+        validateComponent(typeID);
         auto it = refTypes.find(typeID);
         if (it == refTypes.end()) {
             it = refTypes.emplace(
@@ -68,6 +76,8 @@ namespace sakuraE::IR {
     }
 
     TypeInfo *TypeInfoContext::makeFunctionTypeID(TypeInfo *retTy, std::vector<TypeInfo *> argTys) {
+        validateComponent(retTy);
+        for (const auto* argument : argTys) validateComponent(argument);
         const auto key = std::make_pair(retTy, argTys);
         auto it = funcTypes.find(key);
         if (it == funcTypes.end()) {
@@ -93,14 +103,15 @@ namespace sakuraE::IR {
                 info
             );
         }
-        else if (type->isPointer() || type->isRef() || type->isBasic()) {
+        else if (!type->isStruct() && !type->isArray()) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
-                "Cannot wrap 'T*', 'ref T' or Basic Type as Nullable Type!",
+                "Only struct and array types can be nullable.",
                 info
             );
         }
 
+        validateComponent(type);
         auto it = nullableTypes.find(type);
         if (it == nullableTypes.end()) {
             it = nullableTypes.emplace(
@@ -111,12 +122,19 @@ namespace sakuraE::IR {
     }
 
     void TypeInfoContext::clear() {
+        funcTypes.clear();
         refTypes.clear();
         pointerTypes.clear();
         arrayTypes.clear();
         structTypes.clear();
         primaryTypes.clear();
         nullableTypes.clear();
+    }
+
+    void TypeInfoContext::validateComponent(const TypeInfo* type) const {
+        if (!type || &type->getContext() != &context) {
+            throw std::invalid_argument("TypeInfo component must belong to this IRContext");
+        }
     }
 
     TypeInfo* TypeInfo::makeBasicTypeID(const TypeID typeID) {
