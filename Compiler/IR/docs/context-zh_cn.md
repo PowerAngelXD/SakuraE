@@ -44,7 +44,7 @@ Program
 
 ## 3. NamingContext
 
-`NamingContext` 声明于 `context.hpp`，实现在 `context.cpp`。实现文件包含 `model/struct.hpp`，使公开的 Context 头文件只需前置声明 `IRStructDecl`。
+`NamingContext` 声明于 `Semantic/context/naming_context.hpp`，实现在 `Semantic/context/naming_context.cpp`，由 Semantic `Module` 拥有命名空间及语义声明注册表。公开头文件仅前置声明 Backend 类型；Backend context 不再声明或实现语义命名空间。
 
 一个 `NamingContext` 保存模块标识符，以及从结构体名称到 `IRStructDecl` 的映射，提供：
 
@@ -67,7 +67,7 @@ IRContext -> 基础及派生类型、TypeInfo、LLVM Context
 LoweringSession -> 非拥有的声明 ID 与 Backend 类型映射
 ```
 
-`IRStructDecl` 保存语义字段、默认值和声明完成状态，不拥有 `IRStructType`。`NamingContext` 用独立容器拥有 Backend 结构体类型；字段类型指针为非拥有引用。同一命名空间的 Backend 类型缓存只能绑定一个 `IRContext`，传入其他 context 会被拒绝。类型缓存是延迟初始化的 mutable 状态，语义声明解析保持只读。
+`IRStructDecl` 保存语义字段、默认值和声明完成状态，不拥有 `IRStructType`。`NamingContext` 用独立容器拥有 Backend 结构体类型；字段类型指针为非拥有引用。storage 访问器仅作为 Lowering 桥接接口，不是语义构造输入；`Module` 不再暴露 Backend 布局查询。同一命名空间的 Backend 类型缓存只能绑定一个 `IRContext`，传入其他 context 会被拒绝。类型缓存是延迟初始化的 mutable 状态，语义声明解析保持只读。
 
 ## 4. TypeInfo 与命名类型
 

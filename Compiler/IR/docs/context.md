@@ -44,7 +44,7 @@ Constructing an `IRContext` makes it the thread-local active context and preserv
 
 ## 3. NamingContext
 
-`NamingContext` is declared in `context.hpp` and implemented in `context.cpp`. Its implementation includes `model/struct.hpp` so that the public Context header needs only a forward declaration of `IRStructDecl`.
+`NamingContext` is declared in `Semantic/context/naming_context.hpp` and implemented in `Semantic/context/naming_context.cpp`. Each Semantic `Module` owns its namespace and semantic declaration registry. The header only forward-declares Backend types; Backend context no longer declares or implements the semantic namespace.
 
 A `NamingContext` stores a module identifier and a map from a structure name to an `IRStructDecl`. It provides:
 
@@ -67,7 +67,7 @@ IRContext -> basic and derived types, TypeInfo, LLVM Context
 LoweringSession -> non-owning declaration-ID/Backend-type mappings
 ```
 
-`IRStructDecl` stores semantic fields, defaults, and completion state; it does not own `IRStructType`. `NamingContext` owns Backend structure types in a separate container; field type pointers remain non-owning. Its Backend cache binds to one `IRContext` and rejects requests using another context. The lazily initialized cache is mutable, while semantic declaration resolution remains read-only.
+`IRStructDecl` stores semantic fields, defaults, and completion state; it does not own `IRStructType`. `NamingContext` owns Backend structure types in a separate container; field type pointers remain non-owning. The storage accessors are a Lowering bridge, rather than Semantic construction inputs; `Module` does not expose a Backend layout lookup. Its Backend cache binds to one `IRContext` and rejects requests using another context. The lazily initialized cache is mutable, while semantic declaration resolution remains read-only.
 
 ## 4. TypeInfo and Named Types
 

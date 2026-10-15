@@ -428,10 +428,11 @@ CallableValue 仅接受语义签名。运行时函数显式声明语义签名，
 是显式的语义调用规则，不通过 storage 签名推断。
 
 sizeof 仍保持既有支持范围，通过 inferExprType 检查类型而不求值；typeof 与类型描述值
-使用 TypeID::TypeDescriptor，lowering 后对应 IRTypeInfoType。常量的语义类型从内容 variant
-读取，不从 storage 类型推断。旧 Function/Instruction 构造参数及常量 storage 缓存仍保留，
-仅在语义检查后通过 Session lowering 获取；删除这些构造参数属于阶段 4，常量完整迁移
-属于阶段 6，不应将本阶段完成理解为整个 Semantic 目录不再引用 Backend 类型。
+使用 TypeID::TypeDescriptor，lowering 后对应 IRTypeInfoType。常量显式保存 TypeInfo*，
+不从 storage 类型推断。
+阶段 4 整理后，Function/Instruction/Value 的构造仅使用语义类型，storage 字段及旧构造
+参数已移除。当前 LLVM Codegen 仍通过 Program 的 Session 按需获取 storage 类型；
+BackendFunction/BackendModule 及 Codegen 的完整隔离留待阶段 5、6、7。
 
 验收覆盖：Context 驻留与 nullable、语义声明引用检查、无 storage 的语义函数调用、
 数值/指针重载、字符串及数组索引、引用与解引用、字段访问、非法索引/return/参数、
@@ -446,6 +447,19 @@ sizeof、typeof、GC 内部地址，以及既有 match/repeat 和 runtime 字符
 验收：语义推导和可调用性判断不使用 `IRTypeID`、`getStorageType()` 或 `toIRType()`。
 
 ### 阶段 4：整理现有 IR model
+
+当前实现状态：已完成本阶段的 Semantic model 整理。Function 的参数与返回类型统一来自
+FunctionTypeInfo；Instruction/Value、Scope/Symbol 和常量的类型输入使用 TypeInfo*，
+IRValue 不再保存 storage 类型。NamingContext 已迁入 Semantic/context，由 Module
+持有，负责语义结构体声明管理；其头文件仅前置声明 Backend 类型，Backend context 不再
+承担命名空间声明管理。Function/Module 的公开头文件不再包含 Backend context，Module
+不再直接暴露 Backend 结构体布局查询。IRStructDecl 不拥有 storage 类型，IRStructType
+字段只保存 IRType*。
+
+按既定所有权方案，NamingContext 仍用独立容器拥有命名结构体 storage 类型，并通过
+桥接接口供 Lowering 按需创建或查询；Program 仍拥有共享 IRContext 与持久 Session。
+storage 函数描述及 value type side table 留待阶段 5，LLVM 依赖外移留待阶段 7；本阶段
+不新增 BackendFunction/BackendModule，也不将整个 Semantic 目录零 Backend 引用作为验收条件。
 
 - 保留当前 `Function`、`Module`、`Block`、`Instruction` 和 `Value`，不新增平行 Semantic
   model 或 Storage model。
