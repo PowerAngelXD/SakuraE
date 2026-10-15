@@ -1,3 +1,4 @@
+#include "Compiler/IR/Semantic/model/module.hpp"
 #include "Compiler/IR/Semantic/generator.hpp"
 #include "Compiler/IR/Semantic/model/struct.hpp"
 
@@ -14,9 +15,9 @@ void testSemanticGenerationDoesNotLowerStructs() {
         "func keep(node: Node?) -> Node? { let local: Node? = null; return node; } "
         "func main() -> i32 { let array = [1, 2]; let size = sizeof(1); return 0; }",
         "semantic-only-construction");
-    assert(generator.getProgram().curMod()->lookupStructType("Node") == nullptr);
+    assert(generator.getProgram().curMod()->structRegistry().lookupStructType("Node") == nullptr);
     generator.getProgram().toString();
-    assert(generator.getProgram().curMod()->lookupStructType("Node") == nullptr);
+    assert(generator.getProgram().curMod()->structRegistry().lookupStructType("Node") == nullptr);
     bool sawParam = false;
     bool sawAlloca = false;
     bool sawSizeof = false;
@@ -247,7 +248,7 @@ void testSemanticTypeAcceptance() {
     assert(signature->getFunctionTypeInfo()->getArgTypes()[0] == array);
     program.curMod()->implStruct("Node", {{"next", pointer, info}}, {}, info);
     program.validateSemanticType(signature, info);
-    assert(program.curMod()->lookupStructType("Node") == nullptr);
+    assert(program.curMod()->structRegistry().lookupStructType("Node") == nullptr);
     assert(rejects([&] { declaration->complete({}); }));
     assert(rejects([&] { program.curMod()->declareStruct("Node", info); }));
     auto* missing = types.makeStructTypeID({"unknown-module", 0});

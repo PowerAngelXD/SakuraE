@@ -2,7 +2,7 @@
 #define SAKURAE_MODULE_HPP
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/Backend/context/context.hpp"
+#include "Compiler/IR/Semantic/context/naming_context.hpp"
 #include "Compiler/IR/Semantic/model/scope.hpp"
 #include "function.hpp"
 #include <map>
@@ -84,10 +84,6 @@ namespace sakuraE::IR {
         }
 
         const NamingContext& structRegistry() const { return namingContext; }
-
-        IRStructType* lookupStructType(const fzlib::String& name) const {
-            return namingContext.lookupStructType(name);
-        }
 
         void declareStruct(fzlib::String name, PositionInfo info) {
             namingContext.declareOpaqueStruct(name, info);

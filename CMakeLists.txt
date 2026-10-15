@@ -45,6 +45,7 @@ add_executable(
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
     Compiler/IR/Semantic/generator.cpp
+    Compiler/IR/Semantic/context/naming_context.cpp
         Compiler/IR/Backend/context/context.cpp
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp
@@ -113,6 +114,7 @@ add_executable(
     Compiler/IR/Lowering/session.cpp
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp
+    Compiler/IR/Semantic/context/naming_context.cpp
         Compiler/IR/Backend/context/context.cpp
 )
 
@@ -123,6 +125,7 @@ add_executable(
     Compiler/Frontend/lexer.cpp
     Compiler/Frontend/parser.cpp
     Compiler/IR/Semantic/generator.cpp
+    Compiler/IR/Semantic/context/naming_context.cpp
         Compiler/IR/Backend/context/context.cpp
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp

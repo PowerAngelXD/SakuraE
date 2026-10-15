@@ -1,3 +1,4 @@
+#include "Compiler/IR/Semantic/context/naming_context.hpp"
 #include "Compiler/IR/Backend/context/context.hpp"
 #include "Compiler/IR/Lowering/session.hpp"
 

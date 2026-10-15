@@ -5,7 +5,6 @@
 #include <utility>
 
 #include "Compiler/Error/error.hpp"
-#include "Compiler/IR/Backend/context/context.hpp"
 #include "block.hpp"
 #include "scope.hpp"
 
@@ -39,7 +38,7 @@ namespace sakuraE::IR {
         Module* parent = nullptr;
         TypeInfo* controlType() const {
             if (!getReturnType()) throw std::logic_error("Function must have a semantic signature before building blocks");
-            return getReturnType()->getContext().typeInfoPool().makeBasicTypeID(TypeID::Void);
+            return getReturnType()->getTypeContext().makeBasicTypeID(TypeID::Void);
         }
     public:
         Function(fzlib::String n, TypeInfo* retType, PositionInfo info):
@@ -93,7 +92,7 @@ namespace sakuraE::IR {
                 paramTypes.push_back(param.second);
             }
             // 类型工厂验证空组件及 context 归属；验证成功后再更新定义。
-            auto* signature = retType->getContext().typeInfoPool().makeFunctionTypeID(
+            auto* signature = retType->getTypeContext().makeFunctionTypeID(
                 retType, std::move(paramTypes));
             formalParamNames = std::move(paramNames);
             CallableValue::setFunctionType(signature);

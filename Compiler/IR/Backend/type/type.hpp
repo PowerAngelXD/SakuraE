@@ -260,7 +260,6 @@ namespace sakuraE::IR {
         friend class IRType;
         friend class IRContext;
         friend class NamingContext;
-        friend class IRStructDecl;
         explicit IRStructType(fzlib::String modID, fzlib::String n, std::vector<FieldInfo> list):
             IRType(StructTyID), parentModID(modID), name(n), isCompleteType(true), fields(std::move(list)) {
             for (std::size_t i = 0; i < fields.size(); ++i) fieldIndices[fields[i].name] = i;

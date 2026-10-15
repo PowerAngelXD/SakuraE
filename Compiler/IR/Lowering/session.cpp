@@ -1,6 +1,7 @@
 #include "session.hpp"
 
 #include "Compiler/IR/Backend/context/context.hpp"
+#include "Compiler/IR/Semantic/context/naming_context.hpp"
 #include <functional>
 
 namespace sakuraE::IR {
