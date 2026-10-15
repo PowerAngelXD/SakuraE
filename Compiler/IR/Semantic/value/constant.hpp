@@ -6,8 +6,6 @@
 #include <map>
 #include <cstdint>
 
-#include <llvm/IR/Type.h>
-
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/Semantic/value/value.hpp"
 #include "array.hpp"
@@ -19,7 +17,7 @@ namespace sakuraE::IR {
 
     class Constant : public IRValue {
     private:
-        std::variant<
+        using Content = std::variant<
             std::monostate,
             std::int32_t,
             std::int64_t,
@@ -32,50 +30,30 @@ namespace sakuraE::IR {
             bool,
             TypeInfo*,
             IRArray*
-        > content;
+        >;
+        Content content;
+        static std::map<std::pair<TypeInfo*, Content>, Constant> constants;
         PositionInfo createInfo;
 
-        Constant(IRType* ty, std::int32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, std::uint32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, std::uint64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, std::int64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, const fzlib::String& val, PositionInfo info)
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, std::int8_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        Constant(IRType* ty, IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"})
-            : IRValue(ty), content(val), createInfo(info) {}
-        explicit Constant(IRType* ty, PositionInfo info)
-            : IRValue(ty), content(std::monostate{}), createInfo(info) {}
+        Constant(TypeInfo* type, Content value, PositionInfo info)
+            : IRValue(type), content(std::move(value)), createInfo(std::move(info)) {}
+        static Constant* intern(TypeInfo* type, Content value, PositionInfo info);
 
     public:
-        static Constant* get(std::uint32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(std::uint64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(std::int64_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(std::int32_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(float val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(double val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(const fzlib::String& val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(std::int8_t val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* get(bool val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::uint32_t val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::uint64_t val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::int64_t val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::int32_t val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(float val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(double val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(const fzlib::String& val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(std::int8_t val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
+        static Constant* get(bool val, TypeInfoContext& types, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(TypeInfo* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
         static Constant* get(IRArray* val, PositionInfo info = {0, 0, "NormalConstant, Not from token"});
-        static Constant* getNullHandle(IRType* ty, PositionInfo info);
-        static Constant* getDefault(IRType* ty, PositionInfo info);
-        static Constant* getDefault(const TypeInfo* type, PositionInfo info);
-        static Constant* getFromToken(const Token& tok);
+        static Constant* getNullHandle(TypeInfo* type, PositionInfo info);
+        static Constant* getDefault(TypeInfo* type, PositionInfo info);
+        static Constant* getFromToken(const Token& tok, TypeInfoContext& types);
         static void clearAll();
 
         template<typename T>
@@ -94,26 +72,6 @@ namespace sakuraE::IR {
 
         bool isNullHandle() const {
             return std::holds_alternative<std::monostate>(content);
-        }
-
-        TypeInfo* getValueType(TypeInfoContext& types) const {
-            return std::visit([&](const auto& value) -> TypeInfo* {
-                using ValueType = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<ValueType, std::int32_t>) return types.makeBasicTypeID(Int32);
-                else if constexpr (std::is_same_v<ValueType, std::int64_t>) return types.makeBasicTypeID(Int64);
-                else if constexpr (std::is_same_v<ValueType, std::uint32_t>) return types.makeBasicTypeID(UInt32);
-                else if constexpr (std::is_same_v<ValueType, std::uint64_t>) return types.makeBasicTypeID(UInt64);
-                else if constexpr (std::is_same_v<ValueType, float>) return types.makeBasicTypeID(Float32);
-                else if constexpr (std::is_same_v<ValueType, double>) return types.makeBasicTypeID(Float64);
-                else if constexpr (std::is_same_v<ValueType, std::int8_t>) return types.makeBasicTypeID(Char);
-                else if constexpr (std::is_same_v<ValueType, bool>) return types.makeBasicTypeID(Bool);
-                else if constexpr (std::is_same_v<ValueType, fzlib::String>) return types.makeBasicTypeID(String);
-                else if constexpr (std::is_same_v<ValueType, TypeInfo*>) return types.makeBasicTypeID(TypeDescriptor);
-                else if constexpr (std::is_same_v<ValueType, IRArray*>) {
-                    return types.makeArrayTypeID(value->getHead()->getSemanticType(), value->getSize());
-                }
-                else return nullptr;
-            }, content);
         }
 
         fzlib::String toString() {
@@ -161,7 +119,6 @@ namespace sakuraE::IR {
             }, content);
         }
 
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx);
     };
 
 }

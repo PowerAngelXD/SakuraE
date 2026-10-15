@@ -14,10 +14,10 @@ namespace sakuraE::IR {
 
         Function* parent = nullptr;
     public:
-        Block(fzlib::String id, std::vector<Instruction*> ops):
-            IRValue(IRType::getBlockTy()), instructions(ops), ID(id) {}
-        Block(fzlib::String id):
-            IRValue(IRType::getBlockTy()), instructions({}), ID(id) {}
+        Block(fzlib::String id, TypeInfo* type, std::vector<Instruction*> ops):
+            IRValue(type), instructions(std::move(ops)), ID(id) {}
+        Block(fzlib::String id, TypeInfo* type):
+            IRValue(type), ID(id) {}
 
         ~Block() {
             for (auto ins: instructions) {
@@ -41,79 +41,27 @@ namespace sakuraE::IR {
             return instructions;
         }
 
-        IRValue* createInstruction(OpKind k, IRType* t, const fzlib::String& n) {
-            if (!instructions.empty() && instructions.back()->isTerminal())
+        IRValue* createInstruction(OpKind kind, TypeInfo* type, const fzlib::String& name) {
+            return createInstruction(kind, type, {}, name);
+        }
+
+        IRValue* createInstruction(OpKind kind, TypeInfo* type, std::vector<IRValue*> operands,
+                                   const fzlib::String& name) {
+            if (!instructions.empty() && instructions.back()->isTerminal()) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
-                                    "Cannot create any instruction after terminal code!",
-                                    {0, 0, "InsideError"});
-
-            Instruction* ins = new Instruction(
-                k, t, TypeInfo::makeBasicTypeID(TypeID::Void), std::vector<IRValue*>{});
-            ins->setParent(this);
-            ins->setName(n);
-            instructions.push_back(ins);
-
-            return ins;
-        }
-
-        IRValue* createInstruction(OpKind k, IRType* t, std::vector<IRValue*> params, const fzlib::String& n) {
-            if (!instructions.empty()) {
-                if (instructions[instructions.size() - 1]->isTerminal())
-                    throw SakuraError(OccurredTerm::IR_GENERATING,
-                                        "Cannot create any instruction after terminal code!",
-                                        {0, 0, "InsideError"});
+                                  "Cannot create any instruction after terminal code!",
+                                  {0, 0, "InsideError"});
             }
-
-            Instruction* ins = new Instruction(
-                k, t, TypeInfo::makeBasicTypeID(TypeID::Void), params);
-            ins->setParent(this);
-            ins->setName(n);
-            instructions.push_back(ins);
-
-            return ins;
+            auto* instruction = new Instruction(kind, type, std::move(operands));
+            instruction->setParent(this);
+            instruction->setName(name);
+            instructions.push_back(instruction);
+            return instruction;
         }
 
-        IRValue* createInstruction(OpKind k, IRType* t, TypeInfo* st, const fzlib::String& n) {
-            if (!instructions.empty() && instructions.back()->isTerminal())
-                throw SakuraError(OccurredTerm::IR_GENERATING,
-                                    "Cannot create any instruction after terminal code!",
-                                    {0, 0, "InsideError"});
-
+        IRValue* insertBeforeTerminal(OpKind k, TypeInfo* t, std::vector<IRValue*> params, const fzlib::String& n) {
             Instruction* ins = new Instruction(
-                k,
-                t,
-                st ? st : TypeInfo::makeBasicTypeID(TypeID::Void),
-                std::vector<IRValue*>{});
-            ins->setParent(this);
-            ins->setName(n);
-            instructions.push_back(ins);
-
-            return ins;
-        }
-
-        IRValue* createInstruction(OpKind k, IRType* t, TypeInfo* st, std::vector<IRValue*> params, const fzlib::String& n) {
-            if (!instructions.empty()) {
-                if (instructions[instructions.size() - 1]->isTerminal())
-                    throw SakuraError(OccurredTerm::IR_GENERATING,
-                                        "Cannot create any instruction after terminal code!",
-                                        {0, 0, "InsideError"});
-            }
-
-            Instruction* ins = new Instruction(
-                k,
-                t,
-                st ? st : TypeInfo::makeBasicTypeID(TypeID::Void),
-                params);
-            ins->setParent(this);
-            ins->setName(n);
-            instructions.push_back(ins);
-
-            return ins;
-        }
-
-        IRValue* insertBeforeTerminal(OpKind k, IRType* t, std::vector<IRValue*> params, const fzlib::String& n) {
-            Instruction* ins = new Instruction(
-                k, t, TypeInfo::makeBasicTypeID(TypeID::Void), params);
+                k, t, std::move(params));
             ins->setParent(this);
             ins->setName(n);
 
@@ -130,13 +78,13 @@ namespace sakuraE::IR {
         IRValue* createBr(IRValue* targetBlock) {
             if (instructions.empty())
                 return createInstruction(OpKind::br,
-                                        IRType::getVoidTy(),
+                                        getSemanticType(),
                                     {targetBlock},
                                         "br.(" + targetBlock->getName() + ")");
 
             if (!instructions.back()->isTerminal())
                 return createInstruction(OpKind::br,
-                                        IRType::getVoidTy(),
+                                        getSemanticType(),
                                     {targetBlock},
                                         "br.(" + targetBlock->getName() + ")");
 
@@ -146,13 +94,13 @@ namespace sakuraE::IR {
         IRValue* createCondBr(IRValue* cond, IRValue* thenBlock, IRValue* elseBlock) {
             if (instructions.empty()) 
                 return createInstruction(OpKind::cond_br,
-                                        IRType::getVoidTy(),
+                                        getSemanticType(),
                                         {cond, thenBlock, elseBlock},
                                         "cond_br.(" + thenBlock->getName() + ").(" + elseBlock->getName() + ")");
 
             if (!instructions.back()->isTerminal())
                 return createInstruction(OpKind::cond_br,
-                                        IRType::getVoidTy(),
+                                        getSemanticType(),
                                         {cond, thenBlock, elseBlock},
                                         "cond_br.(" + thenBlock->getName() + ").(" + elseBlock->getName() + ")");
 
@@ -162,13 +110,13 @@ namespace sakuraE::IR {
         IRValue* createReturn(IRValue* value) {
             if (instructions.empty()) 
                 return createInstruction(OpKind::ret,
-                                        IRType::getVoidTy(),
+                                        getSemanticType(),
                                         {value},
                                         "ret");
 
             if (!instructions.back()->isTerminal())
                 return createInstruction(OpKind::ret,
-                                        IRType::getVoidTy(),
+                                        getSemanticType(),
                                         {value},
                                         "ret");
 
@@ -177,23 +125,21 @@ namespace sakuraE::IR {
 
         IRValue* createReturn() {
             return createInstruction(OpKind::ret,
-                                    IRType::getVoidTy(),
+                                    getSemanticType(),
                                     {},
                                     "ret");
-
-            return nullptr;
         }
 
         IRValue* createEnterScope() {
             return createInstruction(OpKind::enter_scope,
-                                    IRType::getVoidTy(),
+                                    getSemanticType(),
                                     {},
                                     "enter_scope");
         }
 
         IRValue* createLeaveScope() {
             return insertBeforeTerminal(OpKind::leave_scope,
-                                    IRType::getVoidTy(),
+                                    getSemanticType(),
                                     {},
                                     "leave_scope");
         }

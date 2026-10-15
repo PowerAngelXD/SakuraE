@@ -6,7 +6,6 @@
 #include "Compiler/IR/Semantic/model/instruction.hpp"
 #include "Compiler/IR/Semantic/model/scope.hpp"
 #include "Compiler/IR/Semantic/model/struct.hpp"
-#include "Compiler/IR/Backend/type/type.hpp"
 #include "Compiler/IR/Semantic/type/type_info.hpp"
 #include "Compiler/IR/Semantic/value/value.hpp"
 #include "Compiler/Utils/Logger.hpp"
@@ -37,17 +36,8 @@ namespace sakuraE::IR {
             return program.getContext().getTypeInfoManager();
         }
 
-        IRType* lowerStorageType(const TypeInfo* type) {
-            program.validateSemanticType(type, {0, 0, "Type lowering"});
-            return program.lowering().lowerType(type);
-        }
-
         TypeInfo* semanticTypeOf(const IRValue* value) {
-            if (value->getSemanticType()) return value->getSemanticType();
-            if (const auto* constant = dynamic_cast<const Constant*>(value)) {
-                return constant->getValueType(program.getContext().typeInfoPool());
-            }
-            return nullptr;
+            return value->getSemanticType();
         }
 
         Symbol<IRValue*>* lookup(fzlib::String n, PositionInfo info) {
@@ -76,7 +66,6 @@ namespace sakuraE::IR {
                 return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::load,
-                        lowerStorageType(addr->getSemanticType()),
                         addr->getSemanticType(),
                         {addr},
                         "load." + addr->getName());
@@ -103,7 +92,6 @@ namespace sakuraE::IR {
                 return curFunc()
                             ->curBlock()
                             ->createInstruction(OpKind::store,
-                                                lowerStorageType(addr->getSemanticType()),
                                                 addr->getSemanticType(),
                                                 {addr, value},
                                                 "store." + addr->getName());
@@ -115,24 +103,21 @@ namespace sakuraE::IR {
             }
         }
 
-        IRValue* createParam(fzlib::String name, IRType* ty, TypeInfo* semanticType, PositionInfo info) {
-            IRType* finalType = ty;
-
+        IRValue* createParam(fzlib::String name, TypeInfo* semanticType, PositionInfo info) {
             auto param = curFunc()
                             ->curBlock()
                             ->createInstruction(
                                 OpKind::param,
-                                finalType,
                                 semanticType,
                                 {},
                                 "param." + name
                             );
-            curFunc()->fnScope().declare(name, param, finalType, semanticType);
+            curFunc()->fnScope().declare(name, param, semanticType);
 
             return param;
         }
 
-        IRValue* createAlloca(fzlib::String n, IRType* ty, TypeInfo* semanticType, IRValue* initVal, PositionInfo info) {
+        IRValue* createAlloca(fzlib::String n, TypeInfo* semanticType, IRValue* initVal, PositionInfo info) {
             if (initVal && !isAssignableTo(semanticTypeOf(initVal), semanticType)) {
                 throw SakuraError(OccurredTerm::IR_GENERATING,
                                 "Cannot declare a variable with an incompatible semantic type.",
@@ -142,12 +127,11 @@ namespace sakuraE::IR {
             auto addr =  curFunc()
                 ->curBlock()
                 ->createInstruction(OpKind::create_alloca,
-                                    ty,
                                     semanticType,
                                     {initVal?initVal:(semanticType->isBasic() && semanticType->getTypeID() != String && semanticType->getTypeID() != TypeDescriptor ? Constant::getDefault(semanticType, info) : nullptr)},
                                     "create_alloca." + n);
 
-            curFunc()->fnScope().declare(n, addr, ty, semanticType);
+            curFunc()->fnScope().declare(n, addr, semanticType);
 
             return addr;
         }
@@ -217,7 +201,7 @@ namespace sakuraE::IR {
                     );
                 }
 
-                auto constant = Constant::getFromToken(token);
+                auto constant = Constant::getFromToken(token, getTypeInfoContext());
                 switch (semanticTypeOf(constant)->getTypeID()) {
                     case Int32: {
                         auto value = constant->getContentValue<std::int32_t>();
@@ -523,7 +507,7 @@ namespace sakuraE::IR {
             if (node->getTag() == ASTTag::PrimExprNode) {
                 if (node->hasNode(ASTTag::Literal)) {
                     auto literal = Constant::getFromToken(
-                        (*(*node)[ASTTag::Literal])[ASTTag::Literal]->getToken());
+                        (*(*node)[ASTTag::Literal])[ASTTag::Literal]->getToken(), getTypeInfoContext());
                     return semanticTypeOf(literal);
                 }
                 if (node->hasNode(ASTTag::Identifier)) {

@@ -47,17 +47,14 @@ namespace sakuraE::IR {
     class Instruction: public IRValue {
         OpKind kind = OpKind::empty;
         std::vector<IRValue*> args;
-        IRType* typeOperand = nullptr;
+        TypeInfo* typeOperand = nullptr;
 
         Block* parent = nullptr;
     public:
-        Instruction(OpKind kind, IRType* t, TypeInfo* st)
-            : IRValue(t, st), kind(kind) {}
-        Instruction(OpKind kind, IRType* t, TypeInfo* st, std::vector<IRValue*> params)
-            : IRValue(t, st), kind(kind), args(params) {}
-        Instruction(OpKind k, IRType* t): IRValue(t), kind(k) {}
-        Instruction(OpKind k, IRType* t, std::vector<IRValue*> params):
-            IRValue(t), kind(k), args(params) {}
+        Instruction(OpKind kind, TypeInfo* type, std::vector<IRValue*> params = {})
+            : IRValue(type), kind(kind), args(std::move(params)) {
+            if (!type) throw std::invalid_argument("Instruction requires a semantic result type");
+        }
 
         bool isTerminal() {
             return kind == OpKind::br ||
@@ -115,11 +112,11 @@ namespace sakuraE::IR {
             return kind;
         }
 
-        void setTypeOperand(IRType* type) {
+        void setTypeOperand(TypeInfo* type) {
             typeOperand = type;
         }
 
-        IRType* getTypeOperand() const {
+        TypeInfo* getTypeOperand() const {
             return typeOperand;
         }
 
@@ -136,10 +133,10 @@ namespace sakuraE::IR {
                 }
 
                 if (auto* constant = dynamic_cast<Constant*>(arg)) {
-                    result += " " + constant->getType()->toString() + " " + constant->toString();
+                    result += " " + constant->getSemanticType()->toString() + " " + constant->toString();
                 }
                 else {
-                    result += " " + arg->getType()->toString() + " %" + arg->getName();
+                    result += " " + (arg->getSemanticType() ? arg->getSemanticType()->toString() : "label") + " %" + arg->getName();
                 }
             }
             return result;

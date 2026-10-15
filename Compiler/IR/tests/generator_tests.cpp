@@ -6,6 +6,147 @@
 #include <fstream>
 #include <sstream>
 
+void testSemanticGenerationDoesNotLowerStructs() {
+    using namespace sakuraE::IR;
+    IRGenerator generator("semantic-only-construction");
+    generator.startGenerate(
+        "struct Node { next: Node* } "
+        "func keep(node: Node?) -> Node? { let local: Node? = null; return node; } "
+        "func main() -> i32 { let array = [1, 2]; let size = sizeof(1); return 0; }",
+        "semantic-only-construction");
+    assert(generator.getProgram().curMod()->lookupStructType("Node") == nullptr);
+    generator.getProgram().toString();
+    assert(generator.getProgram().curMod()->lookupStructType("Node") == nullptr);
+    bool sawParam = false;
+    bool sawAlloca = false;
+    bool sawSizeof = false;
+    for (auto* function : generator.getProgram().curMod()->getFunctions()) {
+        for (auto* block : function->getBlocks()) {
+            for (auto* instruction : block->getInstructions()) {
+                assert(instruction->getSemanticType());
+                assert(&instruction->getSemanticType()->getContext() == &generator.getProgram().getContext());
+                sawParam |= instruction->getKind() == OpKind::param;
+                sawAlloca |= instruction->getKind() == OpKind::create_alloca;
+                if (instruction->getKind() == OpKind::_sizeof) {
+                    sawSizeof = true;
+                    assert(instruction->getTypeOperand()->getTypeID() == Int32);
+                }
+                for (auto* operand : instruction->getOperands()) {
+                    if (auto* constant = dynamic_cast<Constant*>(operand)) {
+                        assert(&constant->getSemanticType()->getContext() == &generator.getProgram().getContext());
+                    }
+                }
+            }
+        }
+    }
+    assert(sawParam && sawAlloca && sawSizeof);
+}
+
+void testSemanticConstantAndControlContextIsolation() {
+    using namespace sakuraE::IR;
+    const sakuraE::PositionInfo info {1, 1, "semantic-context-isolation"};
+    IRContext first;
+    auto& types = first.typeInfoPool();
+    auto* integer = types.makeBasicTypeID(Int32);
+    auto* firstLiteral = Constant::get(std::int32_t{37}, types, info);
+    assert(firstLiteral == Constant::get(std::int32_t{37}, types, info));
+    assert(firstLiteral->getSemanticType() == integer);
+    auto* array = types.makeArrayTypeID(integer, 2);
+    auto* nullableArray = types.wrapTypeAsNullable(array, info);
+    auto* nullArray = Constant::getNullHandle(nullableArray, info);
+    auto* nullableOther = types.wrapTypeAsNullable(types.makeArrayTypeID(integer, 3), info);
+    assert(nullArray == Constant::getNullHandle(nullableArray, info));
+    assert(nullArray != Constant::getNullHandle(nullableOther, info));
+    assert(nullArray->getSemanticType() == nullableArray);
+    Function function("control", integer, info);
+
+    IRContext second;
+    auto* secondLiteral = Constant::get(std::int32_t{37}, second.typeInfoPool(), info);
+    assert(secondLiteral != firstLiteral);
+    assert(secondLiteral->getSemanticType() == second.typeInfoPool().makeBasicTypeID(Int32));
+    auto* firstDefault = Constant::getDefault(integer, info);
+    assert(firstDefault->getSemanticType() == integer);
+    auto* descriptor = Constant::get(nullableArray, info);
+    assert(&descriptor->getSemanticType()->getContext() == &first);
+    assert(descriptor->getContentValue<TypeInfo*>() == nullableArray);
+    function.buildBlock("entry");
+    function.curBlock()->createEnterScope();
+    function.curBlock()->createReturn();
+    function.curBlock()->createLeaveScope();
+    for (auto* instruction : function.curBlock()->getInstructions()) {
+        assert(instruction->getSemanticType() == types.makeBasicTypeID(Void));
+    }
+}
+
+void testGeneratorLiteralsUseOwningProgramContext() {
+    using namespace sakuraE::IR;
+    IRGenerator first("first-generator");
+    IRGenerator second("second-generator");
+    first.startGenerate(
+        "func main() -> i32 { let value = 1; value++; let text = \"text\"; return 0; }",
+        "first-generator");
+    for (auto* function : first.getProgram().curMod()->getFunctions()) {
+        for (auto* block : function->getBlocks()) {
+            for (auto* instruction : block->getInstructions()) {
+                assert(&instruction->getSemanticType()->getContext() == &first.getProgram().getContext());
+            }
+        }
+    }
+}
+
+void testFunctionReturnFollowsSemanticSignature() {
+    using namespace sakuraE::IR;
+    IRContext context;
+    auto& types = context.typeInfoPool();
+    auto* integer = types.makeBasicTypeID(Int32);
+    Function function("semantic-return", {1, 1, "function-signature"});
+    function.setFunctionType(types.makeFunctionTypeID(integer, {}));
+    assert(function.getReturnType() == integer);
+}
+
+void testFunctionSignatureUpdatesAndValidation() {
+    using namespace sakuraE::IR;
+    IRContext context;
+    auto& types = context.typeInfoPool();
+    auto* integer = types.makeBasicTypeID(Int32);
+    auto* boolean = types.makeBasicTypeID(Bool);
+    const sakuraE::PositionInfo info {1, 1, "function-signature"};
+    Function function("convert", integer, {{"value", boolean}}, info);
+    assert(function.toString() == "func convert(value: bool) -> i32 {}");
+    function.setFunctionType(types.makeFunctionTypeID(boolean, {integer}));
+    assert(function.getFormalParams()[0].second == integer);
+    assert(function.getParamsOnlyType()[0] == integer);
+    assert(function.toString() == "func convert(value: i32) -> bool {}");
+
+    const auto rejects = [](auto action) {
+        try { action(); }
+        catch (const std::invalid_argument&) { return true; }
+        return false;
+    };
+    auto* signature = function.getSemanticType();
+    assert(rejects([&] { function.setFunctionType(types.makeFunctionTypeID(integer, {})); }));
+    assert(rejects([&] { function.setFuncDefineInfo({{"invalid", nullptr}}, integer); }));
+    assert(rejects([&] { function.setFuncDefineInfo({}, nullptr); }));
+    IRContext foreign;
+    auto* foreignInteger = foreign.typeInfoPool().makeBasicTypeID(Int32);
+    assert(rejects([&] { function.setFuncDefineInfo({{"foreign", foreignInteger}}, integer); }));
+    assert(function.getSemanticType() == signature);
+    assert(function.getFormalParams()[0].first == "value");
+    function.setFuncDefineInfo({}, integer);
+    assert(function.getFormalParams().empty());
+    assert(function.getReturnType() == integer);
+
+    Program program("signature-session");
+    auto* session = &program.lowering();
+    program.buildModule("functions", info);
+    auto* result = program.getContext().typeInfoPool().makeBasicTypeID(Int32);
+    auto* defined = static_cast<Function*>(program.curMod()->buildFunction("answer", result, {}, info));
+    assert(program.curMod()->lookup("answer")->getSemanticType() == defined->getSemanticType());
+    program.reset();
+    assert(&program.lowering() == session);
+    assert(program.lowering().lowerType(defined->getReturnType()) == program.getContext().getInt32Ty());
+}
+
 void testSemanticOperations() {
     using namespace sakuraE::IR;
     IRGenerator generator("semantic-operations");
@@ -49,8 +190,6 @@ void testSemanticOperations() {
     auto* signature = generator.getProgram().getContext().typeInfoPool().makeFunctionTypeID(integer, {integer});
     IRValue semanticCallable(signature, "semantic-callable");
     IRValue argument(integer, "semantic-argument");
-    assert(semanticCallable.getStorageType() == nullptr);
-    assert(argument.getStorageType() == nullptr);
     generator.getProgram().curMod()->curFunc()->buildBlock("semantic-call-verification");
     auto* call = generator.visitCallingOpNode(&semanticCallable, generator.getParsedStatements().front(), {&argument});
     assert(call->getSemanticType() == integer);
@@ -139,6 +278,11 @@ int main() {
     using namespace sakuraE::IR;
 
     try {
+    testSemanticGenerationDoesNotLowerStructs();
+    testSemanticConstantAndControlContextIsolation();
+    testGeneratorLiteralsUseOwningProgramContext();
+    testFunctionReturnFollowsSemanticSignature();
+    testFunctionSignatureUpdatesAndValidation();
     testSemanticTypeAcceptance();
     testSemanticOperations();
     testSemanticFixtures();
@@ -219,7 +363,7 @@ int main() {
         for (auto* block : function->getBlocks()) {
             for (auto* instruction : block->getInstructions()) {
                 if (instruction->getKind() == OpKind::constant &&
-                    instruction->getType()->getIRTypeID() == TypeInfoTyID) {
+                    instruction->getSemanticType()->getTypeID() == TypeDescriptor) {
                     sawTypeInfoConstant = true;
                 }
                 assert(instruction->getSemanticType() != nullptr);
@@ -243,16 +387,17 @@ int main() {
     auto* functionNodeTypeInfo = functionContext.typeInfoPool().makeStructTypeID(functionNodeDecl->getDeclId());
     auto* nullableFunctionNodeTypeInfo = functionContext.typeInfoPool().wrapTypeAsNullable(
         functionNodeTypeInfo, functionInfo);
-    FormalParamsDefine functionParams {{"node", nullptr}};
+    FormalParamsDefine functionParams {{"node", nullableFunctionNodeTypeInfo}};
     Function function(
-        "keep", nullptr, functionParams, functionInfo,
-        {nullableFunctionNodeTypeInfo}, nullableFunctionNodeTypeInfo);
+        "keep", nullableFunctionNodeTypeInfo, functionParams, functionInfo);
     assert(function.getSemanticReturnType() == nullableFunctionNodeTypeInfo);
     assert(function.getSemanticParamTypes().size() == 1);
     assert(function.getSemanticParamTypes()[0] == nullableFunctionNodeTypeInfo);
     assert(function.getFunctionTypeInfo() != nullptr);
     assert(function.getFunctionTypeInfo()->getReturnType() == nullableFunctionNodeTypeInfo);
     assert(function.getFunctionTypeInfo()->getArgTypes()[0] == nullableFunctionNodeTypeInfo);
+    function.toString();
+    assert(functionNames.lookupStructType("Node") == nullptr);
 
     class TestCallableValue: public CallableValue {
     public:

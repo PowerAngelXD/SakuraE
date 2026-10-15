@@ -213,7 +213,7 @@ namespace sakuraE::Codegen {
             }
 
             bool shouldTrackAsGCRoot(IR::IRValue* value) const {
-                if (!value || !isManagedHeapType(value->getType())) {
+                if (!value || !isManagedHeapType(codegenContext.storageType(value))) {
                     return false;
                 }
 
@@ -561,40 +561,48 @@ namespace sakuraE::Codegen {
             return builder->CreateLoad(type->toLLVMType(*context), rawSlot, "unboxed.value");
         }
 
+        // 过渡适配：storage 类型只在 LLVM 边界通过所属 Program 的 Session 获取。
+        IR::IRType* storageType(const IR::IRValue* value) {
+            if (!value || !value->getSemanticType()) {
+                throw std::runtime_error("LLVM emission requires a semantic value type");
+            }
+            return program->lowering().lowerType(value->getSemanticType());
+        }
+
         llvm::Value* rawValue(IR::IRValue* value, LLVMFunction* curFn) {
-            return unboxRaw(toLLVMValue(value, curFn), value->getType(), curFn);
+            return unboxRaw(toLLVMValue(value, curFn), storageType(value), curFn);
         }
 
         llvm::Value* boxConstant(IR::Constant* constant, LLVMFunction* curFn) {
             if (constant->isNullHandle()) {
-                auto* llvmType = constant->getType()->toLLVMType(*context);
+                auto* llvmType = storageType(constant)->toLLVMType(*context);
                 llvm::Constant* zero = llvm::Constant::getNullValue(llvmType);
-                return boxRaw(zero, constant->getType(), curFn);
+                return boxRaw(zero, storageType(constant), curFn);
             }
-            switch (constant->getType()->getIRTypeID()) {
+            switch (storageType(constant)->getIRTypeID()) {
                 case IR::IRTypeID::Integer32TyID:
-                    return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), constant->getType(), curFn);
+                    return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), storageType(constant), curFn);
                 case IR::IRTypeID::Integer64TyID:
-                    return boxRaw(builder->getInt64(constant->getContentValue<std::int64_t>()), constant->getType(), curFn);
+                    return boxRaw(builder->getInt64(constant->getContentValue<std::int64_t>()), storageType(constant), curFn);
                 case IR::IRTypeID::UInteger32TyID:
-                    return boxRaw(builder->getInt32(constant->getContentValue<std::uint32_t>()), constant->getType(), curFn);
+                    return boxRaw(builder->getInt32(constant->getContentValue<std::uint32_t>()), storageType(constant), curFn);
                 case IR::IRTypeID::UInteger64TyID:
-                    return boxRaw(builder->getInt64(constant->getContentValue<std::uint64_t>()), constant->getType(), curFn);
+                    return boxRaw(builder->getInt64(constant->getContentValue<std::uint64_t>()), storageType(constant), curFn);
                 case IR::IRTypeID::Float32TyID:
-                    return boxRaw(llvm::ConstantFP::get(builder->getFloatTy(), constant->getContentValue<float>()), constant->getType(), curFn);
+                    return boxRaw(llvm::ConstantFP::get(builder->getFloatTy(), constant->getContentValue<float>()), storageType(constant), curFn);
                 case IR::IRTypeID::Float64TyID:
-                    return boxRaw(llvm::ConstantFP::get(builder->getDoubleTy(), constant->getContentValue<double>()), constant->getType(), curFn);
+                    return boxRaw(llvm::ConstantFP::get(builder->getDoubleTy(), constant->getContentValue<double>()), storageType(constant), curFn);
                 case IR::IRTypeID::CharTyID:
-                    return boxRaw(builder->getInt8(constant->getContentValue<std::int8_t>()), constant->getType(), curFn);
+                    return boxRaw(builder->getInt8(constant->getContentValue<std::int8_t>()), storageType(constant), curFn);
                 case IR::IRTypeID::BoolTyID:
-                    return boxRaw(builder->getInt1(constant->getContentValue<bool>()), constant->getType(), curFn);
+                    return boxRaw(builder->getInt1(constant->getContentValue<bool>()), storageType(constant), curFn);
                 case IR::IRTypeID::TypeInfoTyID:
                     return boxRaw(
                         runtimeTypeInfo(program->lowering().lowerType(constant->getContentValue<IR::TypeInfo*>()), curFn),
-                        constant->getType(),
+                        storageType(constant),
                         curFn);
                 default:
-                    throw std::runtime_error(fzlib::String("Unsupported boxed constant type: " + constant->getType()->toString()).c_str());
+                    throw std::runtime_error(fzlib::String("Unsupported boxed constant type: " + storageType(constant)->toString()).c_str());
             }
         }
 
@@ -674,7 +682,7 @@ namespace sakuraE::Codegen {
 
         // 工具方法 ============================================================
         llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
-            if (constant->getType()->getIRTypeID() != IR::IRTypeID::StringTyID) {
+            if (constant->getSemanticType()->getTypeID() != IR::TypeID::String) {
                 return boxConstant(constant, curFn);
             }
 

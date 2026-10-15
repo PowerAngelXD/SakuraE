@@ -28,12 +28,13 @@ namespace sakuraE::Codegen {
         auto funcs = source->getFunctions();
 
         for (auto func: funcs) {
-            auto retTy = codegenContext.abiType(func->getReturnType(), func->getRawName());
+            auto& lowering = codegenContext.program->lowering();
+            auto retTy = codegenContext.abiType(lowering.lowerType(func->getReturnType()), func->getRawName());
             auto irParams = func->getFormalParams();
             std::vector<std::pair<fzlib::String, llvm::Type*>> params;
 
             for (auto param: irParams) {
-                params.emplace_back(param.first, codegenContext.abiParamType(param.second, func->getRawName()));
+                params.emplace_back(param.first, codegenContext.abiParamType(lowering.lowerType(param.second), func->getRawName()));
             }
 
             if (source->id() == "__runtime")
@@ -50,12 +51,13 @@ namespace sakuraE::Codegen {
                                     func->getInfo());
                 }
 
-                auto retTy = codegenContext.abiType(func->getReturnType(), func->getRawName());
+                auto& lowering = codegenContext.program->lowering();
+                auto retTy = codegenContext.abiType(lowering.lowerType(func->getReturnType()), func->getRawName());
                 auto irParams = func->getFormalParams();
                 std::vector<std::pair<fzlib::String, llvm::Type*>> params;
 
                 for (auto param: irParams) {
-                    params.emplace_back(param.first, codegenContext.abiParamType(param.second, func->getRawName()));
+                    params.emplace_back(param.first, codegenContext.abiParamType(lowering.lowerType(param.second), func->getRawName()));
                 }
 
                 declareFunction(FunctionType::ExternalLinkage, func->getName(), func->getRawName(), retTy, params, func->getInfo());
@@ -129,8 +131,9 @@ namespace sakuraE::Codegen {
             codegenContext.builder->CreateStore(&arg, argAlloca);
 
             // 参数如果承载的是 GC 托管对象引用，需要在函数入口立即注册进 root stack
-            if (shouldRegisterSlotAsGCRoot(irParams[i].second)) {
-                gcRegisterManagedSlot(argAlloca, irParams[i].second);
+            auto* storageType = codegenContext.program->lowering().lowerType(irParams[i].second);
+            if (shouldRegisterSlotAsGCRoot(storageType)) {
+                gcRegisterManagedSlot(argAlloca, storageType);
             }
 
             scope.declare(irParams[i].first, argAlloca, nullptr);
@@ -181,7 +184,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(add(lhs, rhs), ins->getType(), curFn);
+                instResult = boxRaw(add(lhs, rhs), storageType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -190,7 +193,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(sub(lhs, rhs), ins->getType(), curFn);
+                instResult = boxRaw(sub(lhs, rhs), storageType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -199,7 +202,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(mul(lhs, rhs), ins->getType(), curFn);
+                instResult = boxRaw(mul(lhs, rhs), storageType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -208,7 +211,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(div(lhs, rhs), ins->getType(), curFn);
+                instResult = boxRaw(div(lhs, rhs), storageType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -217,7 +220,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(mod(lhs, rhs), ins->getType(), curFn);
+                instResult = boxRaw(mod(lhs, rhs), storageType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -231,7 +234,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(compare(lhs, rhs, ins->arg(0)->getType(), ins->arg(1)->getType(), ins->getKind(), curFn), ins->getType(), curFn);
+                instResult = boxRaw(compare(lhs, rhs, storageType(ins->arg(0)), storageType(ins->arg(1)), ins->getKind(), curFn), storageType(ins), curFn);
                 break;
             }
             case IR::OpKind::create_alloca: {
@@ -246,8 +249,8 @@ namespace sakuraE::Codegen {
                 if (initVal) {
                     builder->CreateStore(toLLVMValue(initVal, curFn), alloca);
                 }
-                else if (ins->getType()->isArray()) {
-                    auto* sourceArrayType = static_cast<IR::IRArrayType*>(ins->getType());
+                else if (storageType(ins)->isArray()) {
+                    auto* sourceArrayType = static_cast<IR::IRArrayType*>(storageType(ins));
                     auto arrayType = llvm::ArrayType::get(
                         llvm::PointerType::getUnqual(*context),
                         sourceArrayType->getNumElements());
@@ -265,8 +268,8 @@ namespace sakuraE::Codegen {
                     builder->CreateStore(llvm::Constant::getNullValue(identifierType), alloca);
                 }
 
-                if (curFn->shouldRegisterSlotAsGCRoot(ins->getType())) {
-                    curFn->gcRegisterManagedSlot(alloca, ins->getType());
+                if (curFn->shouldRegisterSlotAsGCRoot(storageType(ins))) {
+                    curFn->gcRegisterManagedSlot(alloca, storageType(ins));
                 }
 
                 bind(ins, alloca);
@@ -285,12 +288,12 @@ namespace sakuraE::Codegen {
                     }
                     else if (auto* destination = dynamic_cast<IR::Instruction*>(ins->arg(0));
                              destination && destination->getKind() == IR::OpKind::indexing &&
-                             destination->arg(0)->getType()->isArray()) {
+                             storageType(destination->arg(0))->isArray()) {
                         // 托管数组的元素是 RuntimeValue*，因此索引赋值需要替换包装指针
                         builder->CreateStore(srcVal, destAddr);
                     }
                     else {
-                        builder->CreateStore(unboxRaw(srcVal, ins->arg(1)->getType(), curFn), destAddr);
+                        builder->CreateStore(unboxRaw(srcVal, storageType(ins->arg(1)), curFn), destAddr);
                     }
                     bind(ins, srcVal);
                 }
@@ -323,7 +326,7 @@ namespace sakuraE::Codegen {
                         auto* rootedSlot = curFn->createRootedTemporary(
                             elementValue,
                             "gc.array.elem",
-                            element->getType());
+                            storageType(element));
                         elementValue = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "array.elem.rooted");
                     }
 
@@ -332,7 +335,7 @@ namespace sakuraE::Codegen {
                 /* 完全装箱模式下，数组的每个元素都存储为 RuntimeValue*，与源元素类型无关
                  * 分配大小和元素寻址都必须使用装箱后的布局
                  */
-                auto* sourceArrayType = static_cast<IR::IRArrayType*>(ins->getType());
+                auto* sourceArrayType = static_cast<IR::IRArrayType*>(storageType(ins));
                 auto arrayType = llvm::ArrayType::get(
                     llvm::PointerType::getUnqual(*context),
                     sourceArrayType->getNumElements());
@@ -364,7 +367,7 @@ namespace sakuraE::Codegen {
                     auto* protectedSlot = curFn->createRootedTemporary(
                         arrayPtr,
                         "gc.array.result",
-                        ins->getType());
+                        storageType(ins));
                     protectValue(ins, protectedSlot);
                 }
 
@@ -375,7 +378,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
                 llvm::Value* indexVal = rawValue(ins->arg(1), curFn);
 
-                auto addrIRType = ins->arg(0)->getType();
+                auto addrIRType = storageType(ins->arg(0));
                 sutils::println("addr IR type: " + addrIRType->toString());
                 llvm::Type* elementType = nullptr;
                 auto* addrInst = dynamic_cast<IR::Instruction*>(ins->arg(0));
@@ -387,7 +390,7 @@ namespace sakuraE::Codegen {
                     }
                     auto* arrayType = static_cast<IR::IRArrayType*>(addrIRType);
                     bool isUnsigned = false;
-                    switch (ins->arg(1)->getType()->getIRTypeID()) {
+                    switch (storageType(ins->arg(1))->getIRTypeID()) {
                         case IR::IRTypeID::UInteger32TyID:
                         case IR::IRTypeID::UInteger64TyID:
                         case IR::IRTypeID::UIntegerNTyID:
@@ -519,11 +522,11 @@ namespace sakuraE::Codegen {
                     throw std::runtime_error("sizeof instruction is missing its source type.");
                 }
 
-                auto* llvmType = sourceType->toLLVMType(*context);
+                auto* llvmType = program->lowering().lowerType(sourceType)->toLLVMType(*context);
                 auto size = curFn->parent->content->getDataLayout().getTypeAllocSize(llvmType);
                 instResult = boxRaw(
                     builder->getInt64(static_cast<std::uint64_t>(size)),
-                    ins->getType(),
+                    storageType(ins),
                     curFn
                 );
                 bind(ins, instResult);
@@ -535,8 +538,8 @@ namespace sakuraE::Codegen {
                 /* 一等指针是装箱后的 RuntimeValue，payload 是取地址表达式表示的实际地址
                  * 传递的不是存储槽位本身的 RuntimeValue*
                  */
-                if (ins->getType()->isPointer()) {
-                    bind(ins, boxRaw(address, ins->getType(), curFn));
+                if (storageType(ins)->isPointer()) {
+                    bind(ins, boxRaw(address, storageType(ins), curFn));
                 }
                 else {
                     bind(ins, address);
@@ -546,13 +549,13 @@ namespace sakuraE::Codegen {
             case IR::OpKind::deref: {
                 instResult = toLLVMValue(ins->arg(0), curFn);
 
-                if (ins->arg(0)->getType()->isPointer()) {
+                if (storageType(ins->arg(0))->isPointer()) {
                     /* 指针表达式在语言值边界处进行装箱
                      * 解引用操作作用于其中存储的地址
                      */
-                    instResult = unboxRaw(instResult, ins->arg(0)->getType(), curFn);
+                    instResult = unboxRaw(instResult, storageType(ins->arg(0)), curFn);
                 }
-                else if (ins->arg(0)->getType()->isRef()) {
+                else if (storageType(ins->arg(0))->isRef()) {
                     /* 引用指向语言层的存储槽位，这些槽位中存放的可能是RuntimeValue*（标量/字符串）
                      * 也可能是托管对象的payload 指针（数组），
                      * 因此解引用时必须直接加载指针，不能将其解释为未装箱的原始值后再次装箱
@@ -568,9 +571,9 @@ namespace sakuraE::Codegen {
             }
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
-                llvm::Type* type = ins->getType()->toLLVMType(*context);
+                llvm::Type* type = storageType(ins)->toLLVMType(*context);
 
-                sutils::println("try to load:" + ins->getType()->toString() + ", Name: " + ins->getName());
+                sutils::println("try to load:" + storageType(ins)->toString() + ", Name: " + ins->getName());
 
                 instResult = builder->CreateLoad(type, addr, "load.tmp");
 
@@ -647,7 +650,7 @@ namespace sakuraE::Codegen {
                         auto* rootedSlot = curFn->createRootedTemporary(
                             argVal,
                             "gc.call.arg",
-                            arguments[i]->getType());
+                            storageType(arguments[i]));
                         argVal = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "call.arg.rooted");
                     }
 
@@ -667,7 +670,7 @@ namespace sakuraE::Codegen {
                     auto* protectedSlot = curFn->createRootedTemporary(
                         instResult,
                         "gc.call.result",
-                        ins->getType());
+                        storageType(ins));
                     protectValue(ins, protectedSlot);
                 }
 

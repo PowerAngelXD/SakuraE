@@ -10,14 +10,13 @@
 #include "scope.hpp"
 
 namespace sakuraE::IR {
-    using FormalParamsDefine = std::vector<std::pair<fzlib::String, IRType*>>;
+    using FormalParamsDefine = std::vector<std::pair<fzlib::String, TypeInfo*>>;
     class Module;
 
     // SakuraE 函数
     class Function: public CallableValue {
         fzlib::String rawName;
-        IRType* returnType;
-        FormalParamsDefine formalParams;
+        std::vector<fzlib::String> formalParamNames;
         Scope<IRValue*> funcScope;
 
         PositionInfo createInfo;
@@ -37,34 +36,28 @@ namespace sakuraE::IR {
 
         std::stack<LoopInfo> loopStack;
 
-        Module* parent;
+        Module* parent = nullptr;
+        TypeInfo* controlType() const {
+            if (!getReturnType()) throw std::logic_error("Function must have a semantic signature before building blocks");
+            return getReturnType()->getContext().typeInfoPool().makeBasicTypeID(TypeID::Void);
+        }
     public:
-        Function(fzlib::String n, IRType* retType, PositionInfo info):
-            CallableValue(nullptr, n),
-            returnType(retType), funcScope(info), createInfo(info) {
-            setStorageType(IRType::getFunctionTy(retType, {}));
-        }
+        Function(fzlib::String n, TypeInfo* retType, PositionInfo info):
+            Function(std::move(n), retType, {}, std::move(info)) {}
 
-        // 仅用于预声明
+        // 仅用于预声明，定义时通过 setFuncDefineInfo 建立语义签名。
         Function(fzlib::String n, PositionInfo info):
-            CallableValue(nullptr, n), returnType(nullptr), formalParams({}),
-            funcScope(info), createInfo(info) {}
+            CallableValue(nullptr, std::move(n)), funcScope(info), createInfo(info) {}
 
-        Function(fzlib::String n, IRType* retType, FormalParamsDefine params, PositionInfo info,
-                 std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr):
-            CallableValue(nullptr, n), returnType(retType), formalParams(params),
-                funcScope(info), createInfo(info) {
-            std::vector<IRType*> storageParams;
-            for (const auto& parameter : params) storageParams.push_back(parameter.second);
-            setStorageType(IRType::getFunctionTy(retType, std::move(storageParams)));
-            if (semanticReturn) setFunctionType(semanticReturn->getContext().typeInfoPool().makeFunctionTypeID(semanticReturn, std::move(semanticParams)));
+        Function(fzlib::String n, TypeInfo* retType, FormalParamsDefine params, PositionInfo info):
+            CallableValue(nullptr, std::move(n)), funcScope(info), createInfo(info) {
+            setFuncDefineInfo(std::move(params), retType);
         }
 
-        Function(fzlib::String n, fzlib::String raw, IRType* retType, FormalParamsDefine params, PositionInfo info):
-            CallableValue(nullptr, n), rawName(raw), returnType(retType), formalParams(params), funcScope(info), createInfo(info) {
-            std::vector<IRType*> storageParams;
-            for (const auto& parameter : params) storageParams.push_back(parameter.second);
-            setStorageType(IRType::getFunctionTy(retType, std::move(storageParams)));
+        Function(fzlib::String n, fzlib::String raw, TypeInfo* retType,
+                 FormalParamsDefine params, PositionInfo info):
+            Function(std::move(n), retType, std::move(params), std::move(info)) {
+            rawName = std::move(raw);
         }
 
         ~Function() {
@@ -91,22 +84,27 @@ namespace sakuraE::IR {
 
         fzlib::String getRawName() { return rawName; }
 
-        void setFuncDefineInfo(FormalParamsDefine params, IRType* retType,
-                               std::vector<TypeInfo*> semanticParams = {},
-                               TypeInfo* semanticReturn = nullptr) {
-            formalParams = params;
-            returnType = retType;
-            if (semanticReturn) setFunctionType(semanticReturn->getContext().typeInfoPool().makeFunctionTypeID(semanticReturn, std::move(semanticParams)));
+        void setFuncDefineInfo(FormalParamsDefine params, TypeInfo* retType) {
+            if (!retType) throw std::invalid_argument("Function requires a semantic return type");
+            std::vector<TypeInfo*> paramTypes;
+            std::vector<fzlib::String> paramNames;
+            for (const auto& param : params) {
+                paramNames.push_back(param.first);
+                paramTypes.push_back(param.second);
+            }
+            // 类型工厂验证空组件及 context 归属；验证成功后再更新定义。
+            auto* signature = retType->getContext().typeInfoPool().makeFunctionTypeID(
+                retType, std::move(paramTypes));
+            formalParamNames = std::move(paramNames);
+            CallableValue::setFunctionType(signature);
+        }
 
-            setStorageType(IRType::getFunctionTy(retType,
-                [&]() -> std::vector<IRType*> {
-                    std::vector<IRType*> result;
-                    for (auto param: params) {
-                        result.push_back(param.second);
-                    }
-                    return result;
-                }()
-            ));
+        void setFunctionType(TypeInfo* signature) {
+            if (!signature || !signature->isFunction()
+                || signature->getFunctionTypeInfo()->getArgCount() != formalParamNames.size()) {
+                throw std::invalid_argument("Function signature must match its named parameters");
+            }
+            CallableValue::setFunctionType(signature);
         }
 
         void setReturnChecker(bool state) {
@@ -121,13 +119,13 @@ namespace sakuraE::IR {
             return parent;
         }
 
-        IRType* getReturnType() {
-            return returnType;
+        TypeInfo* getReturnType() const {
+            const auto* signature = getFunctionTypeInfo();
+            return signature ? signature->getReturnType() : nullptr;
         }
 
         TypeInfo* getSemanticReturnType() const {
-            const auto* signature = getFunctionTypeInfo();
-            return signature ? signature->getReturnType() : nullptr;
+            return getReturnType();
         }
 
         const std::vector<TypeInfo*>& getSemanticParamTypes() const {
@@ -136,17 +134,12 @@ namespace sakuraE::IR {
             return signature ? signature->getArgTypes() : empty;
         }
 
-        std::vector<IRType*> getParamsOnlyType() {
-            std::vector<IRType*> result;
-            for (auto param: formalParams) {
-                result.push_back(param.second);
-            }
-
-            return result;
+        const std::vector<TypeInfo*>& getParamsOnlyType() const {
+            return getSemanticParamTypes();
         }
 
         IRValue* buildBlock(fzlib::String id, std::vector<Instruction*> ops) {
-            Block* block = new Block(id, ops);
+            Block* block = new Block(id, controlType(), std::move(ops));
             block->setName(id);
             block->setParent(this);
             blocks.push_back(block);
@@ -156,7 +149,7 @@ namespace sakuraE::IR {
         }
 
         IRValue* buildBlock(fzlib::String id) {
-            Block* block = new Block(id);
+            Block* block = new Block(id, controlType());
             block->setName(id);
             block->setParent(this);
             blocks.push_back(block);
@@ -197,8 +190,13 @@ namespace sakuraE::IR {
             return funcScope;
         }
 
-        const FormalParamsDefine& getFormalParams() const {
-            return formalParams;
+        FormalParamsDefine getFormalParams() const {
+            FormalParamsDefine result;
+            const auto& types = getSemanticParamTypes();
+            for (std::size_t i = 0; i < formalParamNames.size(); ++i) {
+                result.emplace_back(formalParamNames[i], types.at(i));
+            }
+            return result;
         }
 
         long& cur() {
@@ -215,6 +213,7 @@ namespace sakuraE::IR {
 
         fzlib::String toString() {
             fzlib::String result = "func " + name + "(";
+            const auto formalParams = getFormalParams();
             for (std::size_t i = 0; i < formalParams.size(); i ++) {
                 auto arg = formalParams[i];
                 if (i == formalParams.size() - 1)
@@ -222,7 +221,7 @@ namespace sakuraE::IR {
                 else
                     result += arg.first + ": " + arg.second->toString() + ", ";
             }
-            result += ") -> " + returnType->toString() + " {";
+            result += ") -> " + (getReturnType() ? getReturnType()->toString() : "<undeclared>") + " {";
 
             for (auto block: blocks) {
                 result += block->toString();

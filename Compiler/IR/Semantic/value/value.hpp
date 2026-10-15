@@ -1,7 +1,6 @@
 #ifndef SAKURAE_VALUE_HPP
 #define SAKURAE_VALUE_HPP
 
-#include "Compiler/IR/Backend/type/type.hpp"
 #include "Compiler/IR/Semantic/type/type_info.hpp"
 #include <string>
 #include <memory>
@@ -12,17 +11,10 @@ namespace sakuraE::IR {
     class IRValue {
     protected:
         TypeInfo* semanticType = nullptr;   // 实际在Semantic处理阶段中使用的type
-        IRType* storageType = nullptr;      // lowering 目标，仅作储存用
         fzlib::String name;                 // 值的别名
     public:
         explicit IRValue(TypeInfo* seType = nullptr, fzlib::String valueName = {})
-        : semanticType(seType), storageType(nullptr), name(std::move(valueName)) {}
-
-        explicit IRValue(IRType* storage, fzlib::String valueName = {})
-        : semanticType(nullptr), storageType(storage), name(std::move(valueName)) {}
-
-        IRValue(IRType* storage, TypeInfo* seType, fzlib::String valueName = {})
-        : semanticType(seType), storageType(storage), name(std::move(valueName)) {}
+        : semanticType(seType), name(std::move(valueName)) {}
 
         virtual ~IRValue() = default;
 
@@ -41,18 +33,6 @@ namespace sakuraE::IR {
 
         void setSemanticType(TypeInfo* newTypeInfo) {
             semanticType = newTypeInfo;
-        }
-
-        IRType* getStorageType() const {
-            return storageType;
-        }
-
-        IRType* getType() const {
-            return storageType;
-        }
-
-        void setStorageType(IRType* newType) {
-            storageType = newType;
         }
 
     };

@@ -30,14 +30,12 @@ namespace sakuraE::IR {
             const auto declareRuntime = [&](fzlib::String name, TypeInfo* resultType,
                                             std::vector<std::pair<fzlib::String, TypeInfo*>> parameters,
                                             PositionInfo declarationInfo) {
-                FormalParamsDefine storageParameters;
-                std::vector<TypeInfo*> semanticParameters;
+                auto irName = name;
                 for (const auto& parameter : parameters) {
-                    storageParameters.emplace_back(parameter.first, lowering().lowerType(parameter.second));
-                    semanticParameters.push_back(parameter.second);
+                    // IR 名称依据语义类型生成；实际 runtime linkage 使用原始名称。
+                    irName += "_" + parameter.second->toString();
                 }
-                runtimeMod->declareRuntimeFunction(name, lowering().lowerType(resultType), storageParameters,
-                                                   declarationInfo, semanticParameters, resultType);
+                runtimeMod->declareRuntimeFunction(irName, name, resultType, std::move(parameters), declarationInfo);
             };
 
             declareRuntime(
@@ -271,7 +269,7 @@ namespace sakuraE::IR {
         }
 
         void reset() {
-            loweringSession.reset();
+            // Codegen 重置遍历游标时仍需复用函数签名 lowering 所属的持久 Session。
             cursor = 0;
             for (auto mod: moduleList) {
                 mod->reset();

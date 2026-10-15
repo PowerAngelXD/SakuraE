@@ -4,7 +4,6 @@
 #include "Compiler/Error/error.hpp"
 #include "Compiler/IR/Backend/context/context.hpp"
 #include "Compiler/IR/Semantic/model/scope.hpp"
-#include "Compiler/IR/Backend/type/type.hpp"
 #include "function.hpp"
 #include <map>
 #include <cstring>
@@ -49,41 +48,28 @@ namespace sakuraE::IR {
             return program;
         }
 
-        IRValue* buildFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info,
-                               std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr) {
-            Function* func = new Function(name, retType, params, info,
-                                          std::move(semanticParams), semanticReturn);
+        IRValue* buildFunction(fzlib::String name, TypeInfo* retType, FormalParamsDefine params, PositionInfo info) {
+            Function* func = new Function(name, retType, std::move(params), info);
             func->setName(name);
             func->buildBlock("entry");
             func->setParent(this);
             fnList.push_back(func);
             cursor = fnList.size() - 1;
 
-            std::vector<IRType *> tParams;
-            for (auto param: params) {
-                tParams.push_back(param.second);
-            }
-            moduleScope.declare(name, func, IRType::getFunctionTy(retType, tParams));
+            moduleScope.declare(name, func, func->getSemanticType());
 
             func->fnScope().setParent(&moduleScope);
             return func;
         }
 
-        IRValue* declareRuntimeFunction(fzlib::String name, IRType* retType, FormalParamsDefine params, PositionInfo info,
-                                       std::vector<TypeInfo*> semanticParams = {}, TypeInfo* semanticReturn = nullptr) {
-            Function* func = new Function(name, name, retType, params, info);
-            if (semanticReturn) func->setFunctionType(semanticReturn->getContext().typeInfoPool().makeFunctionTypeID(semanticReturn, std::move(semanticParams)));
+        IRValue* declareRuntimeFunction(fzlib::String name, fzlib::String rawName, TypeInfo* retType,
+                                       FormalParamsDefine params, PositionInfo info) {
+            Function* func = new Function(name, std::move(rawName), retType, std::move(params), info);
             func->setParent(this);
             fnList.push_back(func);
             cursor = fnList.size() - 1;
 
-            std::vector<IRType *> tParams;
-            for (auto param: params) {
-                tParams.push_back(param.second);
-                name += "_" + param.second->toString();
-            }
-            func->setName(name);
-            moduleScope.declare(name, func, IRType::getFunctionTy(retType, tParams));
+            moduleScope.declare(name, func, func->getSemanticType());
 
             func->fnScope().setParent(&moduleScope);
             return func;
@@ -148,11 +134,12 @@ namespace sakuraE::IR {
 
             for (auto& fn: basic_results) {
                 bool equal = true;
+                const auto formalParams = fn->getFormalParams();
 
-                if (fn->getFormalParams().size() != params.size()) continue;
+                if (formalParams.size() != params.size()) continue;
 
-                for (std::size_t i = 0; i < fn->getFormalParams().size(); i ++) {
-                    auto arg = fn->getFormalParams()[i];
+                for (std::size_t i = 0; i < formalParams.size(); i ++) {
+                    const auto& arg = formalParams[i];
                     if (arg.first == params[i].first &&
                         arg.second == params[i].second) continue;
                     else equal = false;
@@ -181,7 +168,7 @@ namespace sakuraE::IR {
                     ? name == rawName
                     : (name.len() > prefix.len() &&
                        std::strncmp(name.c_str(), prefix.c_str(), prefix.len()) == 0);
-                if (sameName && fn->getFormalParams().size() == arity) {
+                if (sameName && fn->getSemanticParamTypes().size() == arity) {
                     result.push_back(fn);
                 }
             }

@@ -16,6 +16,7 @@ namespace sakuraE::IR {
     class IRContext;
     class TypeInfo;
     class Constant;
+    class TypeInfoContext;
 
     struct StructDeclId {
         fzlib::String module;
@@ -160,6 +161,8 @@ namespace sakuraE::IR {
     public:
         ~TypeInfo() = default;
 
+        fzlib::String toString() const;
+
         bool isArray() const { return typeID == Array; }
         bool isPointer() const { return typeID == Pointer; }
         bool isRef() const { return typeID == Ref; }
@@ -169,6 +172,7 @@ namespace sakuraE::IR {
             return !isArray() && !isPointer() && !isRef() && !isStruct() && !isFunction();
         }
         IRContext& getContext() const { return context; }
+        TypeInfoContext& getTypeContext() const;
         const FunctionTypeInfo* getFunctionTypeInfo() const {
             return isFunction() ? &std::get<FunctionTypeInfo>(complexTypeInfo) : nullptr;
         }

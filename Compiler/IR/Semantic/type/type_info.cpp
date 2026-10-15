@@ -3,6 +3,47 @@
 #include "Compiler/IR/Backend/context/context.hpp"
 
 namespace sakuraE::IR {
+    TypeInfoContext& TypeInfo::getTypeContext() const {
+        return context.typeInfoPool();
+    }
+
+    fzlib::String TypeInfo::toString() const {
+        const auto* type = this;
+        if (type->isNullable()) return type->getBase()->toString() + "?";
+        if (type->isPointer()) return type->getPointeeType()->toString() + "*";
+        if (type->isRef()) return type->getPointeeType()->toString() + "&";
+        if (type->isArray()) {
+            const auto& array = std::get<ArrayTypeInfo>(type->getComplexTypeInfo());
+            return array.getElementTy()->toString() + "[" + std::to_string(array.length()) + "]";
+        }
+        if (type->isStruct()) {
+            const auto& id = *type->getStructDeclId();
+            return id.module + ".struct#" + std::to_string(id.localId);
+        }
+        if (const auto* signature = type->getFunctionTypeInfo()) {
+            fzlib::String result = "func(";
+            for (std::size_t i = 0; i < signature->getArgCount(); ++i) {
+                if (i) result += ", ";
+                result += signature->getArgTypes()[i]->toString();
+            }
+            return result + ") -> " + signature->getReturnType()->toString();
+        }
+        switch (type->getTypeID()) {
+            case TypeID::Int32: return "i32";
+            case TypeID::Int64: return "i64";
+            case TypeID::UInt32: return "ui32";
+            case TypeID::UInt64: return "ui64";
+            case TypeID::Float32: return "f32";
+            case TypeID::Float64: return "f64";
+            case TypeID::Bool: return "bool";
+            case TypeID::Char: return "char";
+            case TypeID::String: return "string";
+            case TypeID::Void: return "void";
+            case TypeID::TypeDescriptor: return "typeinfo";
+            default: throw std::invalid_argument("Unsupported semantic type");
+        }
+    }
+
     bool isAssignableTo(const TypeInfo* source, const TypeInfo* target) {
         if (!source || !target) return false;
         if (source == target) return true;

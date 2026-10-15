@@ -5,7 +5,6 @@
 #include "Compiler/IR/Semantic/model/function.hpp"
 #include "Compiler/IR/Semantic/model/instruction.hpp"
 #include "Compiler/IR/Semantic/model/scope.hpp"
-#include "Compiler/IR/Backend/type/type.hpp"
 #include "Compiler/IR/Semantic/type/type_info.hpp"
 #include "Compiler/IR/Semantic/value/array.hpp"
 #include "Compiler/IR/Semantic/value/constant.hpp"
@@ -83,14 +82,13 @@ namespace sakuraE::IR {
                 token.info);
         }
 
-        auto literal = Constant::getFromToken(token);
+        auto literal = Constant::getFromToken(token, getTypeInfoContext());
         auto semanticType = semanticTypeOf(literal);
 
         return curFunc()
             ->curBlock()
             ->createInstruction(
                 OpKind::constant,
-                lowerStorageType(semanticType),
                 semanticType,
                 {literal},
                 "const." + literal->toString()
@@ -112,10 +110,9 @@ namespace sakuraE::IR {
                               "null can only initialize a nullable struct or array type.", info);
         }
 
-        auto* constant = Constant::getNullHandle(lowerStorageType(targetType), info);
+        auto* constant = Constant::getNullHandle(targetType, info);
         return curFunc()->curBlock()->createInstruction(
             OpKind::constant,
-            lowerStorageType(targetType),
             targetType,
             {constant},
             "null"
@@ -151,7 +148,7 @@ namespace sakuraE::IR {
             throw SakuraError(OccurredTerm::IR_GENERATING, "Cannot index this semantic type.", node->getPosInfo());
         }
         return curFunc()->curBlock()->createInstruction(
-            OpKind::indexing, lowerStorageType(element), element, {addr, indexValue}, "indexing." + addr->getName());
+            OpKind::indexing, element, {addr, indexValue}, "indexing." + addr->getName());
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args) {
@@ -173,7 +170,7 @@ namespace sakuraE::IR {
         }
         auto* result = signature->getReturnType();
         return curFunc()->curBlock()->createInstruction(
-            OpKind::call, lowerStorageType(result), result, args, "call." + addr->getName());
+            OpKind::call, result, args, "call." + addr->getName());
     }
 
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node) {
@@ -279,9 +276,8 @@ namespace sakuraE::IR {
                 ->curBlock()
                 ->createInstruction(
                     OpKind::gmem,
-                    lowerStorageType(resultSemanticTy),
                     resultSemanticTy,
-                    {resultAddr, Constant::get(name, (*chain[i])[ASTTag::Identifier]->getToken().info)},
+                    {resultAddr, Constant::get(name, getTypeInfoContext(), (*chain[i])[ASTTag::Identifier]->getToken().info)},
                     "gmem." + name
                 );
 
@@ -313,7 +309,6 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::lgc_not,
-                            lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
                             program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                             {resultValue},
                             "lgc_not." + resultValue->getName()
@@ -327,9 +322,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::add,
-                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
-                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
-                            {resultValue, Constant::get(1)},
+                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1, getTypeInfoContext())),
+                            {resultValue, Constant::get(1, getTypeInfoContext())},
                             "add"
                         );
 
@@ -342,9 +336,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::sub,
-                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
-                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
-                            {resultValue, Constant::get(1)},
+                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1, getTypeInfoContext())),
+                            {resultValue, Constant::get(1, getTypeInfoContext())},
                             "sub"
                         );
 
@@ -359,7 +352,6 @@ namespace sakuraE::IR {
                                 ->curBlock()
                                 ->createInstruction(
                                     OpKind::gaddr,
-                                    lowerStorageType(program.getContext().typeInfoPool().makePointerTypeID(resultAddr->getSemanticType())),
                                     program.getContext().typeInfoPool().makePointerTypeID(resultAddr->getSemanticType()),
                                     {resultAddr},
                                     "gaddr." + resultAddr->getName()
@@ -379,7 +371,6 @@ namespace sakuraE::IR {
                                 ->curBlock()
                                 ->createInstruction(
                                     OpKind::gaddr,
-                                    lowerStorageType(program.getContext().typeInfoPool().makeRefTypeID(resultAddr->getSemanticType())),
                                     program.getContext().typeInfoPool().makeRefTypeID(resultAddr->getSemanticType()),
                                     {resultAddr},
                                     "gaddr.ref." + resultAddr->getName()
@@ -408,7 +399,6 @@ namespace sakuraE::IR {
                                 ->curBlock()
                                 ->createInstruction(
                                     OpKind::deref,
-                                    lowerStorageType(pointee),
                                     pointee,
                                     {load},
                                     "deref." + load->getName()
@@ -435,9 +425,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::add,
-                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
-                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
-                            {resultValue, Constant::get(1)},
+                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1, getTypeInfoContext())),
+                            {resultValue, Constant::get(1, getTypeInfoContext())},
                             "add"
                         );
 
@@ -451,9 +440,8 @@ namespace sakuraE::IR {
                         ->curBlock()
                         ->createInstruction(
                             OpKind::sub,
-                            lowerStorageType(handleUnlogicalBinaryCalc(resultAddr, Constant::get(1))),
-                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1)),
-                            {resultValue, Constant::get(1)},
+                            handleUnlogicalBinaryCalc(resultAddr, Constant::get(1, getTypeInfoContext())),
+                            {resultValue, Constant::get(1, getTypeInfoContext())},
                             "sub"
                         );
 
@@ -487,12 +475,11 @@ namespace sakuraE::IR {
                 curBlock()->
                 createInstruction(
                     OpKind::_sizeof,
-                    lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64)),
                     program.getContext().typeInfoPool().makeBasicTypeID(TypeID::UInt64),
                     {},
                     "sizeof"
                 );
-            static_cast<Instruction*>(sizeofValue)->setTypeOperand(lowerStorageType(argType));
+            static_cast<Instruction*>(sizeofValue)->setTypeOperand(argType);
             return sizeofValue;
         }
 
@@ -514,7 +501,6 @@ namespace sakuraE::IR {
                 curBlock()->
                 createInstruction(
                     OpKind::_typeof,
-                    lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::TypeDescriptor)),
                     program.getContext().typeInfoPool().makeBasicTypeID(TypeDescriptor),
                     args,
                     "typeof"
@@ -561,7 +547,7 @@ namespace sakuraE::IR {
                     case TokenType::MUL: {
                         lhs = curFunc()
                             ->curBlock()
-                            ->createInstruction(OpKind::mul, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                            ->createInstruction(OpKind::mul,
                                                 handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "mul");
                         break;
@@ -569,7 +555,7 @@ namespace sakuraE::IR {
                     case TokenType::DIV: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::div, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                ->createInstruction(OpKind::div,
                                                 handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "div");
                         break;
@@ -577,7 +563,7 @@ namespace sakuraE::IR {
                     case TokenType::MOD: {
                         lhs = curFunc()
                                 ->curBlock()
-                                ->createInstruction(OpKind::mod, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                                ->createInstruction(OpKind::mod,
                                                 handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "mod");
                         break;
@@ -607,7 +593,7 @@ namespace sakuraE::IR {
                     case TokenType::ADD: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::add, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                            ->createInstruction(OpKind::add,
                                                 handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "add");
                         break;
@@ -615,7 +601,7 @@ namespace sakuraE::IR {
                     case TokenType::SUB: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::sub, lowerStorageType(handleUnlogicalBinaryCalc(lhs, rhs)),
+                            ->createInstruction(OpKind::sub,
                                                 handleUnlogicalBinaryCalc(lhs, rhs),
                                                 {lhs, rhs}, "sub");
                         break;
@@ -645,7 +631,7 @@ namespace sakuraE::IR {
                     case TokenType::LGC_LS_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_ls_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            ->createInstruction(OpKind::lgc_ls_than,
                                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_ls_than");
                         break;
@@ -653,7 +639,7 @@ namespace sakuraE::IR {
                     case TokenType::LGC_LSEQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_eq_ls_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            ->createInstruction(OpKind::lgc_eq_ls_than,
                                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_eq_ls_than");
                         break;
@@ -661,7 +647,7 @@ namespace sakuraE::IR {
                     case TokenType::LGC_MR_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_mr_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            ->createInstruction(OpKind::lgc_mr_than,
                                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_mr_than");
                         break;
@@ -669,7 +655,7 @@ namespace sakuraE::IR {
                     case TokenType::LGC_MREQU_THAN: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_eq_mr_than, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            ->createInstruction(OpKind::lgc_eq_mr_than,
                                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_eq_mr_than");
                         break;
@@ -677,7 +663,7 @@ namespace sakuraE::IR {
                     case TokenType::LGC_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_equal, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            ->createInstruction(OpKind::lgc_equal,
                                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_equal");
                         break;
@@ -685,7 +671,7 @@ namespace sakuraE::IR {
                     case TokenType::LGC_NOT_EQU: {
                         lhs = curFunc()
                                 ->curBlock()
-                            ->createInstruction(OpKind::lgc_not_equal, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+                            ->createInstruction(OpKind::lgc_not_equal,
                                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                                 {lhs, rhs}, "lgc_not_equal");
                         break;
@@ -710,7 +696,7 @@ namespace sakuraE::IR {
         static int binaryID = 0;
         fzlib::String resultAddrName = "tbv." + std::to_string(binaryID);
         binaryID ++;
-        IRValue* resultAddr = createAlloca(resultAddrName, lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool)),
+        IRValue* resultAddr = createAlloca(resultAddrName,
                                            program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                            lhs, node->getPosInfo());
 
@@ -774,7 +760,7 @@ namespace sakuraE::IR {
         }
         return curFunc()
                         ->curBlock()
-                        ->createInstruction(OpKind::load, lowerStorageType(resultAddr->getSemanticType()),
+                        ->createInstruction(OpKind::load,
                                             resultAddr->getSemanticType(),
                                             {resultAddr}, "load." + resultAddrName);
     }
@@ -803,7 +789,6 @@ namespace sakuraE::IR {
         return curFunc()
                     ->curBlock()
                     ->createInstruction(OpKind::create_array,
-                                         lowerStorageType(program.getContext().typeInfoPool().makeArrayTypeID(head->getSemanticType(), rawArray.size())),
                                          program.getContext().typeInfoPool().makeArrayTypeID(head->getSemanticType(), rawArray.size()),
                                          {arrConstant},
                                         "create-array");
@@ -827,7 +812,6 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::add,
-                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "add"
@@ -841,7 +825,6 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::sub,
-                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "sub"
@@ -855,7 +838,6 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::mul,
-                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "mul"
@@ -869,7 +851,6 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::div,
-                        lowerStorageType(handleUnlogicalBinaryCalc(resultValue, value)),
                         handleUnlogicalBinaryCalc(resultValue, value),
                         {resultValue, value},
                         "div"
@@ -905,7 +886,6 @@ namespace sakuraE::IR {
         return curFunc()
             ->curBlock()
             ->createInstruction(OpKind::constant,
-                                lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::TypeDescriptor)),
                                 program.getContext().typeInfoPool().makeBasicTypeID(TypeDescriptor),
                                 {Constant::get(getTypeInfoFromNode(node))},
                                 "constant");
@@ -940,8 +920,7 @@ namespace sakuraE::IR {
         TypeInfo* semanticType = declaredSemanticType
             ? declaredSemanticType
             : (initVal ? initVal->getSemanticType() : nullptr);
-        IRType* allocaTy = lowerStorageType(semanticType);
-        return createAlloca(identifier.content, allocaTy, semanticType, initVal, node->getPosInfo());
+        return createAlloca(identifier.content, semanticType, initVal, node->getPosInfo());
     }
 
     IRValue* IRGenerator::visitExprStmtNode(NodePtr node) {
@@ -959,7 +938,7 @@ namespace sakuraE::IR {
             curFunc()
                 ->block(beforeBlock)
                 ->createInstruction(OpKind::br,
-                                    lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Void)),
+                                    program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Void),
                                     {block},
                                     "br." + blockName);
         }
@@ -1148,9 +1127,8 @@ namespace sakuraE::IR {
         static int repeat_counter = 1;
         IRValue* counter = createAlloca(
             "$repeat_counter." + std::to_string(repeat_counter),
-            lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32)),
             program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Int32),
-            Constant::get((int)0), node->getPosInfo()
+            Constant::get((int)0, getTypeInfoContext()), node->getPosInfo()
         );
         IRValue* limitValue = visitWholeExprNode((*node)[ASTTag::HeadExpr]);
         int prepareBlockExitIndex = curFunc()->cur();
@@ -1163,7 +1141,6 @@ namespace sakuraE::IR {
             ->curBlock()
             ->createInstruction(
                 OpKind::lgc_ls_than,
-                lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(Bool)),
                 program.getContext().typeInfoPool().makeBasicTypeID(Bool),
                 {counterLoadVal, limitValue},
                 "lgc_ls_than"
@@ -1182,9 +1159,8 @@ namespace sakuraE::IR {
             ->curBlock()
             ->createInstruction(
                 OpKind::add,
-                lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(Int32)),
                 program.getContext().typeInfoPool().makeBasicTypeID(Int32),
-                {counterLoadVal, Constant::get((int)1)},
+                {counterLoadVal, Constant::get((int)1, getTypeInfoContext())},
                 "add"
             );
         createStore(counter, stepValue, node->getPosInfo());
@@ -1272,7 +1248,6 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createInstruction(
                         OpKind::lgc_equal,
-                        lowerStorageType(program.getContext().typeInfoPool().makeBasicTypeID(Bool)),
                         program.getContext().typeInfoPool().makeBasicTypeID(Bool),
                         {idenValue, targetValue},
                         "lgc_equal"
@@ -1333,7 +1308,6 @@ namespace sakuraE::IR {
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
         TypeInfo* semanticReturnType = getTypeInfoFromNode((*node)[ASTTag::Type]);
-        IRType* retType = lowerStorageType(semanticReturnType);
         FormalParamsDefine params;
         std::vector<TypeInfo*> paramSemanticTypes;
 
@@ -1342,24 +1316,21 @@ namespace sakuraE::IR {
             auto nameList = (*node)[ASTTag::Args]->getChildren()[1];
             for (std::size_t i = 0; i < typeList->getChildren().size(); i ++) {
                 auto tyInfo = getTypeInfoFromNode(typeList->getChildren()[i]);
-                IRType* argType = lowerStorageType(tyInfo);
                 paramSemanticTypes.push_back(tyInfo);
                 fzlib::String argName = nameList->getChildren()[i]->getToken().content;
 
-                params.push_back(std::make_pair<fzlib::String, IRType*>(std::move(argName), std::move(argType)));
+                params.emplace_back(std::move(argName), tyInfo);
             }
         }
 
         fnName = mangleFnName(fnName, paramSemanticTypes);
-        IRValue* fn = curModule()->buildFunction(
-            fnName, retType, params, node->getPosInfo(),
-            paramSemanticTypes, semanticReturnType);
+        IRValue* fn = curModule()->buildFunction(fnName, semanticReturnType, params, node->getPosInfo());
         long initBlockIndex = curFunc()->cur();
 
         if (node->hasNode(ASTTag::Args)) {
             for (std::size_t i = 0; i < params.size(); ++i) {
                 auto& arg = params[i];
-                createParam(arg.first, arg.second, paramSemanticTypes[i], node->getPosInfo());
+                createParam(arg.first, arg.second, node->getPosInfo());
             }
         }
 
@@ -1370,9 +1341,6 @@ namespace sakuraE::IR {
                 (*node)[ASTTag::Type]->getPosInfo()
             );
         }
-
-        curFunc()->setFuncDefineInfo(
-            params, retType, paramSemanticTypes, semanticReturnType);
 
         visitBlockStmtNode((*node)[ASTTag::Block], "fn." + fnName, initBlockIndex);
 
@@ -1425,7 +1393,7 @@ namespace sakuraE::IR {
                             "null can only default-initialize a nullable struct or array member.",
                             defaultExpr->getPosInfo());
                     }
-                    defaultValue = Constant::getNullHandle(lowerStorageType(info.type), defaultExpr->getPosInfo());
+                    defaultValue = Constant::getNullHandle(info.type, defaultExpr->getPosInfo());
                 }
 
                 if (info.type->getBase()->isBasic() && info.type->getBase()->getTypeID() == TypeID::Void) {
