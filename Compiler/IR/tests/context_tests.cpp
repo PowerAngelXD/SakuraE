@@ -149,6 +149,7 @@ void testStructLoweringLifecycle() {
     assert(firstLowering.lowerType(retryInfo) == retryType);
     assert(retryType->isComplete());
     assert(retryType->findMember("missing").has_value());
+    assert(rejects([&] { firstLowering.lowerType(nullptr); }));
 
     names.declareOpaqueStruct("Atomic", definitionInfo);
     assert(names.lookupStructType("Atomic") == nullptr);
