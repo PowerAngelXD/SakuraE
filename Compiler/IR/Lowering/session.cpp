@@ -5,7 +5,7 @@
 #include <functional>
 
 namespace sakuraE::IR {
-    void LoweringSession::validateStructLayout(const StructDeclId& id) const {
+    void LoweringSession::validateStruct(const StructDeclId& id) const {
         std::set<StructDeclId> visiting;
         std::set<StructDeclId> visited;
         std::function<void(const TypeInfo*)> visitType;
@@ -92,31 +92,38 @@ namespace sakuraE::IR {
     }
 
     IRType *LoweringSession::lowerType(const TypeInfo *tyInfo) {
-        if (&tyInfo->getContext() != &irContext) {
-            throw std::runtime_error("TypeInfo does not belong to this LoweringSession's IRContext");
+        PendingLowering pending;
+        auto* result = lowerTypeSafer(tyInfo, pending);
+        // 本次转换未遇到未完成的结构体声明时，整张类型图已稳定，可以写入缓存；
+        // 否则保留重新转换的机会，以便语义声明完成后在同一类型对象上补齐布局。
+        if (!pending.opaqueStruct) {
+            typeMap.insert(pending.results.begin(), pending.results.end());
         }
+        return result;
+    }
 
+    IRType *LoweringSession::lowerTypeSafer(const TypeInfo *tyInfo, PendingLowering& pending) {
         if (!tyInfo) {
             throw std::runtime_error("cannot give a null typeinfo to lowering");
         }
-        if (!tyInfo->isArray() && !tyInfo->isPointer() && !tyInfo->isRef()
-            && !tyInfo->isStruct() && !tyInfo->isFunction()) {
-            if (const auto it = typeMap.find(tyInfo); it != typeMap.end()) return it->second;
+        if (&tyInfo->getContext() != &irContext) {
+            throw std::runtime_error("TypeInfo does not belong to this LoweringSession's IRContext");
         }
+        if (const auto it = typeMap.find(tyInfo); it != typeMap.end()) return it->second;
 
         IRType* result = nullptr;
 
         if (tyInfo->isArray()) {
             const auto& arrayType = std::get<ArrayTypeInfo>(tyInfo->getComplexTypeInfo());
-            result = irContext.getArrayTy(lowerType(arrayType.getElementTy()), arrayType.length());
+            result = irContext.getArrayTy(lowerTypeSafer(arrayType.getElementTy(), pending), arrayType.length());
         }
         else if (tyInfo->isPointer()) {
             const auto& pointeeType = std::get<PointerTypeInfo>(tyInfo->getComplexTypeInfo()).getElementTy();
-            result = irContext.getPointerTo(lowerType(pointeeType));
+            result = irContext.getPointerTo(lowerTypeSafer(pointeeType, pending));
         }
         else if (tyInfo->isRef()) {
             const auto& refType = std::get<RefTypeInfo>(tyInfo->getComplexTypeInfo()).getElementTy();
-            result = irContext.getRefTo(lowerType(refType));
+            result = irContext.getRefTo(lowerTypeSafer(refType, pending));
         }
         else if (tyInfo->isStruct()) {
             const auto& structDecl = std::get<StructTypeInfo>(tyInfo->getComplexTypeInfo()).getDeclId();
@@ -129,8 +136,13 @@ namespace sakuraE::IR {
             if (!owner) throw std::runtime_error("Semantic struct declaration has no NamingContext");
             auto* lowered = owner->getStructTy(irContext, structDecl);
             structMap.try_emplace(structDecl, lowered);
-            if (!declaration->isComplete() || fillingStructs.contains(structDecl)) return lowered;
-            validateStructLayout(structDecl);
+            if (!declaration->isComplete()) {
+                pending.opaqueStruct = true;
+                return lowered;
+            }
+            // 正在填充的结构体是递归回边，外层调用完成后其布局即完整
+            if (fillingStructs.contains(structDecl)) return lowered;
+            validateStruct(structDecl);
 
             fillingStructs.insert(structDecl);
             try {
@@ -139,7 +151,7 @@ namespace sakuraE::IR {
                 for (const auto& field : declaration->getFields()) {
                     IRStructType::FieldInfo loweredField;
                     loweredField.name = field.name;
-                    loweredField.type = lowerType(field.type);
+                    loweredField.type = lowerTypeSafer(field.type, pending);
                     loweredField.info = field.info;
                     fields.push_back(std::move(loweredField));
                 }
@@ -157,15 +169,15 @@ namespace sakuraE::IR {
 
             std::vector<IRType*> irArgs;
             for (const auto& arg : funcTy.getArgTypes()) {
-                irArgs.push_back(lowerType(arg));
+                irArgs.push_back(lowerTypeSafer(arg, pending));
             }
 
-            result = irContext.getFunctionTy(lowerType(funcTy.getReturnType()), irArgs);
+            result = irContext.getFunctionTy(lowerTypeSafer(funcTy.getReturnType(), pending), irArgs);
         }
         else {
             result = loweringBasicType(tyInfo);
         }
-        typeMap.emplace(tyInfo, result);
+        pending.results.emplace(tyInfo, result);
 
         return result;
     }
