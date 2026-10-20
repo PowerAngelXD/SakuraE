@@ -135,6 +135,7 @@ namespace atri::cmds {
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_pointer")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_pointer), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_reference")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_reference), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_array")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_array), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("__runtime_type_info_struct")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__runtime_type_info_struct), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_alloc")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_collect")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_collect), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__gc_enter_scope")] = { llvm::orc::ExecutorAddr::fromPtr(&sakuraE::runtime::__gc_enter_scope), llvm::JITSymbolFlags::Exported };

@@ -15,6 +15,8 @@ namespace sakuraE::IR {
                 name == "__gc_register" || name == "__gc_register_value" ||
                 name == "__gc_pop" || name == "__gc_get_struct_type" ||
                 name == "__runtime_type_info_basic" || name == "__runtime_type_info_array" ||
+                name == "__runtime_type_info_pointer" || name == "__runtime_type_info_reference" ||
+                name == "__runtime_type_info_struct" ||
                 name == "__runtime_check_array_bounds" || name == "__runtime_array_bounds_error") {
                 return ABIValueKind::Raw;
             }
@@ -23,17 +25,12 @@ namespace sakuraE::IR {
 
         ABIValueKind parameterABI(IRType* type, const fzlib::String& name) {
             if (((name == "create_string" || name == "__gc_register_value") && type->isPointer()) ||
-                name == "__gc_get_struct_type") return ABIValueKind::Raw;
+                name == "__gc_get_struct_type" || name == "__runtime_type_info_struct") return ABIValueKind::Raw;
             return resultABI(type, name);
         }
 
-        bool managedType(IRType* type) {
-            return type->isArray() || (type->isPointer() &&
-                static_cast<IRPointerType*>(type)->getElementType()->getIRTypeID() == IRTypeID::CharTyID);
-        }
-
-        bool rootValue(const IRValue* value, IRType* type) {
-            if (!managedType(type)) return false;
+        bool rootValue(const IRValue* value, const RuntimeTypeDescription& type) {
+            if (!type.managed()) return false;
             const auto* instruction = dynamic_cast<const Instruction*>(value);
             if (!instruction) return true;
             switch (instruction->getKind()) {
@@ -89,6 +86,14 @@ namespace sakuraE::IR {
         return found->second;
     }
 
+    const RuntimeTypeDescription& BackendFunction::runtimeType(const IRValue* value) const {
+        const auto found = runtimeTypes.find(value);
+        if (found == runtimeTypes.end() || !found->second) {
+            throw std::runtime_error("Value has no lowered backend runtime description");
+        }
+        return *found->second;
+    }
+
     bool BackendFunction::tracksRoot(const IRValue* value) const {
         return gcInfo.rootedValues.contains(value);
     }
@@ -124,11 +129,12 @@ namespace sakuraE::IR {
         }
         std::map<fzlib::String, const BackendFunction*> expectedSymbols;
         for (const auto* function : visible) {
-            if (!function->source || !function->signature || !function->returnType ||
+            if (!function->source || !function->signature || !function->returnType || !function->returnRuntimeType ||
                 function->sourceName != function->source->getName() || function->linkageName.len() == 0 ||
                 function->signature->getReturnType() != function->returnType ||
                 function->storageType(function->source) != function->signature ||
                 function->parameters.size() != function->source->getSemanticParamTypes().size() ||
+                function->parameterRuntimeTypes.size() != function->parameters.size() ||
                 function->abi.parameters.size() != function->parameters.size() ||
                 function->gcInfo.parameterRoots.size() != function->parameters.size()) {
                 throw std::runtime_error("Invalid backend function signature or metadata");
@@ -141,15 +147,19 @@ namespace sakuraE::IR {
             for (std::size_t i = 0; i < function->parameters.size(); ++i) {
                 if (!function->parameters[i].second || function->parameters[i].first != function->source->getFormalParamNames()[i] ||
                     function->abi.parameters[i] != parameterABI(function->parameters[i].second, function->source->getRawName()) ||
-                    function->gcInfo.parameterRoots[i] != managedType(function->parameters[i].second)) {
+                    !function->parameterRuntimeTypes[i] ||
+                    function->parameterRuntimeTypes[i]->storage != function->parameters[i].second ||
+                    function->gcInfo.parameterRoots[i] != function->parameterRuntimeTypes[i]->managed()) {
                     throw std::runtime_error("Invalid backend parameter metadata");
                 }
             }
             visitValues(*function->source, [&](const IRValue* value) {
                 auto* type = function->storageType(value);
-                if (function->tracksRoot(value) != rootValue(value, type)) throw std::runtime_error("Invalid backend GC root metadata");
+                const auto& runtimeType = function->runtimeType(value);
+                if (runtimeType.storage != type) throw std::runtime_error("Backend runtime and storage types disagree");
+                if (function->tracksRoot(value) != rootValue(value, runtimeType)) throw std::runtime_error("Invalid backend GC root metadata");
                 if (const auto* instruction = dynamic_cast<const Instruction*>(value)) {
-                    if (function->rootsSlot(value) != (instruction->getKind() == OpKind::create_alloca && managedType(type))) {
+                    if (function->rootsSlot(value) != (instruction->getKind() == OpKind::create_alloca && runtimeType.managed())) {
                         throw std::runtime_error("Invalid backend GC slot metadata");
                     }
                     if (instruction->getKind() == OpKind::_sizeof &&
@@ -157,14 +167,17 @@ namespace sakuraE::IR {
                         throw std::runtime_error("Backend sizeof is missing its lowered type operand");
                     }
                 }
-                if (const auto* constant = dynamic_cast<const Constant*>(value);
-                    constant && constant->getTypePayload() &&
-                    (!function->typeOperands.contains(value) || !function->typeOperands.at(value))) {
-                    throw std::runtime_error("Backend descriptor is missing its lowered type payload");
+                if (dynamic_cast<const Constant*>(value)) {
+                    const auto kind = function->constants.find(value);
+                    if (kind == function->constants.end()) throw std::runtime_error("Backend constant kind is missing");
+                    if (kind->second == ConstantKind::Descriptor &&
+                        (!function->typeOperands.contains(value) || !function->typeOperands.at(value))) {
+                        throw std::runtime_error("Backend descriptor is missing its lowered runtime description");
+                    }
                 }
             });
             for (const auto& [value, type] : function->typeOperands) {
-                if (!type || !function->valueTypes.contains(value)) throw std::runtime_error("Invalid backend type operand table");
+                if (!type || !type->storage || !function->valueTypes.contains(value)) throw std::runtime_error("Invalid backend type operand table");
             }
             for (const auto* value : function->gcInfo.rootedValues) {
                 if (!function->valueTypes.contains(value)) throw std::runtime_error("Invalid backend GC root table");
@@ -254,6 +267,90 @@ namespace sakuraE::IR {
         return result + "}";
     }
 
+    ConstantKind LoweringSession::lowerConstantKind(const Constant& constant) const {
+        if (constant.isNullHandle()) return ConstantKind::Null;
+        switch (constant.getSemanticType()->getTypeID()) {
+            case TypeID::Char: return ConstantKind::I8;
+            case TypeID::Int32: return ConstantKind::I32;
+            case TypeID::Int64: return ConstantKind::I64;
+            case TypeID::UInt32: return ConstantKind::U32;
+            case TypeID::UInt64: return ConstantKind::U64;
+            case TypeID::Float32: return ConstantKind::F32;
+            case TypeID::Float64: return ConstantKind::F64;
+            case TypeID::Bool: return ConstantKind::Bool;
+            case TypeID::String: return ConstantKind::String;
+            case TypeID::Array: return ConstantKind::Array;
+            case TypeID::TypeDescriptor: return ConstantKind::Descriptor;
+            default: throw std::runtime_error("Unsupported semantic constant kind for backend lowering");
+        }
+    }
+
+    const RuntimeTypeDescription* LoweringSession::lowerRuntimeType(const TypeInfo* type) {
+        auto* storage = lowerType(type);
+        type = type->getBase();
+        if (const auto found = runtimeTypeMap.find(type); found != runtimeTypeMap.end()) return found->second.get();
+        auto description = std::make_unique<RuntimeTypeDescription>();
+        description->storage = storage;
+        description->representation = ValueRepresentation::Boxed;
+        using Kind = RuntimeDescriptionKind;
+        using Tag = RuntimeValueTag;
+        switch (type->getTypeID()) {
+            case TypeID::Void:
+                description->kind = Kind::Void;
+                description->representation = ValueRepresentation::NonValue;
+                break;
+            case TypeID::Char: description->kind = Kind::I8; description->tag = Tag::I8; break;
+            case TypeID::Int32: description->kind = Kind::I32; description->tag = Tag::I32; break;
+            case TypeID::Int64: description->kind = Kind::I64; description->tag = Tag::I64; break;
+            case TypeID::UInt32: description->kind = Kind::U32; description->tag = Tag::U32; break;
+            case TypeID::UInt64: description->kind = Kind::U64; description->tag = Tag::U64; break;
+            case TypeID::Float32: description->kind = Kind::F32; description->tag = Tag::F32; break;
+            case TypeID::Float64: description->kind = Kind::F64; description->tag = Tag::F64; break;
+            case TypeID::Bool: description->kind = Kind::Bool; description->tag = Tag::Bool; break;
+            case TypeID::String: description->kind = Kind::String; description->tag = Tag::String; break;
+            case TypeID::Pointer:
+                description->kind = Kind::Pointer;
+                description->tag = Tag::Pointer;
+                description->element = lowerRuntimeType(type->getPointeeType());
+                break;
+            case TypeID::Ref:
+                description->kind = Kind::Reference;
+                description->tag = Tag::Pointer;
+                description->representation = ValueRepresentation::Reference;
+                description->element = lowerRuntimeType(type->getPointeeType());
+                break;
+            case TypeID::Array:
+                description->kind = Kind::Array;
+                description->tag = Tag::Array;
+                description->representation = ValueRepresentation::ManagedArray;
+                description->element = lowerRuntimeType(type->getElementType());
+                description->count = std::get<ArrayTypeInfo>(type->getComplexTypeInfo()).length();
+                break;
+            case TypeID::Struct: {
+                description->kind = Kind::Struct;
+                description->tag = Tag::Struct;
+                description->representation = ValueRepresentation::Handle;
+                const auto& id = *type->getStructDeclId();
+                // The current runtime struct factory is nominal and has no field graph API.
+                description->identity = id.module + ":" + std::to_string(id.localId) + ":" +
+                    static_cast<IRStructType*>(storage)->getName();
+                break;
+            }
+            case TypeID::FunctionType:
+                description->kind = Kind::Function;
+                description->representation = ValueRepresentation::NonValue;
+                break;
+            case TypeID::TypeDescriptor:
+                description->kind = Kind::Descriptor;
+                description->tag = Tag::Descriptor;
+                break;
+            default: throw std::runtime_error("Unsupported runtime description kind");
+        }
+        const auto* result = description.get();
+        runtimeTypeMap.emplace(type, std::move(description));
+        return result;
+    }
+
     void LoweringSession::lowerFunctionContents(BackendFunction& function) {
         const auto& source = *function.source;
         function.sourceName = source.getName();
@@ -263,7 +360,9 @@ namespace sakuraE::IR {
         function.signature = dynamic_cast<IRFunctionType*>(lowerType(source.getSemanticType()));
         if (!function.signature) throw std::runtime_error("Backend function requires a function signature");
         function.returnType = lowerType(source.getReturnType());
+        function.returnRuntimeType = lowerRuntimeType(source.getReturnType());
         function.parameters.clear();
+        function.parameterRuntimeTypes.clear();
         function.abi.parameters.clear();
         function.gcInfo.parameterRoots.clear();
         const auto& names = source.getFormalParamNames();
@@ -275,10 +374,14 @@ namespace sakuraE::IR {
             auto* type = lowerType(types[i]);
             function.parameters.emplace_back(names[i], type);
             function.abi.parameters.push_back(parameterABI(type, source.getRawName()));
-            function.gcInfo.parameterRoots.push_back(managedType(type));
+            auto* runtimeType = lowerRuntimeType(types[i]);
+            function.parameterRuntimeTypes.push_back(runtimeType);
+            function.gcInfo.parameterRoots.push_back(runtimeType->managed());
         }
         function.abi.result = resultABI(function.returnType, source.getRawName());
         function.valueTypes.clear();
+        function.runtimeTypes.clear();
+        function.constants.clear();
         function.typeOperands.clear();
         function.gcInfo.rootedValues.clear();
         function.gcInfo.rootedSlots.clear();
@@ -288,19 +391,23 @@ namespace sakuraE::IR {
                     throw std::runtime_error("Backend function references another function's instruction");
                 }
                 if (instruction->getKind() == OpKind::_sizeof) {
-                    function.typeOperands.emplace(value, lowerType(instruction->getTypeOperand()));
+                    function.typeOperands.emplace(value, lowerRuntimeType(instruction->getTypeOperand()));
                 }
             }
             if (const auto* constant = dynamic_cast<const Constant*>(value)) {
-                if (constant->getSemanticType()->getTypeID() == TypeID::TypeDescriptor && !constant->isNullHandle()) {
-                    function.typeOperands.emplace(value, lowerType(constant->getTypePayload()));
+                const auto kind = lowerConstantKind(*constant);
+                function.constants.emplace(value, kind);
+                if (kind == ConstantKind::Descriptor) {
+                    function.typeOperands.emplace(value, lowerRuntimeType(constant->getTypePayload()));
                 }
             }
             auto* type = lowerType(value->getSemanticType());
             function.valueTypes.emplace(value, type);
-            if (rootValue(value, type)) function.gcInfo.rootedValues.insert(value);
+            const auto* runtimeType = lowerRuntimeType(value->getSemanticType());
+            function.runtimeTypes.emplace(value, runtimeType);
+            if (rootValue(value, *runtimeType)) function.gcInfo.rootedValues.insert(value);
             if (const auto* instruction = dynamic_cast<const Instruction*>(value);
-                instruction && instruction->getKind() == OpKind::create_alloca && managedType(type)) {
+                instruction && instruction->getKind() == OpKind::create_alloca && runtimeType->managed()) {
                 function.gcInfo.rootedSlots.insert(value);
             }
         });

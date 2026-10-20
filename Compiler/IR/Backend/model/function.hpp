@@ -2,6 +2,8 @@
 #define SAKURAE_BACKEND_FUNCTION_HPP
 
 #include "includes/String.hpp"
+#include <cstddef>
+#include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -17,6 +19,33 @@ namespace sakuraE::IR {
 
     enum class Linkage { Definition, External };
     enum class ABIValueKind { Void, Raw, Boxed };
+
+    enum class RuntimeDescriptionKind {
+        Void, I8, I32, I64, U32, U64, F32, F64, Bool, String,
+        Pointer, Reference, Array, Struct, Function, Descriptor
+    };
+    enum class RuntimeValueTag : std::uint8_t {
+        I8 = 0, I32 = 1, I64 = 2, U32 = 4, U64 = 5, F32 = 6,
+        F64 = 7, Bool = 8, String = 9, Array = 10, Struct = 11,
+        Pointer = 12, Descriptor = 13, None = 255
+    };
+    enum class ValueRepresentation { Boxed, ManagedArray, Reference, Handle, NonValue };
+    enum class ConstantKind { Null, I8, I32, I64, U32, U64, F32, F64, Bool, String, Array, Descriptor };
+
+    // Session-owned metadata; all edges and BackendFunction references are non-owning.
+    struct RuntimeTypeDescription {
+        RuntimeDescriptionKind kind = RuntimeDescriptionKind::Void;
+        RuntimeValueTag tag = RuntimeValueTag::None;
+        ValueRepresentation representation = ValueRepresentation::NonValue;
+        IRType* storage = nullptr;
+        const RuntimeTypeDescription* element = nullptr;
+        std::uint64_t count = 0;
+        fzlib::String identity;
+
+        bool managed() const {
+            return kind == RuntimeDescriptionKind::String || kind == RuntimeDescriptionKind::Array;
+        }
+    };
 
     struct ABIInfo {
         ABIValueKind result = ABIValueKind::Void;
@@ -42,9 +71,14 @@ namespace sakuraE::IR {
         ABIInfo abi;
         GCInfo gcInfo;
         std::unordered_map<const IRValue*, IRType*> valueTypes;
-        std::unordered_map<const IRValue*, IRType*> typeOperands;
+        std::unordered_map<const IRValue*, const RuntimeTypeDescription*> runtimeTypes;
+        std::unordered_map<const IRValue*, const RuntimeTypeDescription*> typeOperands;
+        std::unordered_map<const IRValue*, ConstantKind> constants;
+        std::vector<const RuntimeTypeDescription*> parameterRuntimeTypes;
+        const RuntimeTypeDescription* returnRuntimeType = nullptr;
 
         IRType* storageType(const IRValue* value) const;
+        const RuntimeTypeDescription& runtimeType(const IRValue* value) const;
         bool tracksRoot(const IRValue* value) const;
         bool rootsSlot(const IRValue* value) const;
     };

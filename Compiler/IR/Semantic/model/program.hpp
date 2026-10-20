@@ -162,6 +162,16 @@ namespace sakuraE::IR {
                 info
             );
 
+            declareRuntime(
+                "__runtime_type_info_struct",
+                types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void)),
+                {
+                    {"name", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Char))},
+                    {"layout", types.makePointerTypeID(types.makeBasicTypeID(TypeID::Void))}
+                },
+                info
+            );
+
             // GC 方法
             declareRuntime(
                 "__gc_alloc",

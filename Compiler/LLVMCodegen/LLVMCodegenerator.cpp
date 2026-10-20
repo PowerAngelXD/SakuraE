@@ -98,9 +98,8 @@ namespace sakuraE::Codegen {
             codegenContext.builder->CreateStore(&arg, argAlloca);
 
             // 参数如果承载的是 GC 托管对象引用，需要在函数入口立即注册进 root stack
-            auto* storageType = irParams[i].second;
             if (backend.gcInfo.parameterRoots.at(i)) {
-                gcRegisterManagedSlot(argAlloca, storageType);
+                gcRegisterManagedSlot(argAlloca, *backend.parameterRuntimeTypes.at(i));
             }
 
             scope.declare(irParams[i].first, argAlloca, nullptr);
@@ -125,13 +124,55 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->SetInsertPoint(&block);
                 auto* boxedZero = codegenContext.boxRaw(
                     codegenContext.builder->getInt32(0),
-                    codegenContext.rootModule.context->getInt32Ty(), this);
+                    *backend.returnRuntimeType, this);
                 codegenContext.builder->CreateRet(boxedZero);
             }
         }
     }
 
     // 指令生成
+    llvm::Value* LLVMCodeGenerator::emitArrayConstant(IR::Constant* constant, LLVMFunction* curFn) {
+        if (curFn->backend.constants.at(constant) != IR::ConstantKind::Array) {
+            throw std::runtime_error("Array emitter requires a lowered array constant");
+        }
+        const auto* irArray = constant->getArrayPayload();
+        if (!irArray) throw std::runtime_error("Array constant has no payload");
+        const auto& type = runtimeType(constant);
+        if (type.representation != IR::ValueRepresentation::ManagedArray || type.count != irArray->getArray().size()) {
+            throw std::runtime_error("Array constant payload does not match its lowered representation");
+        }
+        std::vector<llvm::Value*> arrayContent;
+        arrayContent.reserve(irArray->getArray().size());
+        bool openedTempScope = false;
+        for (auto* element : irArray->getArray()) {
+            auto* elementValue = toLLVMValue(element, curFn);
+            if (auto* slot = llvm::dyn_cast<llvm::AllocaInst>(elementValue)) {
+                elementValue = builder->CreateLoad(slot->getAllocatedType(), slot, "array.elem.load");
+            }
+            if (curFn->shouldTrackAsGCRoot(element)) {
+                if (!openedTempScope) {
+                    curFn->gcEnterScope();
+                    openedTempScope = true;
+                }
+                auto* slot = curFn->createRootedTemporary(elementValue, "gc.array.elem", runtimeType(element));
+                elementValue = builder->CreateLoad(slot->getAllocatedType(), slot, "array.elem.rooted");
+            }
+            arrayContent.push_back(elementValue);
+        }
+        // Managed array payloads hold value/array pointers, never unboxed scalar storage.
+        auto* elementType = builder->getPtrTy();
+        auto* arrayType = llvm::ArrayType::get(elementType, type.count);
+        auto* gcType = curFn->parent->getRuntimeValueArrayGCType(
+            static_cast<uint32_t>(curFn->parent->content->getDataLayout().getTypeAllocSize(elementType)), type.count);
+        auto* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, builder->getInt64(type.count));
+        for (std::size_t i = 0; i < arrayContent.size(); ++i) {
+            auto* slot = builder->CreateGEP(elementType, arrayPtr, {builder->getInt64(i)});
+            builder->CreateStore(arrayContent[i], slot);
+        }
+        if (openedTempScope) curFn->gcLeaveScope();
+        return arrayPtr;
+    }
+
     llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins, LLVMFunction* curFn) {
         llvm::Value* instResult = nullptr;
         if (hasLLVMValue(ins)) return toLLVMValue(ins, curFn);
@@ -139,15 +180,15 @@ namespace sakuraE::Codegen {
         {
             case IR::OpKind::constant: {
                 auto constant = dynamic_cast<IR::Constant*>(ins->arg(0));
-                auto llvmConst = toLLVMConstant(constant, curFn);
-                bind(ins, llvmConst);
-                return toLLVMConstant(constant, curFn);
+                if (!constant) throw std::runtime_error("Constant instruction has no constant operand");
+                instResult = toLLVMConstant(constant, curFn);
+                break;
             }
             case IR::OpKind::add: {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(add(lhs, rhs), storageType(ins), curFn);
+                instResult = boxRaw(add(lhs, rhs), runtimeType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -156,7 +197,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(sub(lhs, rhs), storageType(ins), curFn);
+                instResult = boxRaw(sub(lhs, rhs), runtimeType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -165,7 +206,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(mul(lhs, rhs), storageType(ins), curFn);
+                instResult = boxRaw(mul(lhs, rhs), runtimeType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -174,7 +215,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(div(lhs, rhs), storageType(ins), curFn);
+                instResult = boxRaw(div(lhs, rhs), runtimeType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -183,7 +224,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(mod(lhs, rhs), storageType(ins), curFn);
+                instResult = boxRaw(mod(lhs, rhs), runtimeType(ins), curFn);
 
                 bind(ins, instResult);
                 break;
@@ -197,7 +238,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* lhs = rawValue(ins->arg(0), curFn);
                 llvm::Value* rhs = rawValue(ins->arg(1), curFn);
 
-                instResult = boxRaw(compare(lhs, rhs, storageType(ins->arg(0)), storageType(ins->arg(1)), ins->getKind(), curFn), storageType(ins), curFn);
+                instResult = boxRaw(compare(lhs, rhs, runtimeType(ins->arg(0)), runtimeType(ins->arg(1)), ins->getKind(), curFn), runtimeType(ins), curFn);
                 break;
             }
             case IR::OpKind::create_alloca: {
@@ -232,7 +273,7 @@ namespace sakuraE::Codegen {
                 }
 
                 if (curFn->backend.rootsSlot(ins)) {
-                    curFn->gcRegisterManagedSlot(alloca, storageType(ins));
+                    curFn->gcRegisterManagedSlot(alloca, runtimeType(ins));
                 }
 
                 bind(ins, alloca);
@@ -250,7 +291,9 @@ namespace sakuraE::Codegen {
                         builder->CreateStore(srcVal, destAddr);
                     }
                     else {
-                        builder->CreateStore(unboxRaw(srcVal, storageType(ins->arg(1)), curFn), destAddr);
+                        auto* raw = runtimeType(ins->arg(1)).representation == IR::ValueRepresentation::Boxed
+                            ? unboxRaw(srcVal, storageType(ins->arg(1)), curFn) : srcVal;
+                        builder->CreateStore(raw, destAddr);
                     }
                     bind(ins, srcVal);
                 }
@@ -260,71 +303,16 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::create_array: {
-                auto value = ins->arg(0);
-                auto irArrayConst = dynamic_cast<IR::Constant*>(value);
-                auto irArray = irArrayConst->getContentValue<IR::IRArray*>();
+                auto* constant = dynamic_cast<IR::Constant*>(ins->arg(0));
+                if (!constant) throw std::runtime_error("Array instruction has no constant operand");
+                auto* arrayPtr = emitArrayConstant(constant, curFn);
 
-                std::vector<llvm::Value*> arrayContent;
-                bool openedTempScope = false;
-                for (auto element: irArray->getArray()) {
-                    llvm::Value* elementValue = toLLVMValue(element, curFn);
-
-                    if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(elementValue)) {
-                        llvm::Type* allocatedType = allocaInst->getAllocatedType();
-                        elementValue = builder->CreateLoad(allocatedType, allocaInst, "array.elem.load");
-                    }
-
-                    if (curFn->shouldTrackAsGCRoot(element)) {
-                        if (!openedTempScope) {
-                            curFn->gcEnterScope();
-                            openedTempScope = true;
-                        }
-
-                        auto* rootedSlot = curFn->createRootedTemporary(
-                            elementValue,
-                            "gc.array.elem",
-                            storageType(element));
-                        elementValue = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "array.elem.rooted");
-                    }
-
-                    arrayContent.push_back(elementValue);
-                }
-                /* 完全装箱模式下，数组的每个元素都存储为 RuntimeValue*，与源元素类型无关
-                 * 分配大小和元素寻址都必须使用装箱后的布局
-                 */
-                auto* sourceArrayType = static_cast<IR::IRArrayType*>(storageType(ins));
-                auto arrayType = llvm::ArrayType::get(
-                    llvm::PointerType::getUnqual(*context),
-                    sourceArrayType->getNumElements());
-                auto elementType = arrayType->getArrayElementType();
-
-                /* array 对象的 payload 是实际数组内容，header 中只记录扫描规则与元素个数
-                 * 元素求值阶段先建立临时 root，确保构造数组期间的嵌套对象不会被回收
-                 * 完全装箱模式下数组元素是 RuntimeValue*，GC 必须先检查每个包装对象，
-                 * 再继续追踪其中的 payload
-                 */
-                llvm::Value* gcType = curFn->parent->getRuntimeValueArrayGCType(
-                    static_cast<uint32_t>(curFn->parent->content->getDataLayout().getTypeAllocSize(elementType)),
-                    irArray->getSize());
-                llvm::Value* elemCount = builder->getInt64(irArray->getSize());
-                llvm::Value* arrayPtr = curFn->createHeapAlloc(arrayType, gcType, elemCount);
-
-                for (std::size_t i = 0; i < arrayContent.size(); i ++) {
-                    auto ptr = builder->CreateGEP(elementType,
-                                                            arrayPtr,
-                                                            {builder->getInt32(i)});
-                    builder->CreateStore(arrayContent[i], ptr);
-                }
-
-                if (openedTempScope) {
-                    curFn->gcLeaveScope();
-                }
 
                 if (curFn->shouldTrackAsGCRoot(ins)) {
                     auto* protectedSlot = curFn->createRootedTemporary(
                         arrayPtr,
                         "gc.array.result",
-                        storageType(ins));
+                        runtimeType(ins));
                     protectValue(ins, protectedSlot);
                 }
 
@@ -336,6 +324,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* indexVal = rawValue(ins->arg(1), curFn);
 
                 auto addrIRType = storageType(ins->arg(0));
+                const auto& addrRuntimeType = runtimeType(ins->arg(0));
                 sutils::println("addr IR type: " + addrIRType->toString());
                 llvm::Type* elementType = nullptr;
                 auto* addrInst = dynamic_cast<IR::Instruction*>(ins->arg(0));
@@ -377,7 +366,7 @@ namespace sakuraE::Codegen {
                     bind(ins, instResult);
                     break;
                 }
-                else if (addrIRType->isString()) {
+                else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::String) {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.string.base");
                     }
@@ -385,14 +374,14 @@ namespace sakuraE::Codegen {
                     addr = unboxRaw(addr, addrIRType, curFn);
                     elementType = rootModule.context->getCharTy()->toLLVMType(*context);
                 }
-                else if (addrIRType->isPointer()) {
+                else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Pointer) {
                     auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
                     auto* pointeeTy = ptrTy->getElementType();
 
                     if (!pointeeTy) {
                         throw std::runtime_error("Indexing failed: pointer operand has no element type.");
                     }
-                    if (!curFn->isRawCharPointerType(addrIRType)) {
+                    if (!addrRuntimeType.element || addrRuntimeType.element->kind != IR::RuntimeDescriptionKind::I8) {
                         throw std::runtime_error(
                             "Indexing failed: only character pointers are currently supported for pointer indexing."
                         );
@@ -405,9 +394,9 @@ namespace sakuraE::Codegen {
                     addr = unboxRaw(addr, addrIRType, curFn);
                     elementType = pointeeTy->toLLVMType(*context);
                 }
-                else if (addrIRType->isRef()) {
-                    auto* refTy = static_cast<IR::IRRefType*>(addrIRType);
-                    auto* refElementTy = refTy->getElementType();
+                else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Reference) {
+                    const auto* refElement = addrRuntimeType.element;
+                    auto* refElementTy = refElement ? refElement->storage : nullptr;
                     llvm::Value* refAddr = addr;
 
                     if (baseIsLValue) {
@@ -428,14 +417,16 @@ namespace sakuraE::Codegen {
                         bind(ins, instResult);
                         break;
                     }
-                    else if (refElementTy->isString()) {
+                    else if (refElement->kind == IR::RuntimeDescriptionKind::String) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.string.base");
                         addr = unboxRaw(addr, refElementTy, curFn);
                         elementType = rootModule.context->getCharTy()->toLLVMType(*context);
                     }
-                    else if (curFn->isRawCharPointerType(refElementTy)) {
+                    else if (refElement->kind == IR::RuntimeDescriptionKind::Pointer && refElement->element &&
+                        refElement->element->kind == IR::RuntimeDescriptionKind::I8) {
                         auto* ptrTy = static_cast<IR::IRPointerType*>(refElementTy);
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.ptr.base");
+                        addr = unboxRaw(addr, refElementTy, curFn);
                         elementType = ptrTy->getElementType()->toLLVMType(*context);
                     }
                     else {
@@ -474,13 +465,9 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::_sizeof: {
-                auto* llvmType = curFn->backend.typeOperands.at(ins)->toLLVMType(*context);
+                auto* llvmType = curFn->backend.typeOperands.at(ins)->storage->toLLVMType(*context);
                 auto size = curFn->parent->content->getDataLayout().getTypeAllocSize(llvmType);
-                instResult = boxRaw(
-                    builder->getInt64(static_cast<std::uint64_t>(size)),
-                    storageType(ins),
-                    curFn
-                );
+                instResult = boxRaw(builder->getInt64(static_cast<std::uint64_t>(size)), runtimeType(ins), curFn);
                 bind(ins, instResult);
                 break;
             }
@@ -491,7 +478,7 @@ namespace sakuraE::Codegen {
                  * 传递的不是存储槽位本身的 RuntimeValue*
                  */
                 if (storageType(ins)->isPointer()) {
-                    bind(ins, boxRaw(address, storageType(ins), curFn));
+                    bind(ins, boxRaw(address, runtimeType(ins), curFn));
                 }
                 else {
                     bind(ins, address);
@@ -529,7 +516,7 @@ namespace sakuraE::Codegen {
                 else {
                     auto* type = storageType(ins);
                     auto* raw = builder->CreateLoad(type->toLLVMType(*context), addr, "load.raw");
-                    instResult = boxRaw(raw, type, curFn);
+                    instResult = boxRaw(raw, runtimeType(ins), curFn);
                 }
 
                 bind(ins, instResult);
@@ -605,7 +592,7 @@ namespace sakuraE::Codegen {
                         auto* rootedSlot = curFn->createRootedTemporary(
                             argVal,
                             "gc.call.arg",
-                            storageType(arguments[i]));
+                            runtimeType(arguments[i]));
                         argVal = builder->CreateLoad(rootedSlot->getAllocatedType(), rootedSlot, "call.arg.rooted");
                     }
 
@@ -625,7 +612,7 @@ namespace sakuraE::Codegen {
                     auto* protectedSlot = curFn->createRootedTemporary(
                         instResult,
                         "gc.call.result",
-                        storageType(ins));
+                        runtimeType(ins));
                     protectValue(ins, protectedSlot);
                 }
 

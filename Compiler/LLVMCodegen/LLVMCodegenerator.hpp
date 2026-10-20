@@ -138,8 +138,8 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {ptr});
             }
 
-            void gcRegisterManagedSlot(llvm::Value* addr, IR::IRType* irType) {
-                if (irType && irType->isArray()) {
+            void gcRegisterManagedSlot(llvm::Value* addr, const IR::RuntimeTypeDescription& type) {
+                if (type.representation == IR::ValueRepresentation::ManagedArray) {
                     gcRegisterRoot(addr);
                 }
                 else {
@@ -158,16 +158,6 @@ namespace sakuraE::Codegen {
                 codegenContext.builder->CreateCall(fn->content, {});
             }
 
-            bool isRawCharPointerType(IR::IRType* ty) const {
-                if (!ty || !ty->isPointer()) {
-                    return false;
-                }
-
-                auto* ptrTy = dynamic_cast<IR::IRPointerType*>(ty);
-                return ptrTy && ptrTy->getElementType() == codegenContext.rootModule.context->getCharTy();
-            }
-
-
             bool shouldTrackAsGCRoot(const IR::IRValue* value) const {
                 return backend.tracksRoot(value);
             }
@@ -175,11 +165,11 @@ namespace sakuraE::Codegen {
             llvm::AllocaInst* createRootedTemporary(
                 llvm::Value* value,
                 const fzlib::String& slotName,
-                IR::IRType* irType) {
+                const IR::RuntimeTypeDescription& type) {
                 // 将 SSA 值落到 entry block 的槽位，避免后续分配发生时值无法作为 root 被扫描
                 auto* slot = createAlloca(value->getType(), nullptr, slotName);
                 codegenContext.builder->CreateStore(value, slot);
-                gcRegisterManagedSlot(slot, irType);
+                gcRegisterManagedSlot(slot, type);
                 return slot;
             }
 
@@ -357,11 +347,14 @@ namespace sakuraE::Codegen {
             throw std::runtime_error("Unknown backend ABI value kind");
         }
 
-        llvm::Value* boxRaw(llvm::Value* raw, IR::IRType* type, LLVMFunction* curFn) {
+        llvm::Value* boxRaw(llvm::Value* raw, const IR::RuntimeTypeDescription& type, LLVMFunction* curFn) {
+            if (type.representation != IR::ValueRepresentation::Boxed || type.tag == IR::RuntimeValueTag::None) {
+                throw std::runtime_error("Cannot box a non-boxed backend representation");
+            }
             auto* allocFn = curFn->parent->lookup("__runtime_alloc_value");
             auto* resultSlot = builder->CreateCall(allocFn->content, {}, "runtime.value");
             builder->CreateStore(llvm::Constant::getNullValue(runtimeValueType()), resultSlot);
-            builder->CreateStore(builder->getInt8(runtimeTypeTag(type)),
+            builder->CreateStore(builder->getInt8(static_cast<std::uint8_t>(type.tag)),
                                 builder->CreateStructGEP(runtimeValueType(), resultSlot, 0));
 
             auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), resultSlot, 2);
@@ -370,68 +363,45 @@ namespace sakuraE::Codegen {
             return resultSlot;
         }
 
-        std::uint8_t runtimeTypeTag(IR::IRType* type) const {
-            switch (type->getIRTypeID()) {
-                case IR::IRTypeID::CharTyID: return 0;
-                case IR::IRTypeID::Integer32TyID: return 1;
-                case IR::IRTypeID::Integer64TyID: return 2;
-                case IR::IRTypeID::UInteger32TyID: return 4;
-                case IR::IRTypeID::UInteger64TyID: return 5;
-                case IR::IRTypeID::Float32TyID: return 6;
-                case IR::IRTypeID::Float64TyID: return 7;
-                case IR::IRTypeID::BoolTyID: return 8;
-                case IR::IRTypeID::StringTyID: return 9;
-                case IR::IRTypeID::ArrayTyID: return 10;
-                case IR::IRTypeID::TypeInfoTyID:
-                    return 13;
-                case IR::IRTypeID::PointerTyID:
-                case IR::IRTypeID::RefTyID: return 12;
-                default: return 12;
-            }
-        }
-
-        llvm::Value* runtimeTypeInfo(IR::IRType* type, LLVMFunction* curFn) {
+        llvm::Value* runtimeTypeInfo(const IR::RuntimeTypeDescription& type, LLVMFunction* curFn) {
             auto callFactory = [&](const fzlib::String& name, std::vector<llvm::Value*> args) {
                 auto* fn = curFn->parent->lookup(name);
                 return builder->CreateCall(fn->content, args, "runtime.typeinfo");
             };
-
-            std::uint8_t kind = 0;
-            switch (type->getIRTypeID()) {
-                case IR::IRTypeID::VoidTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::Void); break;
-                case IR::IRTypeID::CharTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::I8); break;
-                case IR::IRTypeID::Integer32TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::I32); break;
-                case IR::IRTypeID::Integer64TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::I64); break;
-                case IR::IRTypeID::UInteger32TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::U32); break;
-                case IR::IRTypeID::UInteger64TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::U64); break;
-                case IR::IRTypeID::Float32TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::F32); break;
-                case IR::IRTypeID::Float64TyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::F64); break;
-                case IR::IRTypeID::BoolTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::Bool); break;
-                case IR::IRTypeID::StringTyID: kind = static_cast<std::uint8_t>(runtime::RuntimeTypeKind::String); break;
-                case IR::IRTypeID::PointerTyID: {
-                    auto* pointer = static_cast<IR::IRPointerType*>(type);
-                    return callFactory("__runtime_type_info_pointer", {
-                        runtimeTypeInfo(pointer->getElementType(), curFn)
-                    });
+            using Kind = IR::RuntimeDescriptionKind;
+            runtime::RuntimeTypeKind kind;
+            switch (type.kind) {
+                case Kind::Void: kind = runtime::RuntimeTypeKind::Void; break;
+                case Kind::I8: kind = runtime::RuntimeTypeKind::I8; break;
+                case Kind::I32: kind = runtime::RuntimeTypeKind::I32; break;
+                case Kind::I64: kind = runtime::RuntimeTypeKind::I64; break;
+                case Kind::U32: kind = runtime::RuntimeTypeKind::U32; break;
+                case Kind::U64: kind = runtime::RuntimeTypeKind::U64; break;
+                case Kind::F32: kind = runtime::RuntimeTypeKind::F32; break;
+                case Kind::F64: kind = runtime::RuntimeTypeKind::F64; break;
+                case Kind::Bool: kind = runtime::RuntimeTypeKind::Bool; break;
+                case Kind::String: kind = runtime::RuntimeTypeKind::String; break;
+                case Kind::Pointer:
+                case Kind::Reference:
+                case Kind::Array: {
+                    if (!type.element) throw std::runtime_error("Runtime type description has no element");
+                    auto* element = runtimeTypeInfo(*type.element, curFn);
+                    if (type.kind == Kind::Array) {
+                        return callFactory("__runtime_type_info_array", {element, builder->getInt64(type.count)});
+                    }
+                    return callFactory(type.kind == Kind::Pointer ? "__runtime_type_info_pointer" :
+                        "__runtime_type_info_reference", {element});
                 }
-                case IR::IRTypeID::RefTyID: {
-                    auto* reference = static_cast<IR::IRRefType*>(type);
-                    return callFactory("__runtime_type_info_reference", {
-                        runtimeTypeInfo(reference->getElementType(), curFn)
-                    });
-                }
-                case IR::IRTypeID::ArrayTyID: {
-                    auto* array = static_cast<IR::IRArrayType*>(type);
-                    return callFactory("__runtime_type_info_array", {
-                        runtimeTypeInfo(array->getElementType(), curFn),
-                        builder->getInt64(array->getNumElements())
-                    });
-                }
+                case Kind::Struct:
+                    if (type.identity.len() == 0) throw std::runtime_error("Runtime struct description has no identity");
+                    return callFactory("__runtime_type_info_struct", {
+                        builder->CreateGlobalString(type.identity.c_str(), "runtime.struct.identity"),
+                        llvm::ConstantPointerNull::get(builder->getPtrTy())});
                 default:
-                    throw std::runtime_error("Unsupported IR type for Runtime::TypeInfo lowering");
+                    throw std::runtime_error("Unsupported backend description for runtime metadata factory");
             }
-
-            return callFactory("__runtime_type_info_basic", {builder->getInt8(kind)});
+            return callFactory("__runtime_type_info_basic", {
+                builder->getInt8(static_cast<std::uint8_t>(kind))});
         }
 
         llvm::Value* unboxRaw(llvm::Value* boxed, IR::IRType* type, LLVMFunction* curFn) {
@@ -447,6 +417,11 @@ namespace sakuraE::Codegen {
                 throw std::runtime_error("LLVM emission requires an active backend function");
             }
             return activeFunction->storageType(value);
+        }
+
+        const IR::RuntimeTypeDescription& runtimeType(const IR::IRValue* value) const {
+            if (!activeFunction) throw std::runtime_error("LLVM emission requires an active backend function");
+            return activeFunction->runtimeType(value);
         }
 
         // Language locals/parameters and managed array elements hold pointers, not raw scalars.
@@ -468,39 +443,32 @@ namespace sakuraE::Codegen {
         }
 
         llvm::Value* rawValue(IR::IRValue* value, LLVMFunction* curFn) {
-            return unboxRaw(toLLVMValue(value, curFn), storageType(value), curFn);
+            auto* emitted = toLLVMValue(value, curFn);
+            if (runtimeType(value).representation != IR::ValueRepresentation::Boxed) return emitted;
+            return unboxRaw(emitted, storageType(value), curFn);
         }
 
         llvm::Value* boxConstant(IR::Constant* constant, LLVMFunction* curFn) {
-            if (constant->isNullHandle()) {
-                auto* llvmType = storageType(constant)->toLLVMType(*context);
-                llvm::Constant* zero = llvm::Constant::getNullValue(llvmType);
-                return boxRaw(zero, storageType(constant), curFn);
-            }
-            switch (storageType(constant)->getIRTypeID()) {
-                case IR::IRTypeID::Integer32TyID:
-                    return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), storageType(constant), curFn);
-                case IR::IRTypeID::Integer64TyID:
-                    return boxRaw(builder->getInt64(constant->getContentValue<std::int64_t>()), storageType(constant), curFn);
-                case IR::IRTypeID::UInteger32TyID:
-                    return boxRaw(builder->getInt32(constant->getContentValue<std::uint32_t>()), storageType(constant), curFn);
-                case IR::IRTypeID::UInteger64TyID:
-                    return boxRaw(builder->getInt64(constant->getContentValue<std::uint64_t>()), storageType(constant), curFn);
-                case IR::IRTypeID::Float32TyID:
-                    return boxRaw(llvm::ConstantFP::get(builder->getFloatTy(), constant->getContentValue<float>()), storageType(constant), curFn);
-                case IR::IRTypeID::Float64TyID:
-                    return boxRaw(llvm::ConstantFP::get(builder->getDoubleTy(), constant->getContentValue<double>()), storageType(constant), curFn);
-                case IR::IRTypeID::CharTyID:
-                    return boxRaw(builder->getInt8(constant->getContentValue<std::int8_t>()), storageType(constant), curFn);
-                case IR::IRTypeID::BoolTyID:
-                    return boxRaw(builder->getInt1(constant->getContentValue<bool>()), storageType(constant), curFn);
-                case IR::IRTypeID::TypeInfoTyID:
-                    return boxRaw(
-                        runtimeTypeInfo(curFn->backend.typeOperands.at(constant), curFn),
-                        storageType(constant),
-                        curFn);
-                default:
-                    throw std::runtime_error(fzlib::String("Unsupported boxed constant type: " + storageType(constant)->toString()).c_str());
+            using Kind = IR::ConstantKind;
+            const auto& type = runtimeType(constant);
+            switch (curFn->backend.constants.at(constant)) {
+                case Kind::Null:
+                    if (type.representation != IR::ValueRepresentation::ManagedArray &&
+                        type.representation != IR::ValueRepresentation::Handle) {
+                        throw std::runtime_error("Null constant requires a backend handle representation");
+                    }
+                    return llvm::ConstantPointerNull::get(builder->getPtrTy());
+                case Kind::I32: return boxRaw(builder->getInt32(constant->getContentValue<std::int32_t>()), type, curFn);
+                case Kind::I64: return boxRaw(builder->getInt64(constant->getContentValue<std::int64_t>()), type, curFn);
+                case Kind::U32: return boxRaw(builder->getInt32(constant->getContentValue<std::uint32_t>()), type, curFn);
+                case Kind::U64: return boxRaw(builder->getInt64(constant->getContentValue<std::uint64_t>()), type, curFn);
+                case Kind::F32: return boxRaw(llvm::ConstantFP::get(builder->getFloatTy(), constant->getContentValue<float>()), type, curFn);
+                case Kind::F64: return boxRaw(llvm::ConstantFP::get(builder->getDoubleTy(), constant->getContentValue<double>()), type, curFn);
+                case Kind::I8: return boxRaw(builder->getInt8(constant->getContentValue<std::int8_t>()), type, curFn);
+                case Kind::Bool: return boxRaw(builder->getInt1(constant->getContentValue<bool>()), type, curFn);
+                case Kind::Descriptor:
+                    return boxRaw(runtimeTypeInfo(*curFn->backend.typeOperands.at(constant), curFn), type, curFn);
+                default: throw std::runtime_error("Constant requires its dedicated backend emitter");
             }
         }
 
@@ -553,14 +521,18 @@ namespace sakuraE::Codegen {
 
     private:
         llvm::Value* instgen(IR::Instruction* ins, LLVMFunction* curFn);
+        llvm::Value* emitArrayConstant(IR::Constant* constant, LLVMFunction* curFn);
 
         // 工具方法 ============================================================
         llvm::Value* toLLVMConstant(IR::Constant* constant, LLVMFunction* curFn) {
-            if (constant->getSemanticType()->getTypeID() != IR::TypeID::String) {
+            if (curFn->backend.constants.at(constant) == IR::ConstantKind::Array) {
+                return emitArrayConstant(constant, curFn);
+            }
+            if (curFn->backend.constants.at(constant) != IR::ConstantKind::String) {
                 return boxConstant(constant, curFn);
             }
 
-            fzlib::String strVal = constant->getContentValue<fzlib::String>();
+            const auto& strVal = constant->getContentValue<fzlib::String>();
             auto strVar = builder->CreateGlobalString(strVal.c_str(), "tmpstr");
             auto stringCreator = curFn->parent->lookup("create_string");
             return builder->CreateCall(stringCreator->content, {strVar}, "boxed.string");
@@ -665,13 +637,13 @@ namespace sakuraE::Codegen {
         llvm::Value* compare(
             llvm::Value* lhs,
             llvm::Value* rhs,
-            IR::IRType* lhsType,
-            IR::IRType* rhsType,
+            const IR::RuntimeTypeDescription& lhsType,
+            const IR::RuntimeTypeDescription& rhsType,
             IR::OpKind kind,
             LLVMFunction* curFn
         ) {
-            if (lhsType && rhsType && (lhsType->isString() || rhsType->isString())) {
-                if (!(lhsType->isString() && rhsType->isString())) {
+            if (lhsType.kind == IR::RuntimeDescriptionKind::String || rhsType.kind == IR::RuntimeDescriptionKind::String) {
+                if (lhsType.kind != IR::RuntimeDescriptionKind::String || rhsType.kind != IR::RuntimeDescriptionKind::String) {
                     throw std::runtime_error("String values cannot be compared with raw pointer values.");
                 }
 

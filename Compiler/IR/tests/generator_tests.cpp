@@ -392,7 +392,7 @@ void testBackendABIAndGCRootDecisions() {
                     assert(!function->rootsSlot(instruction));
                 }
                 if (instruction->getKind() == OpKind::_sizeof) {
-                    assert(function->typeOperands.at(instruction)->isPointer());
+                    assert(function->typeOperands.at(instruction)->kind == RuntimeDescriptionKind::Pointer);
                 }
             }
         }

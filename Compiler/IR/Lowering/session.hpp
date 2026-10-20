@@ -18,7 +18,10 @@ namespace sakuraE::IR {
         std::map<StructDeclId, IRStructType*> structMap;
         std::set<StructDeclId> fillingStructs;
         std::unordered_map<const Function*, BackendFunction*> functionMap;
+        std::unordered_map<const TypeInfo*, std::unique_ptr<RuntimeTypeDescription>> runtimeTypeMap;
         std::unordered_map<const Module*, std::unique_ptr<BackendModule>> backendModules;
+        const RuntimeTypeDescription* lowerRuntimeType(const TypeInfo* type);
+        ConstantKind lowerConstantKind(const Constant& constant) const;
 
         void validateModule(const Module& module) const;
         void lowerFunctionContents(BackendFunction& function);
