@@ -8,7 +8,6 @@ namespace sakuraE::IR {
     thread_local IRContext* IRContext::activeContext = nullptr;
 
     IRContext::IRContext():
-        llvmContext_(std::make_unique<llvm::LLVMContext>()),
         typeInfoPool_(new TypeInfoContext(*this)),
         previousContext(activeContext) {
         activeContext = this;
@@ -25,10 +24,6 @@ namespace sakuraE::IR {
             throw std::runtime_error("No active IRContext");
         }
         return *activeContext;
-    }
-
-    std::unique_ptr<llvm::LLVMContext> IRContext::releaseLLVMContext() {
-        return std::move(llvmContext_);
     }
 
     IRType* IRContext::getVoidTy() {

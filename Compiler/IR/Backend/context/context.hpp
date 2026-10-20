@@ -13,8 +13,6 @@
 namespace sakuraE::IR {
     // 作用于整个Program的Context
     class IRContext {
-        std::unique_ptr<llvm::LLVMContext> llvmContext_;
-
         std::unique_ptr<IRVoidType> voidType;
         std::unique_ptr<IRIntegerType> boolType;
         std::unique_ptr<IRIntegerType> charType;
@@ -49,8 +47,6 @@ namespace sakuraE::IR {
 
         static IRContext& current();
 
-        llvm::LLVMContext& llvmContext() { return *llvmContext_; }
-        std::unique_ptr<llvm::LLVMContext> releaseLLVMContext();
         TypeInfoContext& getTypeInfoManager() const { return *typeInfoPool_; }
         TypeInfoContext& typeInfoPool() const { return *typeInfoPool_; }
 

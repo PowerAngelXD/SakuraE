@@ -502,9 +502,7 @@ namespace sakuraE::Codegen {
     public:
         LLVMCodeGenerator(const IR::BackendModule& module, llvm::LLVMContext& llvmContext):
             rootModule(module), context(&llvmContext), builder(nullptr) {
-            if (!module.context || &module.context->llvmContext() != &llvmContext) {
-                throw std::invalid_argument("LLVM emission requires the backend module's LLVM context");
-            }
+            if (!module.context) throw std::invalid_argument("LLVM emission requires a backend storage context");
             builder = new llvm::IRBuilder<>(llvmContext);
         }
         ~LLVMCodeGenerator() {

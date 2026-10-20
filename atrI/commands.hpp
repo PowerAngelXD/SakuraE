@@ -91,7 +91,8 @@ namespace atri::cmds {
         auto& program = generator.getProgram();
 
         const auto* backend = program.lowering().lowerModule(*program.curMod());
-        sakuraE::Codegen::LLVMCodeGenerator llvmCodegen(*backend, program.getContext().llvmContext());
+        auto llvmContext = std::make_unique<llvm::LLVMContext>();
+        sakuraE::Codegen::LLVMCodeGenerator llvmCodegen(*backend, *llvmContext);
         llvmCodegen.start();
 
         if (config.displayRawLLVMIR) {
@@ -153,7 +154,7 @@ namespace atri::cmds {
 
         llvm::cantFail(JD.define(llvm::orc::absoluteSymbols(runtimeSymbols)));
 
-        auto TSCtx = llvm::orc::ThreadSafeContext(program.getContext().releaseLLVMContext());
+        auto TSCtx = llvm::orc::ThreadSafeContext(std::move(llvmContext));
 
         for (auto mod: llvmCodegen.getModules()) {
             llvm::Module* rawModule = mod->content;
