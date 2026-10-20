@@ -29,6 +29,25 @@ namespace sakuraE::IR {
             return resultABI(type, name);
         }
 
+        FieldStorageKind fieldStorage(const RuntimeTypeDescription& type) {
+            switch (type.kind) {
+                case RuntimeDescriptionKind::I8:
+                case RuntimeDescriptionKind::I32:
+                case RuntimeDescriptionKind::I64:
+                case RuntimeDescriptionKind::U32:
+                case RuntimeDescriptionKind::U64:
+                case RuntimeDescriptionKind::F32:
+                case RuntimeDescriptionKind::F64:
+                case RuntimeDescriptionKind::Bool: return FieldStorageKind::Scalar;
+                case RuntimeDescriptionKind::String:
+                case RuntimeDescriptionKind::Pointer: return FieldStorageKind::Pointer;
+                case RuntimeDescriptionKind::Reference: return FieldStorageKind::Reference;
+                case RuntimeDescriptionKind::Struct: return FieldStorageKind::EmbeddedStruct;
+                case RuntimeDescriptionKind::Array: return FieldStorageKind::EmbeddedArray;
+                default: throw std::runtime_error("Unsupported backend struct field representation");
+            }
+        }
+
         bool rootValue(const IRValue* value, const RuntimeTypeDescription& type) {
             if (!type.managed()) return false;
             const auto* instruction = dynamic_cast<const Instruction*>(value);
@@ -92,6 +111,14 @@ namespace sakuraE::IR {
             throw std::runtime_error("Value has no lowered backend runtime description");
         }
         return *found->second;
+    }
+
+    const BackendFieldAccess& BackendFunction::fieldAccess(const Instruction* instruction) const {
+        const auto found = fieldAccesses.find(instruction);
+        if (found == fieldAccesses.end()) {
+            throw std::runtime_error("Struct member access has no lowered backend field metadata");
+        }
+        return found->second;
     }
 
     bool BackendFunction::tracksRoot(const IRValue* value) const {
@@ -166,6 +193,26 @@ namespace sakuraE::IR {
                         (!function->typeOperands.contains(value) || !function->typeOperands.at(value))) {
                         throw std::runtime_error("Backend sizeof is missing its lowered type operand");
                     }
+                    if (instruction->getKind() == OpKind::gmem) {
+                        const auto& field = function->fieldAccess(instruction);
+                        const auto* selector = instruction->getOperands().size() == 2
+                            ? dynamic_cast<const Constant*>(instruction->arg(1)) : nullptr;
+                        if (!selector || !selector->getSemanticType() ||
+                            selector->getSemanticType()->getTypeID() != TypeID::String || selector->isNullHandle() ||
+                            !field.layout || field.index >= field.layout->getFields().size() ||
+                            field.layout->getFields()[field.index].name != selector->getContentValue<fzlib::String>()) {
+                            throw std::runtime_error("Invalid backend struct member selector metadata");
+                        }
+                        if (instruction->getOperands().size() != 2 || !instruction->arg(0) ||
+                            !field.layout || !field.layout->isComplete() || !field.type ||
+                            field.index >= field.layout->getFields().size() ||
+                            field.layout != function->storageType(instruction->arg(0)) ||
+                            field.type != &runtimeType || field.type->storage != type ||
+                            field.layout->getFields()[field.index].type != type ||
+                            field.storage != fieldStorage(runtimeType)) {
+                            throw std::runtime_error("Invalid backend struct member metadata");
+                        }
+                    }
                     if (instruction->getKind() == OpKind::lgc_not &&
                         (instruction->getOperands().size() != 1 || !instruction->arg(0) ||
                          runtimeType.kind != RuntimeDescriptionKind::Bool ||
@@ -184,6 +231,11 @@ namespace sakuraE::IR {
             });
             for (const auto& [value, type] : function->typeOperands) {
                 if (!type || !type->storage || !function->valueTypes.contains(value)) throw std::runtime_error("Invalid backend type operand table");
+            }
+            for (const auto& [instruction, field] : function->fieldAccesses) {
+                if (!instruction || !function->valueTypes.contains(instruction) || instruction->getKind() != OpKind::gmem) {
+                    throw std::runtime_error("Invalid backend struct member table");
+                }
             }
             for (const auto* value : function->gcInfo.rootedValues) {
                 if (!function->valueTypes.contains(value)) throw std::runtime_error("Invalid backend GC root table");
@@ -263,6 +315,7 @@ namespace sakuraE::IR {
             result += ") -> " + typeName(function.returnType) + " [" + abiName(function.abi.result) + "]";
             result += " values=" + std::to_string(function.valueTypes.size());
             result += " type-operands=" + std::to_string(function.typeOperands.size());
+            result += " field-accesses=" + std::to_string(function.fieldAccesses.size());
             result += " roots=" + std::to_string(function.gcInfo.rootedValues.size());
             result += " root-slots=" + std::to_string(function.gcInfo.rootedSlots.size()) + "\n";
         };
@@ -357,6 +410,50 @@ namespace sakuraE::IR {
         return result;
     }
 
+    BackendFieldAccess LoweringSession::lowerFieldAccess(const Instruction& instruction) {
+        const auto& operands = instruction.getOperands();
+        if (operands.size() != 2 || !operands[0] || !operands[1]) {
+            throw std::runtime_error("Struct member access requires a base and a constant string field selector");
+        }
+        const auto* base = operands[0];
+        if (const auto* constant = dynamic_cast<const Constant*>(base); constant && constant->isNullHandle()) {
+            throw std::runtime_error("Struct member access cannot use a null struct base");
+        }
+        const auto* sourceType = base->getSemanticType();
+        if (!sourceType || !sourceType->getBase()->isStruct()) {
+            throw std::runtime_error("Struct member access requires a struct base type");
+        }
+        const auto* selector = dynamic_cast<const Constant*>(operands[1]);
+        if (!selector || !selector->getSemanticType() ||
+            selector->getSemanticType()->getTypeID() != TypeID::String || selector->isNullHandle()) {
+            throw std::runtime_error("Struct member selector must be a constant string payload");
+        }
+        const auto& name = selector->getContentValue<fzlib::String>();
+        const auto* declaration = structResolver ? structResolver->resolveStruct(*sourceType->getBase()->getStructDeclId()) : nullptr;
+        if (!declaration || !declaration->isComplete()) {
+            throw std::runtime_error("Struct member access requires a complete struct declaration");
+        }
+        const auto& fields = declaration->getFields();
+        const auto found = std::find_if(fields.begin(), fields.end(), [&](const SemanticField& field) {
+            return field.name == name;
+        });
+        if (found == fields.end()) {
+            throw std::runtime_error(("Unknown struct member: " + name).c_str());
+        }
+        if (instruction.getSemanticType() != found->type) {
+            throw std::runtime_error("Struct member result does not match the declared semantic field type");
+        }
+        auto* layout = dynamic_cast<IRStructType*>(lowerType(sourceType));
+        const auto index = static_cast<std::size_t>(found - fields.begin());
+        const auto* type = lowerRuntimeType(found->type);
+        if (!layout || !layout->isComplete() || index >= layout->getFields().size() ||
+            layout->getFields()[index].name != name || layout->getFields()[index].type != type->storage ||
+            lowerType(instruction.getSemanticType()) != type->storage) {
+            throw std::runtime_error("Struct member storage does not match its lowered field layout");
+        }
+        return {layout, index, type, fieldStorage(*type)};
+    }
+
     void LoweringSession::lowerFunctionContents(BackendFunction& function) {
         const auto& source = *function.source;
         function.sourceName = source.getName();
@@ -389,6 +486,7 @@ namespace sakuraE::IR {
         function.runtimeTypes.clear();
         function.constants.clear();
         function.typeOperands.clear();
+        function.fieldAccesses.clear();
         function.gcInfo.rootedValues.clear();
         function.gcInfo.rootedSlots.clear();
         visitValues(source, [&](const IRValue* value) {
@@ -398,6 +496,9 @@ namespace sakuraE::IR {
                 }
                 if (instruction->getKind() == OpKind::_sizeof) {
                     function.typeOperands.emplace(value, lowerRuntimeType(instruction->getTypeOperand()));
+                }
+                if (instruction->getKind() == OpKind::gmem) {
+                    function.fieldAccesses.emplace(instruction, lowerFieldAccess(*instruction));
                 }
                 if (instruction->getKind() == OpKind::lgc_not) {
                     const auto& operands = instruction->getOperands();

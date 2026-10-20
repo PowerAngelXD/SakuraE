@@ -15,6 +15,7 @@ namespace sakuraE::IR {
     class Instruction;
     class IRType;
     class IRFunctionType;
+    class IRStructType;
     class BackendModule;
 
     enum class Linkage { Definition, External };
@@ -47,6 +48,16 @@ namespace sakuraE::IR {
         }
     };
 
+    // Fields live in the raw struct layout, never in RuntimeValue wrapper slots.
+    enum class FieldStorageKind { Scalar, Pointer, Reference, EmbeddedStruct, EmbeddedArray };
+
+    struct BackendFieldAccess {
+        IRStructType* layout = nullptr;
+        std::size_t index = 0;
+        const RuntimeTypeDescription* type = nullptr;
+        FieldStorageKind storage = FieldStorageKind::Scalar;
+    };
+
     struct ABIInfo {
         ABIValueKind result = ABIValueKind::Void;
         std::vector<ABIValueKind> parameters;
@@ -74,11 +85,13 @@ namespace sakuraE::IR {
         std::unordered_map<const IRValue*, const RuntimeTypeDescription*> runtimeTypes;
         std::unordered_map<const IRValue*, const RuntimeTypeDescription*> typeOperands;
         std::unordered_map<const IRValue*, ConstantKind> constants;
+        std::unordered_map<const Instruction*, BackendFieldAccess> fieldAccesses;
         std::vector<const RuntimeTypeDescription*> parameterRuntimeTypes;
         const RuntimeTypeDescription* returnRuntimeType = nullptr;
 
         IRType* storageType(const IRValue* value) const;
         const RuntimeTypeDescription& runtimeType(const IRValue* value) const;
+        const BackendFieldAccess& fieldAccess(const Instruction* instruction) const;
         bool tracksRoot(const IRValue* value) const;
         bool rootsSlot(const IRValue* value) const;
     };

@@ -22,6 +22,7 @@ namespace sakuraE::IR {
         std::unordered_map<const Module*, std::unique_ptr<BackendModule>> backendModules;
         const RuntimeTypeDescription* lowerRuntimeType(const TypeInfo* type);
         ConstantKind lowerConstantKind(const Constant& constant) const;
+        BackendFieldAccess lowerFieldAccess(const Instruction& instruction);
 
         void validateModule(const Module& module) const;
         void lowerFunctionContents(BackendFunction& function);
