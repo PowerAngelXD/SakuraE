@@ -4,6 +4,11 @@
 
 当前重构只建立清晰的三层边界：
 
+类型职责统一为：`TypeInfo` 表达源语言语义类型，`IRType` 表达 storage 类型，
+`RuntimeTypeInfo` 表达运行时类型元数据。`IRTypeInfoType` 只是 `IRType` 的具体子类，
+不是第三层类型体系。当前 runtime C++ 符号仍为 `sakuraE::runtime::TypeInfo`，
+后续阶段 6 统一为 `RuntimeTypeInfo`，同步迁移调用点，不保留兼容别名。
+
 ```text
 AST / Semantic Analysis
         |
@@ -431,8 +436,8 @@ sizeof 仍保持既有支持范围，通过 inferExprType 检查类型而不求�
 使用 TypeID::TypeDescriptor，lowering 后对应 IRTypeInfoType。常量显式保存 TypeInfo*，
 不从 storage 类型推断。
 阶段 4 整理后，Function/Instruction/Value 的构造仅使用语义类型，storage 字段及旧构造
-参数已移除。当前 LLVM Codegen 仍通过 Program 的 Session 按需获取 storage 类型；
-BackendFunction/BackendModule 及 Codegen 的完整隔离留待阶段 5、6、7。
+参数已移除。阶段 5 后，LLVM Codegen 从 BackendFunction 的 side table 获取 storage 类型，
+不再调用 Program 的 Session。常量表示隔离和 LLVM 类型映射外移仍留待阶段 6、7。
 
 验收覆盖：Context 驻留与 nullable、语义声明引用检查、无 storage 的语义函数调用、
 数值/指针重载、字符串及数组索引、引用与解引用、字段访问、非法索引/return/参数、
@@ -475,6 +480,27 @@ storage 函数描述及 value type side table 留待阶段 5，LLVM 依赖外移
 
 ### 阶段 5：实现 BackendFunction/BackendModule lowering
 
+当前实现状态：阶段 5 已完成。BackendFunction 保存语义源的非拥有引用、lowered 签名、
+参数与返回类型、linkage、Raw/Boxed/Void ABI 描述、参数/值/槽位 GC root 描述，以及
+valueTypes 和 typeOperands（sizeof/类型描述常量的 lowered 类型）。BackendModule 拥有
+本模块函数，聚合结构体 ID 映射、runtime 声明、递归 using/import 和符号表，支持 verify/toString。
+持久 Session 唯一拥有 BackendModule，并索引 BackendFunction；重复 lowering 复用对象，
+未被函数引用的结构体也会 lowering，opaque 声明后续完成时在原 storage 类型上补齐布局。
+导入环和菱形依赖按身份去重，不同函数的 source/linkage 符号冲突在 lowering 阶段拒绝。
+
+LLVMCodeGenerator 的入口为 BackendModule 与显式 LLVMContext，不再接收 Program 或调用
+Session。既有 LLVMFunction/LLVMModule 留作生成状态，消费 Backend ABI 与类型表；CLI 将
+所有可达生成模块交给 JIT。Backend model 不保存 LLVM API 对象，也不复制函数体。
+阶段 6 的常量表示重构和阶段 7 的 toLLVMType 外移未开展；字符串常量判别仍读取语义类型。
+
+验证：Context/Generator 测试通过，新增覆盖对象复用、opaque 补全、跨 Program 拒绝、
+导入环/菱形去重、冲突重试及 ABI/GC 区分；实际跨模块 JIT 返回 73，CLI 字符串函数调用、
+数组与直接 sizeof 路径运行通过。完整 CTest 中 LanguageServer 的 AST 形状断言失败，
+该模块未改动。随后已修复 scalar load 的装箱不一致：指针槽位读取 ptr，原始 payload
+读取后装箱，store 采用相同槽位判别。sizeof_basic、repeat、两项 20000 次 GC 循环及
+load_boxing 的参数/指针/数组/字符读写场景已通过实际 CLI/JIT 验证。typeof emitter
+仍为空分支，不属于这次 load 修复。
+
 - 新增 Backend IR 目录和 `BackendFunction`、`BackendModule`。
 - 实现 `IRFunction -> BackendFunction`：函数签名、参数、返回类型、linkage、ABI、GC/runtime
   描述以及 value type side table。
@@ -496,10 +522,13 @@ LLVM API 类型，Session 与 Program 的销毁顺序不会留下悬空引用。
 
 - Semantic 常量以 `TypeInfo*` 表达其语义类型；null、字符串、数组和 GC 值的 storage 表示
   由 lowering/Backend 描述决定。
-- 区分编译器 `TypeInfo`、运行时 `Runtime::TypeInfo` 和 `IRTypeInfoType`。
+- 区分 `TypeInfo`（源语言语义类型）、`IRType`（storage 类型）和 `RuntimeTypeInfo`（运行时类型元数据）。
 - LLVM Codegen 不直接读取编译器 `TypeInfo*`。
 
 验收：常量语义和 storage 表示之间只有 Lowering/Backend 边界。
+
+当前施工范围：`typeof` 暂不实现；阶段 6、7、8 不以补全其 emitter 为验收条件。
+已有语义指令保持现状，不能把暂缓的运行时路径标记为已实现。
 
 ### 阶段 7：LLVM 类型映射外移
 
