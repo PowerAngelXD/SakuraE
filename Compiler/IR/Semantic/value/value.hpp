@@ -23,7 +23,7 @@ namespace sakuraE::IR {
             name = n;
         }
 
-        const fzlib::String& getName() {
+        const fzlib::String& getName() const {
             return name;
         }
 

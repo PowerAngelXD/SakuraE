@@ -27,6 +27,9 @@ namespace sakuraE::IR {
         IRStructDecl* lookupStructDecl(const fzlib::String& name) const;
         const IRStructDecl* resolveStruct(const StructDeclId& id) const override;
         const NamingContext* resolveNamingContext(const StructDeclId& id) const override;
+        const std::map<fzlib::String, std::unique_ptr<IRStructDecl>>& declarations() const {
+            return structDecls;
+        }
         StructDeclId lookupStructId(const fzlib::String& name) const;
         IRStructDecl* declareOpaqueStruct(fzlib::String name, PositionInfo info);
         void implStruct(fzlib::String name, std::vector<SemanticField> fields,

@@ -74,6 +74,16 @@ namespace sakuraE::IR {
             return std::holds_alternative<std::monostate>(content);
         }
 
+        TypeInfo* getTypePayload() const {
+            const auto* value = std::get_if<TypeInfo*>(&content);
+            return value ? *value : nullptr;
+        }
+
+        const IRArray* getArrayPayload() const {
+            const auto* value = std::get_if<IRArray*>(&content);
+            return value ? *value : nullptr;
+        }
+
         fzlib::String toString() {
             return std::visit([](auto&& arg) -> fzlib::String {
                 using T = std::decay_t<decltype(arg)>;

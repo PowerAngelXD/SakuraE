@@ -29,15 +29,15 @@ namespace sakuraE::IR {
             parent = fn;
         }
 
-        Function* getParent() {
+        Function* getParent() const {
             return parent;
         }
 
-        const fzlib::String& getID() {
+        const fzlib::String& getID() const {
             return ID;
         }
 
-        const std::vector<Instruction*>& getInstructions() {
+        const std::vector<Instruction*>& getInstructions() const {
             return instructions;
         }
 

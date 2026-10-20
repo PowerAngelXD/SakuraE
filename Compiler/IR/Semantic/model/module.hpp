@@ -27,7 +27,7 @@ namespace sakuraE::IR {
 
         std::vector<Module*> usingList;
 
-        Program* program;
+        Program* program = nullptr;
     public:
         Module(fzlib::String id, PositionInfo info):
             ID(std::move(id)), createInfo(info), moduleScope(info), namingContext(ID) {
@@ -44,7 +44,7 @@ namespace sakuraE::IR {
             program = pgm;
         }
 
-        Program* getSourceProgram() {
+        Program* getSourceProgram() const {
             return program;
         }
 
@@ -148,7 +148,7 @@ namespace sakuraE::IR {
                             createInfo);
         }
 
-        std::vector<Function*> getFunctions() {
+        const std::vector<Function*>& getFunctions() const {
             return fnList;
         }
 
@@ -182,7 +182,7 @@ namespace sakuraE::IR {
             }
         }
 
-        const fzlib::String& id() {
+        const fzlib::String& id() const {
             return ID;
         }
 
@@ -190,7 +190,7 @@ namespace sakuraE::IR {
             usingList.push_back(mod);
         }
 
-        std::vector<Module*> getUsingList() {
+        const std::vector<Module*>& getUsingList() const {
             return usingList;
         }
 

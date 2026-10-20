@@ -96,19 +96,19 @@ namespace sakuraE::IR {
             parent = blk;
         }
 
-        Block* getParent() {
+        Block* getParent() const {
             return parent;
         }
 
-        const std::vector<IRValue*>& getOperands() {
+        const std::vector<IRValue*>& getOperands() const {
             return args;
         }
 
-        IRValue* arg(std::size_t pos) {
+        IRValue* arg(std::size_t pos) const {
             return args.at(pos);
         }
 
-        const OpKind& getKind() {
+        const OpKind& getKind() const {
             return kind;
         }
 

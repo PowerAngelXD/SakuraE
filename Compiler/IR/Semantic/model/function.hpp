@@ -81,7 +81,7 @@ namespace sakuraE::IR {
             parent = mod;
         }
 
-        fzlib::String getRawName() { return rawName; }
+        const fzlib::String& getRawName() const { return rawName; }
 
         void setFuncDefineInfo(FormalParamsDefine params, TypeInfo* retType) {
             if (!retType) throw std::invalid_argument("Function requires a semantic return type");
@@ -114,7 +114,7 @@ namespace sakuraE::IR {
             return hasReturn;
         }
 
-        Module* getParent() {
+        Module* getParent() const {
             return parent;
         }
 
@@ -166,7 +166,7 @@ namespace sakuraE::IR {
             cursor = 0;
         }
 
-        std::vector<Block*> getBlocks() {
+        const std::vector<Block*>& getBlocks() const {
             return blocks;
         }
 
@@ -189,6 +189,10 @@ namespace sakuraE::IR {
             return funcScope;
         }
 
+        const std::vector<fzlib::String>& getFormalParamNames() const {
+            return formalParamNames;
+        }
+
         FormalParamsDefine getFormalParams() const {
             FormalParamsDefine result;
             const auto& types = getSemanticParamTypes();
@@ -206,7 +210,7 @@ namespace sakuraE::IR {
             return block(index);
         }
 
-        PositionInfo& getInfo() {
+        const PositionInfo& getInfo() const {
             return createInfo;
         }
 

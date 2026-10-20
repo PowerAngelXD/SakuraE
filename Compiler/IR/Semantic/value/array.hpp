@@ -32,6 +32,7 @@ namespace sakuraE::IR {
             return element->getTypeContext().makeArrayTypeID(element, arrContent.size());
         }
         std::vector<IRValue*>& getArray() { return arrContent; }
+        const std::vector<IRValue*>& getArray() const { return arrContent; }
         IRValue* getHead() { return arrContent[0]; }
         std::size_t getSize() { return arrContent.size(); }
         PositionInfo& getInfo() { return createInfo; }

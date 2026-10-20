@@ -284,6 +284,10 @@ namespace sakuraE::IR {
             return context;
         }
 
+        const IRContext& getContext() const {
+            return context;
+        }
+
         void validateSemanticType(const TypeInfo* type, PositionInfo info) const {
             std::set<const TypeInfo*> visited;
             std::function<void(const TypeInfo*)> validate = [&](const TypeInfo* current) {
@@ -326,7 +330,7 @@ namespace sakuraE::IR {
             return nullptr;
         }
 
-        std::vector<Module*> getMods() {
+        const std::vector<Module*>& getMods() const {
             return moduleList;
         }
 
