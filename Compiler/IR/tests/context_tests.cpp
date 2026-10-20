@@ -1,13 +1,72 @@
 #include "Compiler/IR/Semantic/context/naming_context.hpp"
 #include "Compiler/IR/Backend/context/context.hpp"
 #include "Compiler/IR/Lowering/session.hpp"
+#include "Compiler/LLVMCodegen/LLVMTypeMapper.hpp"
+
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/Support/Casting.h>
 
 #include <cassert>
+#include <stdexcept>
 #include <string_view>
+
+void testLLVMTypeMapping() {
+    using namespace sakuraE::IR;
+    using sakuraE::Codegen::map;
+    IRContext storage;
+    llvm::LLVMContext context;
+    auto* integer = storage.getInt32Ty();
+    assert(map(storage.getVoidTy(), context)->isVoidTy());
+    assert(map(storage.getBoolTy(), context)->isIntegerTy(1));
+    assert(map(storage.getCharTy(), context)->isIntegerTy(8));
+    assert(map(integer, context)->isIntegerTy(32));
+    assert(map(storage.getInt64Ty(), context)->isIntegerTy(64));
+    assert(map(storage.getIntNTy(17), context)->isIntegerTy(17));
+    assert(map(storage.getUIntNTy(17), context) == map(storage.getIntNTy(17), context));
+    assert(map(storage.getUInt32Ty(), context) == map(integer, context));
+    assert(map(storage.getUInt64Ty(), context) == map(storage.getInt64Ty(), context));
+    assert(map(storage.getFloat32Ty(), context)->isFloatTy());
+    assert(map(storage.getFloat64Ty(), context)->isDoubleTy());
+    assert(map(storage.getBlockTy(), context)->isLabelTy());
+    assert(map(storage.getPointerTo(integer), context)->isPointerTy());
+    assert(map(storage.getRefTo(integer), context)->isPointerTy());
+    assert(map(storage.getTypeInfoTy(), context)->isPointerTy());
+    auto* string = IRType::getStringTy();
+    assert(string == storage.getPointerTo(storage.getCharTy()));
+    assert(map(string, context)->isPointerTy());
+
+    auto* array = llvm::cast<llvm::ArrayType>(map(storage.getArrayTy(integer, 3), context));
+    assert(array->getNumElements() == 3);
+    assert(array->getElementType() == map(integer, context));
+    auto* signature = storage.getFunctionTy(storage.getVoidTy(), {integer, string});
+    auto* function = llvm::cast<llvm::FunctionType>(map(signature, context));
+    assert(function->getReturnType()->isVoidTy());
+    assert(function->getNumParams() == 2);
+    assert(function->getParamType(0) == map(integer, context));
+    assert(function->getParamType(1) == map(string, context));
+    assert(!function->isVarArg());
+
+    const auto rejects = [](auto action) {
+        try {
+            action();
+        }
+        catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    assert(rejects([&] { map(nullptr, context); }));
+    assert(rejects([&] { map(storage.getIntNTy(0), context); }));
+    assert(rejects([&] { map(storage.getArrayTy(storage.getVoidTy(), 1), context); }));
+    assert(rejects([&] { map(storage.getFunctionTy(signature, {}), context); }));
+    assert(rejects([&] { map(storage.getFunctionTy(integer, {storage.getVoidTy()}), context); }));
+}
 
 void testStructLoweringLifecycle() {
     using namespace sakuraE::IR;
     IRContext first;
+    llvm::LLVMContext firstLLVM;
     NamingContext names("lifecycle-test");
     const sakuraE::PositionInfo definitionInfo {1, 1, "struct lifecycle test"};
     auto* firstTypeInfo = first.typeInfoPool().makeBasicTypeID(TypeID::Int32);
@@ -39,7 +98,7 @@ void testStructLoweringLifecycle() {
     auto* forwardFunction = firstLowering.lowerType(forwardFunctionInfo);
     auto* forwardPointer = firstLowering.lowerType(forwardPointerInfo);
     auto* forwardType = static_cast<IRStructType*>(firstLowering.lowerType(forwardInfo));
-    auto* llvmForward = llvm::cast<llvm::StructType>(forwardType->toLLVMType(first.llvmContext()));
+    auto* llvmForward = llvm::cast<llvm::StructType>(sakuraE::Codegen::map(forwardType, firstLLVM));
     assert(!forwardType->isComplete());
     assert(llvmForward->isOpaque());
     names.implStruct("Forward", {{"value", firstTypeInfo, definitionInfo}}, {}, definitionInfo);
@@ -49,9 +108,9 @@ void testStructLoweringLifecycle() {
     assert(firstLowering.lowerType(forwardInfo) == forwardType);
     assert(forwardType->isComplete());
     assert(forwardType->findMember("value")->type == firstInt32);
-    assert(forwardType->toLLVMType(first.llvmContext()) == llvmForward);
+    assert(sakuraE::Codegen::map(forwardType, firstLLVM) == llvmForward);
     assert(!llvmForward->isOpaque());
-    assert(llvmForward->getElementType(0) == firstInt32->toLLVMType(first.llvmContext()));
+    assert(llvmForward->getElementType(0) == sakuraE::Codegen::map(firstInt32, firstLLVM));
     assert(rejects([&] { forwardType->complete({}); }));
 
     {
@@ -72,7 +131,7 @@ void testStructLoweringLifecycle() {
     auto* otherForwardType = otherLowering.lowerType(otherForwardInfo);
     assert(otherForwardType != forwardType);
     assert(otherNames.lookupStructType("Forward") == otherForwardType);
-    assert(otherForwardType->toLLVMType(first.llvmContext()) != llvmForward);
+    assert(sakuraE::Codegen::map(otherForwardType, firstLLVM) != llvmForward);
     assert(forwardType->findMember("value").has_value());
 
     names.declareOpaqueStruct("Node", definitionInfo);
@@ -85,7 +144,7 @@ void testStructLoweringLifecycle() {
     assert(nodeType->isComplete());
     assert(static_cast<IRPointerType*>(nodeType->findMember("next")->type)->getElementType() == nodeType);
     assert(static_cast<IRRefType*>(nodeType->findMember("parent")->type)->getElementType() == nodeType);
-    assert(nodeType->toLLVMType(first.llvmContext())->isSized());
+    assert(sakuraE::Codegen::map(nodeType, firstLLVM)->isSized());
 
     names.declareOpaqueStruct("Outer", definitionInfo);
     names.declareOpaqueStruct("Inner", definitionInfo);
@@ -95,7 +154,7 @@ void testStructLoweringLifecycle() {
     names.implStruct("Inner", {{"outer", first.typeInfoPool().makePointerTypeID(outerInfo), definitionInfo}}, {}, definitionInfo);
     auto* outerType = static_cast<IRStructType*>(firstLowering.lowerType(outerInfo));
     assert(outerType->isComplete());
-    assert(outerType->toLLVMType(first.llvmContext())->isSized());
+    assert(sakuraE::Codegen::map(outerType, firstLLVM)->isSized());
 
     names.defineStruct("VoidField", {{"value", first.typeInfoPool().makeBasicTypeID(TypeID::Void), definitionInfo}}, definitionInfo);
     auto* voidFieldInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("VoidField"));
@@ -130,10 +189,16 @@ void testStructLoweringLifecycle() {
     auto* containerType = static_cast<IRStructType*>(firstLowering.lowerType(containerInfo));
     auto* childType = static_cast<IRStructType*>(containerType->findMember("child")->type);
     assert(!childType->isComplete());
+    auto* llvmContainer = llvm::cast<llvm::StructType>(sakuraE::Codegen::map(containerType, firstLLVM));
+    auto* llvmChild = llvm::cast<llvm::StructType>(llvmContainer->getElementType(0));
+    assert(llvmChild->isOpaque());
     names.implStruct("Child", {{"value", firstTypeInfo, definitionInfo}}, {}, definitionInfo);
     assert(firstLowering.lowerType(containerInfo) == containerType);
     assert(childType->isComplete());
-    assert(containerType->toLLVMType(first.llvmContext())->isSized());
+    assert(sakuraE::Codegen::map(containerType, firstLLVM) == llvmContainer);
+    assert(llvmContainer->getElementType(0) == llvmChild);
+    assert(!llvmChild->isOpaque());
+    assert(sakuraE::Codegen::map(containerType, firstLLVM)->isSized());
 
     names.declareOpaqueStruct("Retry", definitionInfo);
     auto* retryInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Retry"));
@@ -172,6 +237,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     using namespace sakuraE::IR;
+    testLLVMTypeMapping();
 
     IRContext first;
     IRContext second;
@@ -182,7 +248,9 @@ int main(int argc, char** argv) {
 
     auto* secondInt32 = second.getInt32Ty();
     assert(firstInt32 != secondInt32);
-    assert(&first.llvmContext() != &second.llvmContext());
+    llvm::LLVMContext firstLLVM;
+    llvm::LLVMContext secondLLVM;
+    assert(sakuraE::Codegen::map(firstInt32, firstLLVM) != sakuraE::Codegen::map(secondInt32, secondLLVM));
 
     auto* firstTypeInfo = first.typeInfoPool().makeBasicTypeID(TypeID::Int32);
     assert(firstTypeInfo == first.typeInfoPool().makeBasicTypeID(TypeID::Int32));
@@ -216,6 +284,11 @@ int main(int argc, char** argv) {
     assert(firstPoint != secondPoint);
     assert(firstPoint->isStruct());
     assert(secondPoint->isStruct());
+    auto* firstLLVMPoint = sakuraE::Codegen::map(firstPoint, firstLLVM);
+    auto* secondLLVMPoint = sakuraE::Codegen::map(secondPoint, secondLLVM);
+    assert(firstLLVMPoint != secondLLVMPoint);
+    assert(&firstLLVMPoint->getContext() == &firstLLVM);
+    assert(&secondLLVMPoint->getContext() == &secondLLVM);
     assert(isAssignableTo(pointTypeInfo, pointTypeInfo));
     assert(isAssignableTo(nullablePointTypeInfo, nullablePointTypeInfo));
     assert(isAssignableTo(pointTypeInfo, nullablePointTypeInfo));

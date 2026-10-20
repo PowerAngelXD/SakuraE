@@ -2,11 +2,8 @@
 #define SAKURAE_TYPE_HPP
 
 #include <Compiler/Error/error.hpp>
-#include <llvm/IR/LLVMContext.h>
 #include <map>
 
-#include <llvm/IR/Type.h>
-#include <llvm/IR/DerivedTypes.h>
 #include <optional>
 #include <vector>
 
@@ -67,11 +64,9 @@ namespace sakuraE::IR {
         bool isRef() { return irTypeID == RefTyID; }
         bool isArray() { return irTypeID == ArrayTyID; }
         bool isStruct() { return irTypeID == StructTyID; }
-        bool isString() { return irTypeID == PointerTyID && toString() == "char*"; }
-        bool isComplexType() { return isString() || isPointer() || isArray() || isRef() || isStruct(); }
+        bool isComplexType() { return isPointer() || isArray() || isRef() || isStruct(); }
         bool isEqual(IRType* ty);
 
-        virtual llvm::Type* toLLVMType(llvm::LLVMContext& ctx) = 0;
         virtual fzlib::String toString() = 0;
 
         static IRType* getVoidTy();
@@ -100,7 +95,6 @@ namespace sakuraE::IR {
         friend class IRContext;
         IRVoidType() : IRType(VoidTyID) {}
     public:
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -119,7 +113,6 @@ namespace sakuraE::IR {
             }()), bitWidth(bw) {}
     public:
         unsigned getBitWidth() const { return bitWidth; }
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -159,7 +152,6 @@ namespace sakuraE::IR {
 
     public:
         unsigned getBitWidth() const { return bitWidth; }
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -168,7 +160,6 @@ namespace sakuraE::IR {
         friend class IRContext;
         IRTypeInfoType() : IRType(TypeInfoTyID) {}
     public:
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -181,7 +172,6 @@ namespace sakuraE::IR {
 
     public:
         IRType* getElementType() const { return elementType; }
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -194,7 +184,6 @@ namespace sakuraE::IR {
 
     public:
         IRType* getElementType() const { return elementType; }
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -211,7 +200,6 @@ namespace sakuraE::IR {
     public:
         IRType* getElementType() const { return elementType; }
         uint64_t getNumElements() const { return numElements; }
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -222,7 +210,6 @@ namespace sakuraE::IR {
 
         explicit IRBlockType() : IRType(BlockTyID) {}
     public:
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
 
@@ -236,7 +223,6 @@ namespace sakuraE::IR {
         explicit IRFunctionType(IRType* ret, std::vector<IRType*> params)
             : IRType(FunctionTyID), paramsType(params), returnType(ret) {}
     public:
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
         IRType* getReturnType() const { return returnType; }
         const std::vector<IRType*>& getParamTypes() const { return paramsType; }
@@ -250,7 +236,6 @@ namespace sakuraE::IR {
             PositionInfo info;
         };
 
-        llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
 
         const fzlib::String& getName() const;

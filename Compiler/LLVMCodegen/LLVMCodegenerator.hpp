@@ -43,6 +43,7 @@
 #include "includes/String.hpp"
 #include "Runtime/gc.h"
 #include "Runtime/rttype.h"
+#include "LLVMTypeMapper.hpp"
 
 namespace sakuraE::Codegen {
     class LLVMCodeGenerator {
@@ -340,7 +341,7 @@ namespace sakuraE::Codegen {
                 case IR::ABIValueKind::Void:
                     return llvm::Type::getVoidTy(*context);
                 case IR::ABIValueKind::Raw:
-                    return type->toLLVMType(*context);
+                    return map(type, *context);
                 case IR::ABIValueKind::Boxed:
                     return llvm::PointerType::getUnqual(*context);
             }
@@ -407,7 +408,7 @@ namespace sakuraE::Codegen {
         llvm::Value* unboxRaw(llvm::Value* boxed, IR::IRType* type, LLVMFunction* curFn) {
             auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), boxed, 2);
             auto* rawSlot = builder->CreateBitCast(dataSlot, llvm::PointerType::getUnqual(*context));
-            return builder->CreateLoad(type->toLLVMType(*context), rawSlot, "unboxed.value");
+            return builder->CreateLoad(map(type, *context), rawSlot, "unboxed.value");
         }
 
         const IR::BackendFunction* activeFunction = nullptr;

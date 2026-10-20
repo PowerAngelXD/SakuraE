@@ -372,7 +372,7 @@ namespace sakuraE::Codegen {
                     }
                     // 语言层字符串是 RuntimeValue*，索引操作作用于其底层字符 payload
                     addr = unboxRaw(addr, addrIRType, curFn);
-                    elementType = rootModule.context->getCharTy()->toLLVMType(*context);
+                    elementType = map(rootModule.context->getCharTy(), *context);
                 }
                 else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Pointer) {
                     auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
@@ -392,7 +392,7 @@ namespace sakuraE::Codegen {
                     }
                     // 指针变量存储装箱后的指针值，索引操作需要取得 RuntimeValue::Pointer 中的实际地址
                     addr = unboxRaw(addr, addrIRType, curFn);
-                    elementType = pointeeTy->toLLVMType(*context);
+                    elementType = map(pointeeTy, *context);
                 }
                 else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Reference) {
                     const auto* refElement = addrRuntimeType.element;
@@ -420,14 +420,14 @@ namespace sakuraE::Codegen {
                     else if (refElement->kind == IR::RuntimeDescriptionKind::String) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.string.base");
                         addr = unboxRaw(addr, refElementTy, curFn);
-                        elementType = rootModule.context->getCharTy()->toLLVMType(*context);
+                        elementType = map(rootModule.context->getCharTy(), *context);
                     }
                     else if (refElement->kind == IR::RuntimeDescriptionKind::Pointer && refElement->element &&
                         refElement->element->kind == IR::RuntimeDescriptionKind::I8) {
                         auto* ptrTy = static_cast<IR::IRPointerType*>(refElementTy);
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.ptr.base");
                         addr = unboxRaw(addr, refElementTy, curFn);
-                        elementType = ptrTy->getElementType()->toLLVMType(*context);
+                        elementType = map(ptrTy->getElementType(), *context);
                     }
                     else {
                         throw std::runtime_error(
@@ -465,7 +465,7 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::_sizeof: {
-                auto* llvmType = curFn->backend.typeOperands.at(ins)->storage->toLLVMType(*context);
+                auto* llvmType = map(curFn->backend.typeOperands.at(ins)->storage, *context);
                 auto size = curFn->parent->content->getDataLayout().getTypeAllocSize(llvmType);
                 instResult = boxRaw(builder->getInt64(static_cast<std::uint64_t>(size)), runtimeType(ins), curFn);
                 bind(ins, instResult);
@@ -515,7 +515,7 @@ namespace sakuraE::Codegen {
                 }
                 else {
                     auto* type = storageType(ins);
-                    auto* raw = builder->CreateLoad(type->toLLVMType(*context), addr, "load.raw");
+                    auto* raw = builder->CreateLoad(map(type, *context), addr, "load.raw");
                     instResult = boxRaw(raw, runtimeType(ins), curFn);
                 }
 

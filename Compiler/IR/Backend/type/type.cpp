@@ -1,9 +1,6 @@
 #include "type.hpp"
 #include "Compiler/IR/Backend/context/context.hpp"
 #include <Compiler/Error/error.hpp>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/Support/Casting.h>
 #include <stdexcept>
 
 namespace sakuraE::IR {
@@ -161,80 +158,6 @@ namespace sakuraE::IR {
 
     IRType* IRType::getFunctionTy(IRType* returnType, std::vector<IRType*> params) {
         return IRContext::current().getFunctionTy(returnType, std::move(params));
-    }
-
-    llvm::Type* IRVoidType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::Type::getVoidTy(ctx);
-    }
-
-    llvm::Type* IRFloatType::toLLVMType(llvm::LLVMContext& ctx) {
-        if (bitWidth == 32) return llvm::Type::getFloatTy(ctx);
-        else if (bitWidth == 64) return llvm::Type::getDoubleTy(ctx);
-        else throw std::runtime_error("Not support other float");
-    }
-
-    llvm::Type* IRIntegerType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::Type::getIntNTy(ctx, bitWidth);
-    }
-
-    llvm::Type* IRPointerType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::PointerType::get(ctx, 0);
-    }
-
-    llvm::Type* IRRefType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::PointerType::get(ctx, 0);
-    }
-
-    llvm::Type* IRArrayType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::ArrayType::get(elementType->toLLVMType(ctx), numElements);
-    }
-
-    llvm::Type* IRBlockType::toLLVMType(llvm::LLVMContext& ctx) {
-        return llvm::Type::getLabelTy(ctx);
-    }
-
-    llvm::Type* IRStructType::toLLVMType(llvm::LLVMContext& ctx) {
-        fzlib::String structTypeName = "sakurae.struct." + parentModID + "." + name;
-        auto structType = llvm::StructType::getTypeByName(ctx, structTypeName.c_str());
-        if (!structType) {
-            structType = llvm::StructType::create(ctx, structTypeName.c_str());
-        }
-
-        if (!isCompleteType) return structType;
-
-        if (structType->isOpaque()) {
-            std::vector<llvm::Type*> memberTypes;
-            memberTypes.reserve(fields.size());
-            for (auto& field: fields) {
-                memberTypes.push_back(field.type->toLLVMType(ctx));
-            }
-            structType->setBody(memberTypes, false);
-        }
-
-        return structType;
-    }
-
-    llvm::Type* IRFunctionType::toLLVMType(llvm::LLVMContext& ctx) {
-        std::vector<llvm::Type*> llvmParams;
-        for (auto arg: paramsType) {
-            llvmParams.push_back(arg->toLLVMType(ctx));
-        }
-
-        return llvm::FunctionType::get(returnType->toLLVMType(ctx), llvmParams, false);
-    }
-
-    llvm::Type* IRTypeInfoType::toLLVMType(llvm::LLVMContext& ctx) {
-        llvm::StructType* structTy = llvm::StructType::getTypeByName(ctx, "sakuraE.TypeInfo");
-
-        if (!structTy) {
-            structTy = llvm::StructType::create(ctx, "sakuraE.TypeInfo");
-            structTy->setBody({
-                llvm::Type::getInt32Ty(ctx),
-                llvm::PointerType::getUnqual(ctx)
-            });
-        }
-
-        return llvm::PointerType::getUnqual(ctx);
     }
 
     // 转换为字符串
