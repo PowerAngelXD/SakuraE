@@ -2,392 +2,81 @@
 
 [English Version](value.md)
 
-本文档描述前端、SakuraE IR、LLVM Codegen 和 Runtime 之间的值表示。各层通过转换关联，并不是跨编译器层和运行时层的继承关系。
+## 1. 类型边界
 
-当前语义检查以 `TypeInfo` 为准：`CallableValue` 只接受 `FunctionTypeInfo` 对应的语义类型，
-函数调用和重载不读取 storage 签名。`typeof` 和类型描述值使用 `TypeID::TypeDescriptor`，
-通过 Session lowering 得到 `IRTypeInfoType`。常量显式保存语义 `TypeInfo*`，Generator
-不从 `IRType` 反推语义类型。Function/Instruction/Value 构造仅使用语义类型；阶段 5 将
-lowered 签名和值类型存入 `BackendFunction`，LLVM Codegen 消费该描述，不再调用 Session。
-下文中的 storage 构造示例属于历史表示；常量表示隔离仍留待阶段 6。
+- `IR::TypeInfo`：源语言语义类型；可赋值性、nullable、重载与函数签名以此为准。
+- `IR::IRType`：Lowering 生成的 storage 类型，由 Program 的 IRContext 或模块 NamingContext 拥有。
+- `runtime::RuntimeTypeInfo`：Runtime 工厂驻留的不可变运行时类型元数据。
 
-## 1. 分层模型
+`IRTypeInfoType` 是类型描述值对应的 IRType 子类，不是另一套类型体系；`RuntimeType::TypeInfo` 是运行时值标签。
 
 ```mermaid
-flowchart TD
-    AST[AST 类型表达式] --> TI[IR::TypeInfo]
-    TI --> IT[IR::IRType]
-    IT --> IV[IR::IRValue]
-    IV --> C[IR::Constant]
-    IV --> I[IR::Instruction]
-    C --> A[IR::IRArray]
-    IV --> LLVM[llvm::Value]
-    LLVM --> RV[RuntimeValue*]
-    RV --> RAW[RawValue union]
-    RV --> PAYLOAD[GC 托管 payload]
+flowchart LR
+    S["Semantic IR / TypeInfo"] -->|Lowering| B["Backend 描述 / IRType"]
+    B -->|LLVMCodegen| L["LLVM IR"]
+    L -->|Runtime 工厂| R["RuntimeTypeInfo"]
 ```
 
-`IRValue` 是编译器 IR 表示，`llvm::Value` 是 Codegen 生成的 LLVM 表示，`RuntimeValue` 是 `print` 等运行时调用使用的表示。`RuntimeValue` 不是 `llvm::Value` 的子类，也不与其继承。
-
-## 2. 编译期类型信息
-
-`TypeInfo` 用于前端和 IR 构建期间描述源语言类型；当类型值被具体生成到 LLVM 时，会 lowering 为缓存的 `Runtime::TypeInfo` 对象。
-
-```cpp
-enum TypeID {
-    Int32,
-    Int64,
-    UInt32,
-    UInt64,
-    Float32,
-    Float64,
-    Bool,
-    Char,
-    String,
-    Null,
-    Custom,
-    Array,
-    Pointer,
-    Ref
-};
-
-class ArrayTypeInfo {
-    TypeInfo* elementType;
-    std::uint64_t elementCount;
-
-public:
-    ArrayTypeInfo(TypeInfo* element, std::uint64_t count);
-    std::uint64_t length() const;
-    TypeInfo* getElementTy();
-};
-
-class PointerTypeInfo {
-    TypeInfo* elementType;
-
-public:
-    PointerTypeInfo(TypeInfo* element);
-    TypeInfo* getElementTy();
-};
-
-class RefTypeInfo {
-    TypeInfo* elementType;
-
-public:
-    RefTypeInfo(TypeInfo* element);
-    TypeInfo* getElementTy();
-};
-
-class TypeInfo {
-    TypeID typeID;
-    std::variant<
-        std::monostate,
-        ArrayTypeInfo,
-        PointerTypeInfo,
-        RefTypeInfo
-    > complexTypeInfo;
-
-public:
-    TypeInfo(TypeID tid);
-    TypeInfo(TypeInfo* element, std::uint64_t count);
-    TypeInfo(TypeID id, TypeInfo* elementType);
-    ~TypeInfo() = default;
-
-    bool isArray();
-    bool isPointer();
-    bool isRef();
-    const TypeID& getTypeID();
-    const FunctionTypeInfo* getFunctionTypeInfo() const;
-
-    static TypeInfo* makeBasicTypeID(TypeID typeID);
-    static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
-    static TypeInfo* makePointerTypeID(TypeInfo* typeID);
-    static TypeInfo* makeRefTypeID(TypeInfo* typeID);
-    static void clearAll();
-};
-```
-
-`LoweringSession::lowerType()` 将基础类型映射到 Context 持有的 `IRType`，将数组映射到 `IRArrayType`，将指针映射到 `IRPointerType`，将引用映射到 `IRRefType`。`TypeInfo::toIRType()` 已删除；以上代码仅为简化示意，类型构造由 `TypeInfoContext` 管理。
-
-## 3. IR 类型和值
-
-当前 IR 类型 ID 为：
-
-```cpp
-enum IRTypeID {
-    VoidTyID,
-    Integer32TyID,
-    Integer64TyID,
-    IntegerNTyID,
-    UInteger32TyID,
-    UInteger64TyID,
-    UIntegerNTyID,
-    Float32TyID,
-    Float64TyID,
-    FloatNTyID,
-    CharTyID,
-    BoolTyID,
-    TypeInfoTyID,
-    StringTyID,
-    RefTyID,
-    PointerTyID,
-    ArrayTyID,
-    FunctionTyID,
-    BlockTyID
-};
-```
-
-IR 值基类完整定义为：
-
-```cpp
-class IRValue {
-protected:
-    IRType* type;
-    fzlib::String name;
-
-public:
-    explicit IRValue(IRType* ty, fzlib::String n);
-    explicit IRValue(IRType* ty);
-    virtual ~IRValue() = default;
-
-    IRType* getType() const;
-    void setName(const fzlib::String& n);
-    void setType(IRType* t);
-    const fzlib::String& getName();
-};
-```
-
-指令是带有操作码和操作数的 `IRValue`：
-
-```cpp
-class Instruction : public IRValue {
-    OpKind kind = OpKind::empty;
-    std::vector<IRValue*> args;
-    Block* parent = nullptr;
-
-public:
-    Instruction(OpKind k, IRType* t);
-    Instruction(OpKind k, IRType* t, std::vector<IRValue*> params);
-
-    bool isTerminal();
-    bool isLValue();
-    bool isRValue();
-    void setParent(Block* blk);
-    Block* getParent();
-    const std::vector<IRValue*>& getOperands();
-    IRValue* arg(std::size_t pos);
-    const OpKind& getKind();
-    IRValue* operator[](std::size_t pos);
-    fzlib::String toString();
-};
-```
-
-## 4. 常量和数组
-
-`Constant` 使用 `std::variant` 保存编译期值，并单独保存其 IR 类型：
-
-```cpp
-class Constant : public IRValue {
-private:
-    std::variant<
-        std::monostate,
-        std::int32_t,
-        std::int64_t,
-        std::uint32_t,
-        std::uint64_t,
-        double,
-        float,
-        fzlib::String,
-        std::int8_t,
-        bool,
-        TypeInfo*,
-        IRArray*
-    > content;
-    PositionInfo createInfo;
-
-public:
-    static Constant* get(std::uint32_t value, PositionInfo info = {});
-    static Constant* get(std::uint64_t value, PositionInfo info = {});
-    static Constant* get(std::int64_t value, PositionInfo info = {});
-    static Constant* get(std::int32_t value, PositionInfo info = {});
-    static Constant* get(float value, PositionInfo info = {});
-    static Constant* get(double value, PositionInfo info = {});
-    static Constant* get(const fzlib::String& value, PositionInfo info = {});
-    static Constant* get(std::int8_t value, PositionInfo info = {});
-    static Constant* get(bool value, PositionInfo info = {});
-    static Constant* get(TypeInfo* value, PositionInfo info = {});
-    static Constant* get(IRArray* value, PositionInfo info = {});
-    static Constant* getDefault(IRType* type, PositionInfo info);
-    static Constant* getFromToken(const Token& token);
-    static void clearAll();
-
-    template<typename T>
-    const T& getContentValue() const;
-
-    const PositionInfo& getInfo() const;
-    fzlib::String toString();
-    llvm::Type* toLLVMType(llvm::LLVMContext& context);
-};
-```
-
-`IRArray` 是 IR 阶段的复合值。构造函数会检查所有元素的 IR 类型是否一致。它不是 Runtime 使用的堆 payload：
-
-```cpp
-class IRArray {
-    std::vector<IRValue*> arrContent;
-    PositionInfo createInfo;
-
-public:
-    IRArray(std::vector<IRValue*> values, PositionInfo info);
-    IRType* getType();
-    std::vector<IRValue*>& getArray();
-    IRValue* getHead();
-    std::size_t getSize();
-    PositionInfo& getInfo();
-    bool isEqual(std::vector<IRValue*> values);
-
-    static IRArray* createArray(std::vector<IRValue*> values, PositionInfo info);
-    static void clearArrayPool();
-};
-```
-
-## 5. RuntimeValue
-
-Runtime 使用带标签的 union 包装值。生成代码与 Runtime 之间通过 `RuntimeValue*` 传递，不按值传递 `RuntimeValue`。
-
-```cpp
-enum class RuntimeType : std::uint8_t {
-    I8,
-    I32,
-    I64,
-    U8,
-    U32,
-    U64,
-    F32,
-    F64,
-    Bool,
-    String,
-    Array,
-    Struct,
-    Pointer,
-    TypeInfo
-};
-
-struct RuntimeString {
-    const char* data;
-    std::uint64_t length;
-};
-
-struct RuntimeAggregate {
-    void* data;
-    std::uint64_t length;
-    std::uint64_t stride;
-    const void* layout;
-};
-
-union RawValue {
-    std::int8_t i8;
-    std::int32_t i32;
-    std::int64_t i64;
-    std::uint8_t u8;
-    std::uint32_t u32;
-    std::uint64_t u64;
-    float f32;
-    double f64;
-    bool boolean;
-    RuntimeString string;
-    RuntimeAggregate aggregate;
-    void* pointer;
-};
-
-struct RuntimeValue {
-    RuntimeType type;
-    RawValue data;
-};
-
-extern "C" RuntimeValue* __runtime_alloc_value();
-```
-
-当前 ABI 是一个字节的 tag、ABI 对齐填充和 32 字节的 raw union。LLVM 中对应：
-
-```llvm
-%sakurae.RuntimeValue = type { i8, [7 x i8], [4 x i64] }
-```
-
-标量使用对应 union 成员，字符串使用 `RuntimeString`，数组和结构体在装箱值中使用 `RuntimeAggregate`。当前实现仍保留 `Pointer` 标签，用于被装箱的指针值。
-
-## 6. LLVM 装箱模型
-
-`LLVMCodeGenerator::boxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` 分配 wrapper、写入 Runtime tag，并把原始值写入 union 存储区。`unboxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` 根据 IR 类型对应的 LLVM 类型读取 raw 值。
-
-load/store 通过 `LLVMCodeGenerator::isPointerSlot()` 区分目标地址中的表示：局部变量、
-参数、语言指针解引用得到的槽位，以及托管数组元素槽位（含数组引用）保存指针。
-load 读取 `ptr`，保留已有 wrapper 或数组 payload；store 替换该指针。字符串字符索引
-等原始 payload 地址则按 storage 标量类型读取，再装箱供语言值消费者使用，写入时拆箱。
-不能只根据 `IRType` 判断槽位表示，否则从 boxed 局部槽位执行 `load i32/i64` 会把指针
-位模式误读为标量。`test/load_boxing.sak`、`test/sizeof_basic.sak` 和 repeat 样例通过
-CLI/JIT 验证这些边界。
-
-当前 tag 映射如下：
-
-| IR 类型 | Runtime tag |
-| --- | ---: |
-| `CharTyID` | `I8` / 0 |
-| `Integer32TyID` | `I32` / 1 |
-| `Integer64TyID` | `I64` / 2 |
-| `UInteger32TyID` | `U32` / 4 |
-| `UInteger64TyID` | `U64` / 5 |
-| `Float32TyID` | `F32` / 6 |
-| `Float64TyID` | `F64` / 7 |
-| `BoolTyID` | `Bool` / 8 |
-| `StringTyID` | `String` / 9 |
-| `ArrayTyID` | `Array` / 10 |
-| `PointerTyID` | `Pointer` / 12 |
-| `RefTyID` | `Pointer` / 12 |
-| `TypeInfoTyID` | `TypeInfo` / 13 |
-| 未知类型 | `Pointer` / 12 |
-
-`U8` 和 `Struct` 已存在于 Runtime ABI，但当前 IR tag 函数没有为它们提供完整、独立的 Codegen 分支。这是当前实现状态，不代表 ABI 中没有这些枚举项。
-
-## 7. GC 所有权和根
-
-`RuntimeValue` wrapper 由 `__runtime_alloc_value()` 使用 `malloc` 分配，并由 Runtime 记录以便程序退出时清理；wrapper 本身不是 GC payload。payload 的所有权独立管理：
-
-- 字符串字符存储通过 `__gc_alloc` 以 atomic 对象分配；
-- 数组存储通过 `__gc_alloc` 分配，当前全量装箱实现将元素存为 `RuntimeValue*`；
-- GC API 已支持结构体 payload 和布局元数据，但当前语言主路径尚未生成完整结构体值；
-- `__gc_register_value`、`__gc_register_value_slot` 和 `__gc_scan_value` 根据 Runtime tag 注册或扫描 boxed 值引用。
-
-只要 wrapper 的 payload 仍可能被使用，wrapper 指针就必须保持可达。生成代码会为可能跨越分配或调用的 boxed 值建立 root slot。GC 不会隐式扫描原生 C++ 栈帧。
-
-## 8. RuntimeValue 如何处理 TypeInfo
-
-当前 `TypeInfo*` 是 `IR::Constant` 的一个 variant 分支，`TypeInfoTyID` 也存在于 IR 类型系统中。LLVMCodegen 会通过 Runtime 类型工厂递归 lowering 其指向的 IR 类型，最终生成使用 `RuntimeType::TypeInfo` 标签的 `RuntimeValue`，并将驻留的 `Runtime::TypeInfo*` 保存到指针槽位中。因此它与 `RuntimeType::Pointer` 是两个不同的运行时类型。
-
-Runtime 类型元数据构造后不可变，并按类型结构缓存：基础类型使用驻留实例，指针、引用、数组和结构体类型按元素或布局 key 驻留。后续增加反射操作时，不需要在每个 `RuntimeValue` 中复制完整元数据。
-
-## 9. Pointer 和 Ref 语义
-
-`Ptr<T>`/指针和引用属于 IR 类型层与地址计算层。`Ref<T>` 由 `LoweringSession::lowerType()` 转换为 `IRRefType`，在 LLVM emission 时表示为指针；`create_alloca`、`indexing`、`gaddr` 和 `deref` 等指令操作的是存储地址。
-
-这并不意味着当前 `RuntimeType::Pointer` 是多余的：
-
-- IR 指针/引用可以只是语言存储槽位的地址，为执行 load/store/deref 不必额外包装成 `RuntimeValue`；
-- 如果指针作为一等 boxed runtime value 传递，则可以使用 `RuntimeType::Pointer`，其 union 成员为 `void*`，GC 在注册该值时可以扫描它指向的 payload。
-
-因此当前兼容性设计是：
-
-```text
-IR Ptr/Ref：地址和存储语义
-RuntimeValue::Pointer：被装箱的指针值语义
-```
-
-对于一等地址表达式，LLVMCodegen 会将地址本身写入 `RawValue::pointer`，并以 `RuntimeValue*` 传递 wrapper。解引用和指针索引会先拆出该字段，再执行内存操作；不会把 wrapper 自身的地址当作指针 payload。
-
-如果语言以后禁止指针作为一等值，可以移除 `RuntimeType::Pointer`，但必须同步修改 Codegen、Runtime GC 扫描、打印逻辑和 ABI 声明。
-
-## 10. 当前限制
-
-- `TypeInfo` lowering 当前覆盖基础类型、指针、引用和数组；Runtime 已提供结构体元数据工厂，但语言 IR 尚未生成完整的结构体类型描述；
-- `RuntimeType::U8` 和 `RuntimeType::Struct` 虽然存在于 ABI，但当前 IR tag 映射尚未完整覆盖；
-- RuntimeValue wrapper 和 GC payload 使用两套所有权管理，注册 payload 不会自动释放 wrapper；
-- 数组当前被全量装箱为 `RuntimeValue*` 数组，这是当前 Codegen 的表示选择，不是 `IRArray` 的强制要求。
+## 2. 语义值与常量
+
+IRValue 保存 `TypeInfo* semanticType` 和名称，类型访问器为 `getSemanticType()`，没有 storage 缓存或含义不明的 `getType()`。Function、Instruction、Block、Scope、Symbol 使用语义类型构造；CallableValue 只接受 FunctionTypeInfo 支持的语义签名。
+
+Constant 保存语义 TypeInfo 和 variant 内容：null、有/无符号整数、浮点、字符串文本、字符、bool、TypeInfo payload 或 IRArray。数值/字符串工厂显式接收 TypeInfoContext；类型/数组内容使用其所属语义 context。null 必须具有 nullable struct/array 目标类型。`getDefault(TypeInfo*, PositionInfo)` 和 `getFromToken(Token, TypeInfoContext&)` 不从 storage 反推语义类型。
+
+IRArray 是编译期聚合，不是 Runtime 分配。它检查元素的语义可赋值性，通过元素所属 context 得到数组 TypeInfo。Lowering 始终复用原有 Semantic IR 值。
+
+## 3. Backend 描述
+
+Program 的持久 LoweringSession 拥有 BackendModule、函数索引及驻留的 RuntimeTypeDescription。BackendModule 拥有本模块 BackendFunction；源函数体及类型引用均为非拥有。
+
+BackendFunction 保存：
+
+- lowered 签名、具名参数、返回 storage 类型、linkage，以及 Raw/Boxed/Void ABI；
+- `valueTypes`：值到 storage 类型的查询；
+- `runtimeTypes`、参数/返回描述：runtime kind、tag、表示方式、元素/数量及结构体名义身份；
+- `constants`：lowered ConstantKind，包含 null/string/array/descriptor；
+- `typeOperands`：sizeof 操作数与类型常量 payload 的描述；
+- 分开的参数 root、临时值 root 与局部槽位 root。
+
+RuntimeTypeDescription 是编译器侧 Backend 描述，不是实际 RuntimeTypeInfo 对象。LLVMCodegen 消费描述和 Constant 内容，不读取编译器 TypeInfo，也不调用 LoweringSession。
+
+语言字符串和字符指针会 lowering 为同一个 pointer-to-char IRType，但保留不同 runtime 描述：字符串 tag/托管 root 与指针 tag/非托管地址。不能根据 storage 反推这一区别；因此已删除 `IRType::isString()`。
+
+## 4. Runtime 表示
+
+RuntimeValue 包含 RuntimeType 标签与 RawValue。ABI 为一字节 tag、对齐填充及 32 字节 union；LLVM wrapper 为 `{ i8, [7 x i8], [4 x i64] }`，以指针传递。
+
+| 值类别 | 当前表示 |
+| --- | --- |
+| 标量、字符串、一等指针、类型描述值 | 装箱的 RuntimeValue 指针 |
+| 托管数组 | 直接 payload 指针；元素保存值指针 |
+| 引用 | 语言槽位地址 |
+| nullable 数组/结构体 null | 直接 null handle，不把聚合类型装入 RawValue |
+
+`boxRaw()` 使用 Backend runtime 描述写入 tag 和原始 payload；`unboxRaw()` 通过 `Codegen::map()` 按 lowered storage 类型读取。字符串常量调用 create_string，数组常量分配 GC payload，并在分配期间保护活动元素。
+
+## 5. load、store 与 root
+
+`LLVMCodeGenerator::isPointerSlot()` 区分局部变量、参数、语言指针解引用及托管数组槽位（含数组引用）与原始 payload 地址。槽位 load 读取 ptr，保留现有 wrapper 或 payload；store 替换指针。字符串字符索引等原始地址按 storage 标量读取后装箱，写入时拆箱。
+
+不能对 boxed 局部槽位生成 load i32/i64，否则会把指针位模式误读为标量。`test/load_boxing.sak`、`test/sizeof_basic.sak` 和 repeat 样例通过 CLI/JIT 覆盖这些路径。
+
+RuntimeValue wrapper 被记录以便退出时清理，GC payload 另有所有权。字符串字符存储为 GC atomic 内存，数组包含值指针及长度/步长扫描描述。Backend root 策略区分托管字符串/数组、原始指针和内部地址；emitter 的活动作用域深度及生成的 root 槽位仍属于 LLVM 状态。
+
+gmem 消费 BackendFieldAccess（原始 IRStructType 布局、字段索引、runtime 描述和 storage 策略）。非空 struct handle 直接指向原始布局；标量字段按原始字节读取后装箱，写入时拆箱。嵌套结构体保留内嵌地址；内嵌数组按原始元素 GEP 和边界检查访问，不按托管数组指针槽位访问。whole embedded array 值物化/赋值明确不支持。原始字符串字段保存字符指针，读取时补齐 wrapper 和长度；原生指针不误作字符串。null struct handle 在字段 GEP 前 trap。
+
+字段访问没有新增源语言结构体构造或 GC-owned struct object；调用方必须提供存活且布局兼容的 handle。lgc_not 仅接受 bool，生成取反后的装箱 bool。未支持指令按操作名报错；暂缓的 typeof 同样明确报错，不再静默产生空结果。
+
+## 6. Runtime 类型元数据
+
+类型常量在生成 LLVM 前转换为描述。emitter 根据描述调用 `__runtime_type_info_basic`、`_pointer`、`_reference`、`_array` 或 `_struct`，将返回的 RuntimeTypeInfo 指针按类型描述 tag 装箱。字符串元数据仍为 string，而不是 ptr<i8>。
+
+当前 struct 工厂接收稳定的名义身份与 null layout，不表示已实现字段反射。函数元数据及描述符类型自身的元数据没有 Runtime 工厂，使用时显式报错。`typeof` emitter 暂缓实现：语义指令已存在，但不属于可用运行时路径。
+
+## 7. LLVM 边界与所有权
+
+`Compiler/LLVMCodegen/LLVMTypeMapper.hpp/.cpp` 提供 `Codegen::map(IRType*, llvm::LLVMContext&)`。IR 类型不再提供 toLLVMType；IRContext 仅拥有语义/storage 类型。调用方创建 LLVMContext，传给 LLVMCodeGenerator，再连同生成模块交给 JIT。
+
+FunctionEmiiter.hpp/.cpp 与 ModuleEmmiter.hpp/.cpp 定义命名空间级 emitter，拼写遵循当前 API；所有方法在 cpp 实现。LLVMCodeGenerator 协调指令生成并向 emitter 开放共享 helper。旧嵌套 LLVMFunction/LLVMModule 类及兼容别名均已移除。
+
+Program 销毁时先释放 Session/Backend 描述，再释放源模块/NamingContext，最后释放 IRContext。不得在所有者销毁后继续使用 BackendFunction、RuntimeTypeDescription 或命名 storage 指针。详见 [Context 设计](context-zh_cn.md)。

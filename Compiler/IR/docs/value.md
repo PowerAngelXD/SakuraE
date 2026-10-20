@@ -2,394 +2,81 @@
 
 [Chinese Version](value-zh_cn.md)
 
-This document describes the value representations used by the frontend, SakuraE IR, LLVM code generation, and the runtime library. The layers are related by conversion; they are not an inheritance hierarchy across compiler and runtime layers.
+## 1. Type boundaries
 
-Semantic checks now use `TypeInfo`: `CallableValue` accepts only a semantic function type backed by
-`FunctionTypeInfo`, and calls and overload resolution do not inspect storage signatures. `typeof` and
-type-description values use `TypeID::TypeDescriptor`, lowered through the Session to `IRTypeInfoType`.
-Constants explicitly store their semantic `TypeInfo*`; Generator never infers it from `IRType`.
-Function/Instruction/Value construction is semantic-only. Stage 5 stores lowered signatures and
-value types in `BackendFunction`, which LLVM Codegen consumes without invoking the Session.
-Storage-construction examples below are historical; constant representation isolation remains stage 6.
+- `IR::TypeInfo`: source-language semantic type. Assignability, nullable, overloads, and signatures use this type.
+- `IR::IRType`: storage type, produced by Lowering and owned by the Program's IRContext or a module NamingContext.
+- `runtime::RuntimeTypeInfo`: immutable runtime type metadata, interned by runtime factories.
 
-## 1. Layered model
+`IRTypeInfoType` is an IRType subclass for type-description storage, not another type system. `RuntimeType::TypeInfo` is a runtime value tag.
 
 ```mermaid
-flowchart TD
-    AST[AST type expressions] --> TI[IR::TypeInfo]
-    TI --> IT[IR::IRType]
-    IT --> IV[IR::IRValue]
-    IV --> C[IR::Constant]
-    IV --> I[IR::Instruction]
-    C --> A[IR::IRArray]
-    IV --> LLVM[llvm::Value]
-    LLVM --> RV[RuntimeValue*]
-    RV --> RAW[RawValue union]
-    RV --> PAYLOAD[GC-managed payloads]
+flowchart LR
+    S["Semantic IR / TypeInfo"] -->|Lowering| B["Backend descriptions / IRType"]
+    B -->|LLVMCodegen| L["LLVM IR"]
+    L -->|runtime factories| R["RuntimeTypeInfo"]
 ```
 
-`IRValue` is the compiler IR representation. `llvm::Value` is the LLVM representation produced by code generation. `RuntimeValue` is the runtime representation used by generated calls such as `print`; it is not an LLVM subclass and does not inherit from `llvm::Value`.
-
-## 2. Compile-time type information
-
-`TypeInfo` describes source-language types while the frontend and IR are being built. During LLVM code generation it is lowered to a cached `Runtime::TypeInfo` object when a type value is materialized.
-
-```cpp
-enum TypeID {
-    Int32,
-    Int64,
-    UInt32,
-    UInt64,
-    Float32,
-    Float64,
-    Bool,
-    Char,
-    String,
-    Null,
-    Custom,
-    Array,
-    Pointer,
-    Ref
-};
-
-class ArrayTypeInfo {
-    TypeInfo* elementType;
-    std::uint64_t elementCount;
-
-public:
-    ArrayTypeInfo(TypeInfo* element, std::uint64_t count);
-    std::uint64_t length() const;
-    TypeInfo* getElementTy();
-};
-
-class PointerTypeInfo {
-    TypeInfo* elementType;
-
-public:
-    PointerTypeInfo(TypeInfo* element);
-    TypeInfo* getElementTy();
-};
-
-class RefTypeInfo {
-    TypeInfo* elementType;
-
-public:
-    RefTypeInfo(TypeInfo* element);
-    TypeInfo* getElementTy();
-};
-
-class TypeInfo {
-    TypeID typeID;
-    std::variant<
-        std::monostate,
-        ArrayTypeInfo,
-        PointerTypeInfo,
-        RefTypeInfo
-    > complexTypeInfo;
-
-public:
-    TypeInfo(TypeID tid);
-    TypeInfo(TypeInfo* element, std::uint64_t count);
-    TypeInfo(TypeID id, TypeInfo* elementType);
-    ~TypeInfo() = default;
-
-    bool isArray();
-    bool isPointer();
-    bool isRef();
-    const TypeID& getTypeID();
-    const FunctionTypeInfo* getFunctionTypeInfo() const;
-
-    static TypeInfo* makeBasicTypeID(TypeID typeID);
-    static TypeInfo* makeArrayTypeID(TypeInfo* element, std::uint64_t count);
-    static TypeInfo* makePointerTypeID(TypeInfo* typeID);
-    static TypeInfo* makeRefTypeID(TypeInfo* typeID);
-    static void clearAll();
-};
-```
-
-`LoweringSession::lowerType()` maps basic types to context-owned `IRType` instances, arrays to `IRArrayType`, pointers to `IRPointerType`, and references to `IRRefType`. `TypeInfo::toIRType()` has been removed; the snippet above is a simplified view, and type construction is controlled by `TypeInfoContext`.
-
-## 3. IR types and values
-
-The current IR type identifiers are:
-
-```cpp
-enum IRTypeID {
-    VoidTyID,
-    Integer32TyID,
-    Integer64TyID,
-    IntegerNTyID,
-    UInteger32TyID,
-    UInteger64TyID,
-    UIntegerNTyID,
-    Float32TyID,
-    Float64TyID,
-    FloatNTyID,
-    CharTyID,
-    BoolTyID,
-    TypeInfoTyID,
-    StringTyID,
-    RefTyID,
-    PointerTyID,
-    ArrayTyID,
-    FunctionTyID,
-    BlockTyID
-};
-```
-
-The base IR value is:
-
-```cpp
-class IRValue {
-protected:
-    IRType* type;
-    fzlib::String name;
-
-public:
-    explicit IRValue(IRType* ty, fzlib::String n);
-    explicit IRValue(IRType* ty);
-    virtual ~IRValue() = default;
-
-    IRType* getType() const;
-    void setName(const fzlib::String& n);
-    void setType(IRType* t);
-    const fzlib::String& getName();
-};
-```
-
-An instruction is an `IRValue` with an operation and operands:
-
-```cpp
-class Instruction : public IRValue {
-    OpKind kind = OpKind::empty;
-    std::vector<IRValue*> args;
-    Block* parent = nullptr;
-
-public:
-    Instruction(OpKind k, IRType* t);
-    Instruction(OpKind k, IRType* t, std::vector<IRValue*> params);
-
-    bool isTerminal();
-    bool isLValue();
-    bool isRValue();
-    void setParent(Block* blk);
-    Block* getParent();
-    const std::vector<IRValue*>& getOperands();
-    IRValue* arg(std::size_t pos);
-    const OpKind& getKind();
-    IRValue* operator[](std::size_t pos);
-    fzlib::String toString();
-};
-```
-
-## 4. Constants and arrays
-
-`Constant` stores compile-time values in a `std::variant` and retains the IR type separately:
-
-```cpp
-class Constant : public IRValue {
-private:
-    std::variant<
-        std::monostate,
-        std::int32_t,
-        std::int64_t,
-        std::uint32_t,
-        std::uint64_t,
-        double,
-        float,
-        fzlib::String,
-        std::int8_t,
-        bool,
-        TypeInfo*,
-        IRArray*
-    > content;
-    PositionInfo createInfo;
-
-public:
-    static Constant* get(std::uint32_t value, PositionInfo info = {});
-    static Constant* get(std::uint64_t value, PositionInfo info = {});
-    static Constant* get(std::int64_t value, PositionInfo info = {});
-    static Constant* get(std::int32_t value, PositionInfo info = {});
-    static Constant* get(float value, PositionInfo info = {});
-    static Constant* get(double value, PositionInfo info = {});
-    static Constant* get(const fzlib::String& value, PositionInfo info = {});
-    static Constant* get(std::int8_t value, PositionInfo info = {});
-    static Constant* get(bool value, PositionInfo info = {});
-    static Constant* get(TypeInfo* value, PositionInfo info = {});
-    static Constant* get(IRArray* value, PositionInfo info = {});
-    static Constant* getDefault(IRType* type, PositionInfo info);
-    static Constant* getFromToken(const Token& token);
-    static void clearAll();
-
-    template<typename T>
-    const T& getContentValue() const;
-
-    const PositionInfo& getInfo() const;
-    fzlib::String toString();
-    llvm::Type* toLLVMType(llvm::LLVMContext& context);
-};
-```
-
-`IRArray` is an IR-time aggregate. Its constructor verifies that all elements have the same IR type. It is not the heap payload used by the runtime:
-
-```cpp
-class IRArray {
-    std::vector<IRValue*> arrContent;
-    PositionInfo createInfo;
-
-public:
-    IRArray(std::vector<IRValue*> values, PositionInfo info);
-    IRType* getType();
-    std::vector<IRValue*>& getArray();
-    IRValue* getHead();
-    std::size_t getSize();
-    PositionInfo& getInfo();
-    bool isEqual(std::vector<IRValue*> values);
-
-    static IRArray* createArray(std::vector<IRValue*> values, PositionInfo info);
-    static void clearArrayPool();
-};
-```
-
-## 5. RuntimeValue
-
-The runtime uses a tagged wrapper. The wrapper is passed by pointer across the generated-code/runtime boundary.
-
-```cpp
-enum class RuntimeType : std::uint8_t {
-    I8,
-    I32,
-    I64,
-    U8,
-    U32,
-    U64,
-    F32,
-    F64,
-    Bool,
-    String,
-    Array,
-    Struct,
-    Pointer,
-    TypeInfo
-};
-
-struct RuntimeString {
-    const char* data;
-    std::uint64_t length;
-};
-
-struct RuntimeAggregate {
-    void* data;
-    std::uint64_t length;
-    std::uint64_t stride;
-    const void* layout;
-};
-
-union RawValue {
-    std::int8_t i8;
-    std::int32_t i32;
-    std::int64_t i64;
-    std::uint8_t u8;
-    std::uint32_t u32;
-    std::uint64_t u64;
-    float f32;
-    double f64;
-    bool boolean;
-    RuntimeString string;
-    RuntimeAggregate aggregate;
-    void* pointer;
-};
-
-struct RuntimeValue {
-    RuntimeType type;
-    RawValue data;
-};
-
-extern "C" RuntimeValue* __runtime_alloc_value();
-```
-
-The current ABI has a one-byte tag followed by ABI padding and a 32-byte raw union. LLVM models it as:
-
-```llvm
-%sakurae.RuntimeValue = type { i8, [7 x i8], [4 x i64] }
-```
-
-The generated code always uses `RuntimeValue*`; it does not pass `RuntimeValue` by value. Scalar values use the corresponding union member. Strings use `RuntimeString`. Arrays and structs use `RuntimeAggregate` when represented as boxed runtime values. The current implementation still has a `Pointer` tag for boxed pointer values.
-
-## 6. LLVM boxing
-
-`LLVMCodeGenerator::boxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` allocates a wrapper, writes the runtime tag, and stores the raw value in the union storage. `unboxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` loads the raw field using the IR type's LLVM type.
-
-Loads and stores distinguish the addressed representation using `LLVMCodeGenerator::isPointerSlot()`:
-locals, parameters, dereferenced language pointers, and managed array element slots (including array
-references) contain pointers. Loads read `ptr` and preserve the existing wrapper or array payload;
-stores replace that pointer. Raw payload addresses such as string character indices instead load
-the storage scalar and box it for language consumers, while stores unbox the source value.
-`IRType` alone is not a slot representation: loading `i32`/`i64` from a boxed local would interpret
-pointer bits as a scalar. `test/load_boxing.sak`, `test/sizeof_basic.sak`, and the repeat fixtures
-exercise these boundaries through the CLI/JIT.
-
-The current tag mapping is:
-
-| IR type | Runtime tag |
-| --- | ---: |
-| `CharTyID` | `I8` / 0 |
-| `Integer32TyID` | `I32` / 1 |
-| `Integer64TyID` | `I64` / 2 |
-| `UInteger32TyID` | `U32` / 4 |
-| `UInteger64TyID` | `U64` / 5 |
-| `Float32TyID` | `F32` / 6 |
-| `Float64TyID` | `F64` / 7 |
-| `BoolTyID` | `Bool` / 8 |
-| `StringTyID` | `String` / 9 |
-| `ArrayTyID` | `Array` / 10 |
-| `PointerTyID` | `Pointer` / 12 |
-| `RefTyID` | `Pointer` / 12 |
-| `TypeInfoTyID` | `TypeInfo` / 13 |
-| fallback | `Pointer` / 12 |
-
-`U8` and `Struct` are defined by the runtime ABI, but the current IR tag function does not expose independent complete code-generation paths for them. This is an implementation status, not a statement that those enum members are unavailable in the ABI.
-
-## 7. GC ownership and roots
-
-`RuntimeValue` wrappers are allocated with `malloc` by `__runtime_alloc_value()` and tracked by the runtime for shutdown cleanup. They are not themselves GC payload objects. Payload ownership is separate:
-
-- string character storage is allocated by `__gc_alloc` as an atomic object;
-- array storage is allocated by `__gc_alloc` and its elements are `RuntimeValue*` under the current full-boxing implementation;
-- struct payload support and layout metadata exist in the GC API, although the current language path does not yet generate complete struct values;
-- a boxed `RuntimeValue` is registered/scanned according to its tag by `__gc_register_value`, `__gc_register_value_slot`, and `__gc_scan_value`.
-
-The wrapper pointer must remain reachable while its payload is needed. Generated code therefore creates root slots for boxed values that can survive an allocation or call. The GC does not scan native C++ stack frames implicitly.
-
-## 8. TypeInfo in the runtime
-
-`TypeInfo*` is a variant alternative in `IR::Constant` and `TypeInfoTyID` exists in the IR type system. LLVMCodegen lowers the pointed-to IR type recursively through the Runtime type-info factories. The resulting `RuntimeValue` uses `RuntimeType::TypeInfo` and stores a resident `Runtime::TypeInfo*` in the pointer slot. It is therefore distinct from `RuntimeType::Pointer`.
-
-Runtime type metadata is immutable after construction and cached by type structure. Basic types are interned, while pointer, reference, array, and struct metadata are interned by their element/layout keys. The metadata can later be extended with reflection operations without copying it into each `RuntimeValue`.
-
-## 9. Pointer and reference semantics
-
-`Ptr<T>`/pointer and reference types belong to the IR type and address-calculation layers. `Ref<T>` is lowered by `LoweringSession::lowerType()` to `IRRefType`, represented as an LLVM pointer during emission. Instructions such as `create_alloca`, `indexing`, `gaddr`, and `deref` operate on storage addresses.
-
-This does not make `RuntimeType::Pointer` redundant in the current implementation. The distinction is:
-
-- an IR pointer/reference can be an address of a language storage slot and need not be wrapped as a `RuntimeValue` merely to perform load/store/deref;
-- a pointer passed as a first-class boxed runtime value can use `RuntimeType::Pointer`, whose union member is `void*`, and the GC can scan the pointed payload when registered.
-
-Therefore the current compatible design is:
-
-```text
-IR Ptr/Ref: address and storage semantics
-RuntimeValue::Pointer: boxed pointer-value semantics
-```
-
-For a first-class address expression, LLVMCodegen stores the address itself in `RawValue::pointer` and passes the wrapper as `RuntimeValue*`. Dereference and pointer indexing unbox this field before performing memory operations. The wrapper address is never used as the pointer payload.
-
-If the language later forbids pointers as first-class values, `RuntimeType::Pointer` can be removed, but code generation, runtime GC scanning, printing, and ABI declarations must be changed together.
-
-## 10. Current limitations
-
-- `TypeInfo` lowering currently covers basic types, pointers, references, and arrays. Struct metadata has a Runtime factory, but the language IR does not yet generate complete struct type descriptions.
-- `RuntimeType::U8` and `RuntimeType::Struct` are present in the ABI but are not fully covered by the current IR tag mapping.
-- RuntimeValue wrappers and GC payloads have separate ownership systems; registering a payload does not automatically free its wrapper.
-- Arrays are fully boxed as arrays of `RuntimeValue*`; this is a representation choice made by the current code generator, not a requirement of `IRArray`.
+## 2. Semantic values and constants
+
+`IRValue` stores `TypeInfo* semanticType` and a name; `getSemanticType()` is the type accessor. It has no storage cache or ambiguous `getType()`. Function, Instruction, Block, Scope, and Symbol construction use semantic types. `CallableValue` accepts FunctionTypeInfo-backed semantic signatures only.
+
+`Constant` retains its semantic TypeInfo and a variant payload: null, signed/unsigned integers, floats, string text, character, bool, TypeInfo payload, or IRArray. Numeric/string factories receive TypeInfoContext; type/array payloads use their owning semantic context. Null requires a nullable struct or array target. `getDefault(TypeInfo*, PositionInfo)` and `getFromToken(Token, TypeInfoContext&)` never infer a semantic type from storage.
+
+`IRArray` is a compile-time aggregate, not a runtime allocation. It checks semantic element assignability and derives its array TypeInfo from the element context. The original values remain in Semantic IR throughout lowering.
+
+## 3. Backend descriptions
+
+The Program's persistent LoweringSession owns BackendModules, function indexes, and interned RuntimeTypeDescription objects. BackendModule owns local BackendFunctions; all source body and type references are non-owning.
+
+BackendFunction stores:
+
+- lowered signature, named parameter types, result storage type, linkage, and Raw/Boxed/Void ABI choices;
+- `valueTypes`: value-to-storage type lookup;
+- `runtimeTypes`, parameter descriptions, and return description: runtime kind, tag, representation, element/count, and nominal struct identity;
+- `constants`: lowered ConstantKind, including null/string/array/descriptor;
+- `typeOperands`: descriptions for sizeof operands and type-valued constant payloads;
+- separate parameter roots, temporary value roots, and local slot roots.
+
+RuntimeTypeDescription is a compiler-side backend description, not the actual RuntimeTypeInfo object. LLVMCodegen consumes descriptions and Constant payload bytes; it never reads compiler TypeInfo or invokes LoweringSession.
+
+A string and a char pointer both lower to pointer-to-char IRType. Their runtime descriptions remain distinct: string tag/managed root versus pointer tag/non-managed address. Storage alone must not be used to recover this distinction. `IRType::isString()` was removed for that reason.
+
+## 4. Runtime representations
+
+RuntimeValue consists of RuntimeType and RawValue. The ABI uses a one-byte tag, alignment padding, and a 32-byte union; generated LLVM wrappers use `{ i8, [7 x i8], [4 x i64] }` and are passed as pointers.
+
+| Value category | Current representation |
+| --- | --- |
+| Scalar, string, first-class pointer, type description | Boxed RuntimeValue pointer |
+| Managed array | Direct payload pointer; elements hold value pointers |
+| Reference | Language slot address |
+| Nullable array/struct null | Direct null handle, not an aggregate boxed into RawValue |
+
+`boxRaw()` takes a Backend runtime description, writes its tag, and stores the raw payload. `unboxRaw()` uses the lowered storage type through `Codegen::map()` to read the payload. String literals call `create_string`; array literals allocate GC payloads and root live elements during allocation.
+
+## 5. Loads, stores, and roots
+
+`LLVMCodeGenerator::isPointerSlot()` distinguishes locals, parameters, dereferenced language pointers, and managed array slots (including array references) from raw payload addresses. Slot loads read ptr and preserve an existing wrapper or payload; stores replace the pointer. Raw addresses such as string character indices load a storage scalar and box it for language consumers; stores unbox the source.
+
+Do not generate load i32/i64 from a boxed local: those bits are a pointer, not the scalar. `test/load_boxing.sak`, `test/sizeof_basic.sak`, and repeat fixtures exercise these paths through CLI/JIT.
+
+RuntimeValue wrappers are tracked for shutdown cleanup; their GC payloads have separate ownership. String character storage is atomic GC memory. Arrays contain value pointers and have length/stride scanning metadata. Backend root decisions distinguish managed strings/arrays from raw pointers and interior addresses. Emitter scope depth and generated root slots remain LLVM state.
+
+`gmem` consumes BackendFieldAccess (raw IRStructType layout, field index, runtime description, storage policy). A non-null struct handle points directly at that raw layout. Scalar fields load raw bytes and box the result; stores unbox. Nested structs keep embedded addresses. Embedded arrays use raw element GEPs and bounds checks, not managed-array pointer slots. Whole embedded-array materialization/assignment is explicitly unsupported. Raw string fields store character pointers; loading builds a string wrapper and computes length. Native pointer fields remain pointers, not strings. Null struct handles trap before field GEP.
+
+This field access support does not add source-language struct construction or GC-owned struct objects; callers must supply a live compatible handle. `lgc_not` accepts only bool and emits an inverted boxed bool. Unsupported instruction kinds fail by operation name. Deferred `typeof` also fails explicitly rather than producing no result.
+
+## 6. Runtime type metadata
+
+Type-valued constants are lowered to descriptions before code generation. The emitter calls `__runtime_type_info_basic`, `_pointer`, `_reference`, `_array`, or `_struct` using those descriptions, then boxes the returned RuntimeTypeInfo pointer with the type-description tag. Strings remain string metadata rather than ptr<i8> metadata.
+
+The current struct factory receives stable nominal identity and a null layout; this is not complete field reflection. Function metadata factories and metadata describing the descriptor type itself are unsupported and fail explicitly. `typeof` emission is deferred; its semantic instruction exists, but it is not a working runtime path.
+
+## 7. LLVM boundary and ownership
+
+`Compiler/LLVMCodegen/LLVMTypeMapper.hpp/.cpp` owns `Codegen::map(IRType*, llvm::LLVMContext&)`. IR types no longer expose toLLVMType. IRContext owns semantic/storage types only; the caller creates LLVMContext, supplies it to LLVMCodeGenerator, and transfers it with emitted modules to JIT.
+
+`FunctionEmiiter.hpp/.cpp` and `ModuleEmmiter.hpp/.cpp` define namespace-level emitters (spelling follows the project API). All methods are out-of-line. LLVMCodeGenerator coordinates instruction generation and grants the emitters access to shared generation helpers; the old nested LLVMFunction/LLVMModule classes and aliases are gone.
+
+Program destruction releases Session/Backend descriptions first, then source modules/NamingContexts, then IRContext. Do not retain BackendFunction, RuntimeTypeDescription, or named storage pointers past their owner. See [Context design](context.md).
