@@ -275,6 +275,20 @@ add_test(NAME sakurae-ir-context-tests COMMAND sakurae-ir-context-tests)
 add_test(NAME sakurae-ir-generator-tests COMMAND sakurae-ir-generator-tests)
 add_test(NAME sakurae-language-server-tests COMMAND sakurae-language-server-tests)
 
+get_target_property(SAKURAE_CODEGEN_TEST_SOURCES ${PROJECT_NAME} SOURCES)
+list(REMOVE_ITEM SAKURAE_CODEGEN_TEST_SOURCES main.cpp)
+add_executable(sakurae-codegen-tests
+    Compiler/LLVMCodegen/tests.cpp
+    ${SAKURAE_CODEGEN_TEST_SOURCES}
+)
+target_include_directories(sakurae-codegen-tests SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
+target_include_directories(sakurae-codegen-tests PRIVATE ${PROJECT_SOURCE_DIR})
+target_compile_definitions(sakurae-codegen-tests PRIVATE ${LLVM_DEFINITIONS})
+target_compile_options(sakurae-codegen-tests PRIVATE -Wall -Wpedantic -Werror)
+target_link_libraries(sakurae-codegen-tests PRIVATE ${LLVM_LINK_FLAGS} Threads::Threads)
+add_test(NAME sakurae-codegen-tests COMMAND sakurae-codegen-tests)
+
+
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 
 set_target_properties(
