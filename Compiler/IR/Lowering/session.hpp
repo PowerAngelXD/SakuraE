@@ -4,6 +4,7 @@
 #include <Compiler/IR/Semantic/type/type_info.hpp>
 #include <Compiler/IR/Semantic/model/struct.hpp>
 #include <Compiler/IR/Backend/type/type.hpp>
+#include <Compiler/IR/Backend/model/module.hpp>
 #include <unordered_map>
 #include <stdexcept>
 #include <set>
@@ -16,6 +17,13 @@ namespace sakuraE::IR {
         std::unordered_map<const TypeInfo*, IRType*> typeMap;
         std::map<StructDeclId, IRStructType*> structMap;
         std::set<StructDeclId> fillingStructs;
+        std::unordered_map<const Function*, BackendFunction*> functionMap;
+        std::unordered_map<const Module*, std::unique_ptr<BackendModule>> backendModules;
+
+        void validateModule(const Module& module) const;
+        void lowerFunctionContents(BackendFunction& function);
+        void refreshModule(const Module& module);
+        void populateModule(BackendModule& module);
 
         // 单次 lowerType 调用中产生、尚未确认可缓存的结果
         struct PendingLowering {
@@ -33,6 +41,8 @@ namespace sakuraE::IR {
         IRContext& context() const { return irContext; }
 
         IRType* lowerType(const TypeInfo* tyInfo);
+        BackendFunction* lowerFunction(const Function& function);
+        BackendModule* lowerModule(const Module& module);
     };
 }
 
