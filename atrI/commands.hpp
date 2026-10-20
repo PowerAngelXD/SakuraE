@@ -31,6 +31,7 @@
 
 
 #include "Compiler/IR/Semantic/generator.hpp"
+#include "Compiler/IR/Lowering/session.hpp"
 #include "Compiler/LLVMCodegen/LLVMCodegenerator.hpp"
 #include "utils.hpp"
 #include "config/config.hpp"
@@ -89,7 +90,8 @@ namespace atri::cmds {
 
         auto& program = generator.getProgram();
 
-        sakuraE::Codegen::LLVMCodeGenerator llvmCodegen(&program);
+        const auto* backend = program.lowering().lowerModule(*program.curMod());
+        sakuraE::Codegen::LLVMCodeGenerator llvmCodegen(*backend, program.getContext().llvmContext());
         llvmCodegen.start();
 
         if (config.displayRawLLVMIR) {
@@ -150,26 +152,22 @@ namespace atri::cmds {
 
         llvm::cantFail(JD.define(llvm::orc::absoluteSymbols(runtimeSymbols)));
 
-        auto TSCtx = llvm::orc::ThreadSafeContext(llvmCodegen.releaseContext());
+        auto TSCtx = llvm::orc::ThreadSafeContext(program.getContext().releaseLLVMContext());
 
         for (auto mod: llvmCodegen.getModules()) {
+            llvm::Module* rawModule = mod->content;
             if (mod->ID == "__main") {
-                auto module = mod;
-                llvm::Module* rawModule = module->content;
                 auto* entryFunction = rawModule->getFunction("main");
                 if (!entryFunction || !entryFunction->getReturnType()->isPointerTy() ||
                     entryFunction->arg_size() != 0) {
                     throw std::runtime_error(
                         "Generated main must have the RuntimeValue*() ABI.");
                 }
-                auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
-                auto TSM = llvm::orc::ThreadSafeModule(
-                    std::move(modulePtr),
-                    TSCtx
-                );
-                llvm::cantFail(JIT->addIRModule(std::move(TSM)));
-                break;
             }
+            auto modulePtr = std::unique_ptr<llvm::Module>(rawModule);
+            mod->content = nullptr;
+            auto TSM = llvm::orc::ThreadSafeModule(std::move(modulePtr), TSCtx);
+            llvm::cantFail(JIT->addIRModule(std::move(TSM)));
         }
 
         auto mainSymbol = llvm::cantFail(JIT->lookup("main"));
