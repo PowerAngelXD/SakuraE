@@ -1,28 +1,19 @@
 # SakuraE 运行时库
 
-SakuraE 编译器的运行时库，提供内存管理、字符串处理及基础 I/O 支持。
-
 [English Version](README.md)
 
-## 文件列表及功能说明
+Runtime 为生成代码提供 GC payload 分配、装箱值、字符串、I/O、运行时错误和不可变类型元数据。
 
-### 1. 内存管理
-*   **[GC 设计与实现文档](GC-zh_cn.md)**：介绍 GC 的设计、接口、对象布局、Root 管理和 LLVM 集成。
-*   **[`alloc.h`](Runtime/alloc.h)**: 内存分配器的头文件，定义了运行时核心分配接口。
-*   **[`alloc.cpp`](Runtime/alloc.cpp)**: 
-    *   `__alloc(size_t size)`: 封装 `malloc`，提供带零初始化的堆内存分配，并包含内存不足时的错误处理。
-    *   `__free(void* ptr)`: 封装 `free`，用于释放堆内存。
+## 接口
 
-### 2. 字符串处理
-*   **[`raw_string.cpp`](Runtime/raw_string.cpp)**:
-    *   `create_string(const char* literal)`: 将 C 风格字符串字面量拷贝到堆内存中，支持字符串的可变性。
-    *   `free_string(char* str)`: 为保持 ABI 保留的兼容接口，无实际操作；字符串由 GC 回收。
-    *   `concat_string(const char* s1, const char* s2)`: 连接两个字符串并返回存储在堆上的新字符串。
+- [`gc.h`](gc.h)：payload 分配、扫描、root、作用域和收集；详见 [GC 设计](GC-zh_cn.md)。
+- [`value.h`](value.h)：`RuntimeValue`、`RuntimeType` 标签及 `RawValue`。生成的语言调用传递 `RuntimeValue*`；托管数组当前使用指针 payload。
+- [`rttype.h`](rttype.h)：运行时类型元数据对象 `RuntimeTypeInfo`。`__runtime_type_info_basic`、`_pointer`、`_reference`、`_array`、`_struct` 工厂驻留不可变元数据，C 符号名称保持不变。
+- [`raw_string.h`](raw_string.h)：`create_string(const char*)`、`concat_string(RuntimeValue*, RuntimeValue*)`，以及兼容的空操作 `free_string(RuntimeValue*)`；字符 payload 由 GC 管理。
+- [`print.h`](print.h)：`print(RuntimeValue*)` 和 `println(RuntimeValue*)`。
+- [`alloc.h`](alloc.h)：原始内存分配接口 `__alloc` / `__free`。
+- [`errors.h`](errors.h)：运行时错误状态和数组边界检查。
 
-### 3. 基础 I/O
-*   **[`print.cpp`](Runtime/print.cpp)**:
-    *   `print(char* str)`: 打印字符串到标准输出。
-    *   `println(char* str)`: 打印字符串并换行。
+`IR::TypeInfo` 表达源语言语义类型，`IR::IRType` 表达 storage 类型，`runtime::RuntimeTypeInfo` 表达运行时类型元数据。`RuntimeType::TypeInfo` 只是装箱值标签，不是第四套类型体系；Runtime 工厂不接收编译器类型对象。
 
-## 编译与链接
-这些文件通常被编译为目标文件或静态库，并在 LLVM 后端生成代码后，与用户程序链接以提供运行时支持。
+CLI 向 JIT 注册 C ABI 符号；Runtime 实现链接到编译器可执行文件，LLVM 生成阶段发出对这些符号的调用。`typeof` 代码生成当前暂缓实现。

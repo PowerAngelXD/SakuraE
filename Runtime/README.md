@@ -2,27 +2,18 @@
 
 [简体中文](README-zh_cn.md)
 
-The runtime library for the SakuraE compiler, providing memory management, string manipulation, and basic I/O support.
+The runtime provides GC-managed payload allocation, boxed values, strings, I/O, runtime errors, and immutable runtime type metadata for generated code.
 
-## File List and Functionality
+## Interfaces
 
-### 1. Memory Management
-*   **[Garbage Collector Design](GC.md)**: Design, APIs, object layout, root management, and LLVM integration.
-*   **[`alloc.h`](Runtime/alloc.h)**: Header for the memory allocator, defining core runtime allocation interfaces.
-*   **[`alloc.cpp`](Runtime/alloc.cpp)**: 
-    *   `__alloc(size_t size)`: Wraps `malloc` to provide heap allocation with zero-initialization and error handling for out-of-memory conditions.
-    *   `__free(void* ptr)`: Wraps `free` for releasing heap memory.
+- [`gc.h`](gc.h): payload allocation, scanning, roots, scopes, and collection. See [GC design](GC.md).
+- [`value.h`](value.h): `RuntimeValue`, its `RuntimeType` tag, and `RawValue` payload. Generated language calls pass `RuntimeValue*`; managed arrays currently use pointer payloads.
+- [`rttype.h`](rttype.h): `RuntimeTypeInfo`, the runtime type metadata object. `__runtime_type_info_basic`, `_pointer`, `_reference`, `_array`, and `_struct` intern immutable metadata. Factory C symbols are unchanged.
+- [`raw_string.h`](raw_string.h): `create_string(const char*)`, `concat_string(RuntimeValue*, RuntimeValue*)`, and the compatibility no-op `free_string(RuntimeValue*)`. Character payloads are GC-managed.
+- [`print.h`](print.h): `print(RuntimeValue*)` and `println(RuntimeValue*)`.
+- [`alloc.h`](alloc.h): raw `__alloc` / `__free` allocation APIs.
+- [`errors.h`](errors.h): runtime error state and bounds checks.
 
-### 2. String Manipulation
-*   **[`raw_string.cpp`](Runtime/raw_string.cpp)**:
-    *   `create_string(const char* literal)`: Copies a C-style string literal into heap memory, supporting string mutability.
-    *   `free_string(char* str)`: Compatibility no-op; strings are reclaimed by the GC.
-    *   `concat_string(const char* s1, const char* s2)`: Concatenates two strings and returns a new heap-allocated string.
+`IR::TypeInfo` is the source-language semantic type; `IR::IRType` describes storage; `runtime::RuntimeTypeInfo` is runtime metadata. `RuntimeType::TypeInfo` is only a boxed-value tag, not a fourth type system. Runtime factories do not receive compiler type objects.
 
-### 3. Basic I/O
-*   **[`print.cpp`](Runtime/print.cpp)**:
-    *   `print(char* str)`: Prints a string to standard output.
-    *   `println(char* str)`: Prints a string followed by a newline.
-
-## Compilation and Linking
-These files are typically compiled into object files or a static library and linked with the user program after LLVM code generation to provide essential runtime support.
+The CLI registers the C ABI symbols with the JIT. Runtime objects are linked into the compiler executable; LLVM generation emits calls to those symbols. `typeof` code generation is currently deferred.
