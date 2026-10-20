@@ -20,118 +20,8 @@
 #include <llvm/Support/raw_ostream.h>
 
 namespace sakuraE::Codegen {
-    // LLVM 模块
-    void LLVMCodeGenerator::LLVMModule::impl() {
-        content = new llvm::Module(ID.c_str(), *codegenContext.context);
-
-        for (const auto& function : backend.functions) {
-            functions.emplace(function.get(), new LLVMFunction(
-                *function, function->linkage == IR::Linkage::External, this, codegenContext));
-        }
-        for (const auto* function : backend.imports) {
-            if (!functions.contains(function)) {
-                functions.emplace(function, new LLVMFunction(*function, true, this, codegenContext));
-            }
-        }
-        for (const auto& [source, function] : functions) {
-            function->impl();
-        }
-    }
-
-    void LLVMCodeGenerator::LLVMModule::codegen() {
-        for (const auto& source : backend.functions) {
-            LLVMFunction* curFn = functions.at(source.get());
-
-            if (!curFn->external)
-                curFn->codegen();
-
-            std::string stdstr;
-            llvm::raw_string_ostream rstrs(stdstr);
-            if (llvm::verifyFunction(*curFn->content, &rstrs)) {
-                rstrs.flush();
-                throw std::runtime_error((fzlib::String("LLVM Verification Failed for module " +
-                    curFn->content->getName().str() + ":\n" + stdstr + "\n Error IR: \n") + this->codegenContext.toString()).c_str());
-            }
-        }
-    }
-
-    // LLVM 函数
-    void LLVMCodeGenerator::LLVMFunction::impl() {
-        std::vector<llvm::Type*> params;
-        params.reserve(backend.parameters.size());
-        for (std::size_t i = 0; i < backend.parameters.size(); ++i) {
-            params.push_back(codegenContext.abiType(backend.parameters[i].second, backend.abi.parameters.at(i)));
-        }
-
-        auto* returnType = codegenContext.abiType(backend.returnType, backend.abi.result);
-        auto* fnType = llvm::FunctionType::get(returnType, params, false);
-        content = llvm::Function::Create(fnType, llvm::Function::ExternalLinkage,
-            backend.linkageName.c_str(), parent->content);
-    }
-
-    void LLVMCodeGenerator::LLVMFunction::codegen() {
-        codegenContext.activeFunction = &backend;
-        const auto* source = backend.source;
-        const auto& irParams = backend.parameters;
-
-        for (auto block: source->getBlocks()) {
-            llvm::BasicBlock* llvmBlock = llvm::BasicBlock::Create(*codegenContext.context, block->getName().c_str(), content);
-            codegenContext.bind(block, llvmBlock);
-
-            if (block->getName() == "entry") {
-                entryBlock = llvmBlock;
-            }
-        }
-
-        codegenContext.builder->SetInsertPoint(entryBlock);
-        // 函数级 root scope 覆盖参数、局部变量和所有临时 root
-        gcEnterScope();
-
-        std::size_t i = 0;
-        for (auto& arg: content->args()) {
-            arg.setName(irParams[i].first.c_str());
-
-            llvm::AllocaInst* argAlloca = createAlloca(arg.getType(), nullptr, irParams[i].first);
-
-            paramAllocaMap[irParams[i].first.c_str()] = argAlloca;
-
-            codegenContext.builder->CreateStore(&arg, argAlloca);
-
-            // 参数如果承载的是 GC 托管对象引用，需要在函数入口立即注册进 root stack
-            if (backend.gcInfo.parameterRoots.at(i)) {
-                gcRegisterManagedSlot(argAlloca, *backend.parameterRuntimeTypes.at(i));
-            }
-
-            scope.declare(irParams[i].first, argAlloca, nullptr);
-            i ++;
-        }
-        for (auto irBlock: source->getBlocks()) {
-            codegenContext.builder->SetInsertPoint(llvm::cast<llvm::BasicBlock>(codegenContext.toLLVMValue(irBlock, this)));
-
-            for (auto inst: irBlock->getInstructions()) {
-                codegenContext.instgen(inst, this);
-            }
-        }
-
-        /* 允许 main 函数自然结束，源语言要求 main 返回 i32，而 LLVM ABI 返回装箱后的
-         * RuntimeValue*，这对只用于输出结果的小型运行时示例很有用
-         */
-        if (backend.sourceName == "main") {
-            for (auto& block: *content) {
-                if (block.getTerminator()) {
-                    continue;
-                }
-                codegenContext.builder->SetInsertPoint(&block);
-                auto* boxedZero = codegenContext.boxRaw(
-                    codegenContext.builder->getInt32(0),
-                    *backend.returnRuntimeType, this);
-                codegenContext.builder->CreateRet(boxedZero);
-            }
-        }
-    }
-
     // 指令生成
-    llvm::Value* LLVMCodeGenerator::emitArrayConstant(IR::Constant* constant, LLVMFunction* curFn) {
+    llvm::Value* LLVMCodeGenerator::emitArrayConstant(IR::Constant* constant, FunctionEmiiter* curFn) {
         if (curFn->backend.constants.at(constant) != IR::ConstantKind::Array) {
             throw std::runtime_error("Array emitter requires a lowered array constant");
         }
@@ -173,7 +63,7 @@ namespace sakuraE::Codegen {
         return arrayPtr;
     }
 
-    llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins, LLVMFunction* curFn) {
+    llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins, FunctionEmiiter* curFn) {
         llvm::Value* instResult = nullptr;
         if (hasLLVMValue(ins)) return toLLVMValue(ins, curFn);
         switch (ins->getKind())
@@ -641,7 +531,7 @@ namespace sakuraE::Codegen {
         std::unordered_set<const IR::BackendModule*> visited{&rootModule};
         for (std::size_t i = 0; i < reachable.size(); ++i) {
             const auto* source = reachable[i];
-            modules.push_back(new LLVMModule(*source, *this));
+            modules.push_back(new ModuleEmmiter(*source, *this));
             for (const auto* dependency : source->usingModules) {
                 if (visited.insert(dependency).second) {
                     reachable.push_back(dependency);

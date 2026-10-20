@@ -52,6 +52,8 @@ add_executable(
     Compiler/IR/Semantic/value/constant.cpp
         Compiler/LLVMCodegen/LLVMCodegenerator.cpp
     Compiler/LLVMCodegen/LLVMTypeMapper.cpp
+    Compiler/LLVMCodegen/FunctionEmiiter.cpp
+    Compiler/LLVMCodegen/ModuleEmmiter.cpp
     Runtime/alloc.cpp
     Runtime/gc.cpp
     Runtime/input.cpp
