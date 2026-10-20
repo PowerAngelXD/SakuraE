@@ -11,7 +11,6 @@ SakuraE separates type storage from module-local names:
 ```text
 Program
   owns IRContext
-    owns llvm::LLVMContext
     owns basic and derived IR types
     owns TypeInfoPool
   owns Module objects
@@ -28,16 +27,15 @@ Program
 
 ## 2. IRContext
 
-`IRContext`, declared in `../Backend/context/context.hpp`, owns program-level types and LLVM resources:
+`IRContext`, declared in `../Backend/context/context.hpp`, owns program-level semantic and storage types:
 
-- one `llvm::LLVMContext`;
 - canonical basic types, including integer, floating-point, void, string, block, and type-info types;
 - canonical derived types: pointers, references, arrays, and function types;
 - one `TypeInfoPool`.
 
-Each factory caches its result within the context. Repeated requests for the same type shape in one context return the same `IRType*`. Different `IRContext` instances have separate type caches and separate LLVM contexts.
+Each factory caches its result within the context. Repeated requests for the same type shape return the same `IRType*`; different Programs have independent type caches. LLVM contexts are supplied separately by the emitter's caller.
 
-`Program` creates its `IRContext` before its modules. Its destructor deletes modules before the `IRContext` member is destroyed, so module-owned declarations and IR values do not outlive the program-level type and LLVM resources.
+`Program` creates its IRContext before its modules and destroys the Session first, then modules, then the IRContext. Backend descriptions never outlive their source IR or storage types.
 
 ### Compatibility factories
 
@@ -66,7 +64,7 @@ The current ownership relationship is intentionally direct:
 ```text
 NamingContext -> IRStructDecl (semantic declaration)
 NamingContext -> IRStructType (Backend type)
-IRContext -> basic and derived types, TypeInfo, LLVM Context
+IRContext -> basic and derived storage types, TypeInfo
 LoweringSession -> BackendModule -> BackendFunction
 LoweringSession -> non-owning type and source-function indexes
 ```
@@ -83,9 +81,9 @@ The IR generator resolves a type identifier through the current module's `Naming
 
 ## 5. LLVM Context Ownership
 
-LLVM types are created with the `llvm::LLVMContext` owned by `IRContext`. The caller supplies the lowered root `BackendModule` and that same context to `LLVMCodeGenerator`; the emitter rejects a mismatched context and never invokes the Session. The CLI transfers all reachable emitted modules to the JIT.
+The caller creates a `llvm::LLVMContext` and passes it with the root BackendModule to LLVMCodeGenerator. IRContext no longer owns or exposes LLVM resources. The CLI transfers its LLVMContext and every reachable emitted module to the JIT.
 
-`IRContext::releaseLLVMContext()` exists for paths that must transfer ownership of the LLVM context, such as a JIT handoff. After ownership has been released, callers must not request the context again from that `IRContext`.
+`LLVMTypeMapper.hpp/.cpp` defines `Codegen::map(IRType*, llvm::LLVMContext&)`. It is the only storage-to-LLVM type mapping boundary. Opaque structures retain identity and are completed in place; remapping revisits nested layouts completed since the previous emission. IR production code has no LLVM API dependency; mapper tests explicitly depend on LLVMCodegen.
 
 ## 6. Scope and Current Limitations
 
@@ -103,5 +101,7 @@ Derived-type caches use non-owning `IRType*` keys and may reference structures o
 
 `BackendFunction` stores the source function non-owningly, its lowered signature and named parameters, linkage, Raw/Boxed/Void ABI choices, separate GC value-root and slot-root decisions, and value/type-operand tables. The original Blocks, Instructions, and Values remain in Semantic IR. `BackendModule` owns local function descriptions and indexes imported functions, runtime declarations, symbols, and structure layouts. Recursive imports are cycle-safe; diamond imports share function identity, while conflicting source names or linkage aliases are rejected.
 
-`BackendModule::verify()` validates the description graph without creating LLVM objects; `toString()` dumps signatures, ABI/root metadata, imports, and layouts. Model headers contain no LLVM API fields. LLVM wrappers retain generated functions/modules, basic blocks, allocas, builders, and active GC scope state. Constant representation isolation and moving `IRType::toLLVMType()` remain stages 6 and 7.
+`BackendModule::verify()` validates the description graph without creating LLVM objects; `toString()` dumps signatures, ABI/root metadata, imports, and layouts. The Session also owns runtime description graphs: BackendFunction indexes constant kinds, value runtime representations, and type operands non-owningly. String and char-pointer descriptions remain distinct even with identical storage. LLVM wrappers retain generated functions/modules, basic blocks, allocas, builders, and active GC scope state. `typeof` generation remains deferred.
+
+`FunctionEmiiter` and `ModuleEmmiter` are namespace-level types declared in separate matching headers, with all methods implemented in their corresponding cpp files. The generator coordinates them; no nested LLVMFunction/LLVMModule compatibility aliases remain. Field selectors are resolved during Lowering into BackendFieldAccess entries; emitters only use raw layout/index/storage-policy descriptions. `typeof` is deferred and reports an explicit emission error.
 

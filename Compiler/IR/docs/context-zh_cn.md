@@ -11,7 +11,6 @@ SakuraE 将类型存储与模块内名称分离：
 ```text
 Program
   拥有 IRContext
-    拥有 llvm::LLVMContext
     拥有基础及派生 IR 类型
     拥有 TypeInfoPool
   拥有 Module 对象
@@ -28,16 +27,15 @@ Program
 
 ## 2. IRContext
 
-`IRContext` 声明于 `../Backend/context/context.hpp`，负责拥有 Program 级类型和 LLVM 资源：
+`IRContext` 声明于 `../Backend/context/context.hpp`，负责拥有 Program 级语义类型与 storage 类型：
 
-- 一个 `llvm::LLVMContext`；
 - 规范化的基础类型，包括整数、浮点、void、string、block 和 type-info 类型；
 - 规范化的派生类型，包括指针、引用、数组和函数类型；
 - 一个 `TypeInfoPool`。
 
-各工厂方法在当前 Context 内缓存结果。同一 Context 中对同一类型形状的重复请求会返回同一个 `IRType*`；不同 `IRContext` 的类型缓存和 LLVM Context 相互隔离。
+各工厂方法在当前 Context 内缓存结果。同一类型形状重复请求返回同一个 `IRType*`；不同 Program 的类型缓存独立。LLVM Context 由 emitter 的调用方单独提供。
 
-`Program` 先创建 `IRContext`，再创建各模块。其析构函数会先删除模块，之后才销毁 `IRContext` 成员，因此模块拥有的声明和 IR 值不会比 Program 级的类型与 LLVM 资源更早失效。
+`Program` 先创建 IRContext，再创建模块；销毁时先销毁 Session，再销毁模块，最后销毁 IRContext。Backend 描述不能比所引用的源 IR 与 storage 类型存活更久。
 
 ### 兼容静态工厂
 
@@ -66,7 +64,7 @@ Program
 ```text
 NamingContext -> IRStructDecl（语义声明）
 NamingContext -> IRStructType（Backend 类型）
-IRContext -> 基础及派生类型、TypeInfo、LLVM Context
+IRContext -> 基础及派生 storage 类型、TypeInfo
 LoweringSession -> BackendModule -> BackendFunction
 LoweringSession -> 非拥有的类型与源函数索引
 ```
@@ -83,9 +81,9 @@ IR 生成器遇到类型标识符时，会通过当前模块的 `NamingContext` 
 
 ## 5. LLVM Context 所有权
 
-LLVM 类型使用 `IRContext` 拥有的 `llvm::LLVMContext` 创建。调用方将 lowered 根 `BackendModule` 与同一个 Context 传给 `LLVMCodeGenerator`；emitter 拒绝不匹配的 Context，不再调用 Session。CLI 将全部可达的生成模块交给 JIT。
+调用方创建 `llvm::LLVMContext`，连同根 BackendModule 传给 LLVMCodeGenerator。IRContext 不再拥有或暴露 LLVM 资源。CLI 将自己的 LLVMContext 和全部可达生成模块交给 JIT。
 
-`IRContext::releaseLLVMContext()` 用于 JIT 交接等需要转移 LLVM Context 所有权的路径。所有权转移后，调用方不得再从该 `IRContext` 请求 LLVM Context。
+`LLVMTypeMapper.hpp/.cpp` 提供 `Codegen::map(IRType*, llvm::LLVMContext&)`，是 storage 到 LLVM 类型的唯一转换边界。opaque 结构体保持身份并原地补全；重复映射会访问此前未完成的内嵌布局。IR 生产代码不依赖 LLVM API；映射测试显式依赖 LLVMCodegen。
 
 ## 6. 范围与当前限制
 
@@ -103,5 +101,7 @@ Context/Lowering 接口支持先声明、后补全：再次 lowering 结构体�
 
 `BackendFunction` 非拥有地引用源函数，保存 lowered 签名及具名参数、linkage、Raw/Boxed/Void ABI 策略、分开的 GC 值 root 与槽位 root 描述，以及 value/type-operand 类型表。原有 Block、Instruction、Value 仍属于 Semantic IR。`BackendModule` 拥有本模块函数描述，索引导入函数、runtime 声明、符号和结构体布局。递归导入支持环，菱形导入复用函数身份，不同函数的 source 名称或 linkage 别名冲突会被拒绝。
 
-`BackendModule::verify()` 不创建 LLVM 对象即可验证描述图；`toString()` 输出签名、ABI/root 元数据、导入和布局。模型头文件不保存 LLVM API 字段；LLVM wrapper 继续保存生成的函数/模块、基本块、alloca、builder 和当前 GC 作用域状态。常量表示隔离与 `IRType::toLLVMType()` 外移仍分别属于阶段 6、7。
+`BackendModule::verify()` 不创建 LLVM 对象即可验证描述图；`toString()` 输出签名、ABI/root 元数据、导入和布局。Session 还拥有 runtime 描述图，BackendFunction 非拥有地索引常量类别、值表示和类型操作数。字符串与字符指针即使 storage 相同，也保留不同描述。LLVM wrapper 继续保存生成的函数/模块、基本块、alloca、builder 和活动 GC 作用域状态；`typeof` 代码生成暂缓实现。
+
+FunctionEmiiter 与 ModuleEmmiter 为命名空间级类型，分别在同名头文件声明、cpp 文件实现全部方法；generator 负责协调，不保留旧嵌套类兼容别名。Lowering 将字段选择器解析为 BackendFieldAccess，emitter 只读取原始布局、索引和 storage 策略。typeof 暂缓并明确报告 emission 错误。
 
