@@ -1,36 +1,18 @@
-# IR String Type
+# IR String Representation
 
 [简体中文](string-zh_cn.md)
 
-### This document primarily outlines the string types in SakuraE IR.
+`TypeInfo::String` and `Pointer<Char>` are different source-language semantic types. A string is a GC-managed string object; a char pointer is a native address.
 
-In SakuraE IR, `string` is now a dedicated IR type instead of being aliased to raw `char*`.
+Their current storage types are intentionally identical: `LoweringSession::lowerType()` returns the owning IRContext's pointer-to-char IRType for both. Do not recover string semantics from IRType, its textual name, or the LLVM pointer type.
 
-This distinction is important for GC and language semantics:
-- `string` means a GC-managed string object.
-- `char*` means a raw native pointer.
+Session-owned RuntimeTypeDescription preserves the distinction before LLVM emission:
 
-Therefore, when the String type is represented as a TypeInfo, the resulting IR type must be `string`, not `char*`.
+| Description | Runtime tag | Managed root | Runtime metadata |
+| --- | --- | --- | --- |
+| String | String | Yes | string |
+| Pointer to character | Pointer | No | ptr<i8> |
 
-Relatively, you can see how tid2IRType works for more details:
-```c++
-inline IRType* tid2IRType(TypeID tid) {
-        switch (tid)
-        {
-        case TypeID::Int32:
-            return IRType::getInt32Ty();
-        case TypeID::Float:
-            return IRType::getFloatTy();
-        case TypeID::Char:
-            return IRType::getCharTy();
-        case TypeID::Bool:
-            return IRType::getBoolTy();
-        case TypeID::String:
-            return IRType::getStringTy();
-        default:
-            throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Unknown type id to convert to IRType",
-                                {0, 0, "InsideError"});
-        }
-    }
-```
+LLVMCodegen reads the Backend description for boxing, comparisons, indexing, and GC decisions. String literals call `create_string`; the wrapper stores a RuntimeString containing GC-managed character data and length. A first-class char pointer stores its address in RuntimeValue::data.pointer instead.
+
+Both storage types map to an opaque LLVM pointer through `Codegen::map()`. `IRType::isString()` and the old tid2IRType conversion are not available. See [Value system](value.md) for constant and load/store boundaries.

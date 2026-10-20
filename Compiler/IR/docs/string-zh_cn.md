@@ -1,36 +1,18 @@
-# IR 字符串类型
+# IR 字符串表示
 
 [English Version](string.md)
 
-### 本文档主要概述 SakuraE IR 中的字符串类型。
+`TypeInfo::String` 和 `Pointer<Char>` 是不同的源语言语义类型：字符串表示 GC 托管的字符串对象，字符指针表示原生地址。
 
-现在的 SakuraE IR 中，`string` 是一个独立的 IR 类型，不再与原生 `char*` 复用同一个语义类型。
+当前两者有意复用相同 storage 类型：`LoweringSession::lowerType()` 返回所属 IRContext 的 pointer-to-char IRType。不能根据 IRType、其文本名称或 LLVM 指针类型反推字符串语义。
 
-这样做是为了彻底区分两类值：
-- `string`：GC 托管的 string object。
-- `char*`：原生 native pointer。
+Session 拥有的 RuntimeTypeDescription 在生成 LLVM 前保留这一区别：
 
-因此，当 `String` 类型通过 `TypeInfo` 转成 IRType 时，结果应该是 `string`，而不是 `char*`。
+| 描述 | Runtime tag | 托管 root | Runtime 元数据 |
+| --- | --- | --- | --- |
+| String | String | 是 | string |
+| 字符指针 | Pointer | 否 | ptr<i8> |
 
-相对地，你可以查看 `tid2IRType` 的工作原理以了解更多细节：
-```c++
-inline IRType* tid2IRType(TypeID tid) {
-        switch (tid)
-        {
-        case TypeID::Int32:
-            return IRType::getInt32Ty();
-        case TypeID::Float:
-            return IRType::getFloatTy();
-        case TypeID::Char:
-            return IRType::getCharTy();
-        case TypeID::Bool:
-            return IRType::getBoolTy();
-        case TypeID::String:
-            return IRType::getStringTy();
-        default:
-            throw SakuraError(OccurredTerm::IR_GENERATING,
-                                "Unknown type id to convert to IRType",
-                                {0, 0, "InsideError"});
-        }
-    }
-```
+LLVMCodegen 根据 Backend 描述决定装箱、比较、索引和 GC 行为。字符串常量调用 create_string，wrapper 中的 RuntimeString 保存 GC 托管字符数据及长度；一等字符指针则把地址存入 RuntimeValue::data.pointer。
+
+两个 storage 类型都通过 `Codegen::map()` 映射为 opaque LLVM 指针。`IRType::isString()` 与旧 tid2IRType 转换均已移除。常量及 load/store 边界见 [值体系](value-zh_cn.md)。
