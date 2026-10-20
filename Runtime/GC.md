@@ -237,13 +237,13 @@ func main() -> i32 {
 The complete data flow is:
 
 1. The frontend creates an array literal IR instruction and string constant IR values.
-2. `LLVMCodeGenerator::toLLVMConstant(IR::Constant*, LLVMFunction*)` calls `create_string` for each string literal. Each returned pointer is spilled by `LLVMFunction::createRootedTemporary(llvm::Value*, const fzlib::String&)` into an entry-block alloca and registered through `LLVMFunction::gcRegisterRoot(llvm::Value*)`.
-3. `LLVMCodeGenerator::instgen(IR::Instruction*, LLVMFunction*)` handles `IR::OpKind::create_array`. Before allocating the array, each managed element is loaded from its root slot, so the element strings survive any allocation performed during array construction.
-4. `LLVMModule::llvmTy2GCType(llvm::Type*)` converts the LLVM array type to metadata. It calls `LLVMModule::getArrayGCType(bool, uint32_t, llvm::Value*, uint64_t)`, which emits a call to `__gc_get_array_type_with_length(bool, uint32_t, uint64_t, GCTypeInfo*)`.
-5. `LLVMFunction::createHeapAlloc(llvm::Type*, llvm::Value*, llvm::Value*)` computes the payload size and emits `__gc_alloc(size_t, GCTypeInfo*, uint64_t)`. The resulting array pointer is stored in another root slot.
+2. LLVMCodeGenerator materializes string constants through create_string. FunctionEmiiter::createRootedTemporary spills live managed values into entry-block slots and registers them using the Backend runtime description.
+3. LLVMCodeGenerator handles create_array. Before allocation, each managed element is loaded from its root slot, preserving strings during collection.
+4. ModuleEmmiter::getRuntimeValueArrayGCType emits boxed-array metadata; its general llvmTy2GCType/getArrayGCType helpers emit __gc_get_array_type_with_length for raw layouts.
+5. FunctionEmiiter::createHeapAlloc computes payload size and emits __gc_alloc; the result is protected in a root slot.
 6. For `concat_string(words[0], words[1])`, `instgen` spills managed call arguments with `createRootedTemporary` before emitting the call. The runtime `concat_string(const char*, const char*)` also roots both C pointers in a temporary runtime scope before allocating the result.
 7. The call result is protected in an entry-block root slot. If a later allocation crosses the GC threshold, `__gc_collect()` marks `words`, both strings reachable from the array, and `result`, then sweeps only unreachable objects.
-8. At the generated return instruction, `LLVMFunction::gcLeaveAllScopes()` emits the required `__gc_leave_scope()` calls.
+8. FunctionEmiiter::gcLeaveAllScopes emits the required __gc_leave_scope calls at return.
 
 Conceptually, the relevant LLVM calls are:
 

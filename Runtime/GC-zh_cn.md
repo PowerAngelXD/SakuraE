@@ -239,13 +239,13 @@ func main() -> i32 {
 完整数据流如下：
 
 1. 前端生成数组字面量 IR 指令和字符串常量 IR 值
-2. `LLVMCodeGenerator::toLLVMConstant(IR::Constant*, LLVMFunction*)` 为每个字符串字面量调用 `create_string`返回指针通过 `LLVMFunction::createRootedTemporary(llvm::Value*, const fzlib::String&)` 写入 entry block 的 alloca，并通过 `LLVMFunction::gcRegisterRoot(llvm::Value*)` 注册
-3. `LLVMCodeGenerator::instgen(IR::Instruction*, LLVMFunction*)` 处理 `IR::OpKind::create_array`数组分配前，每个托管元素先从 root 槽加载，保证构造数组期间发生分配时字符串仍然存活
-4. `LLVMModule::llvmTy2GCType(llvm::Type*)` 将 LLVM 数组类型转换为 GC 元数据，并调用 `LLVMModule::getArrayGCType(bool, uint32_t, llvm::Value*, uint64_t)`，后者生成对 `__gc_get_array_type_with_length(bool, uint32_t, uint64_t, GCTypeInfo*)` 的调用
-5. `LLVMFunction::createHeapAlloc(llvm::Type*, llvm::Value*, llvm::Value*)` 计算 payload 大小并生成 `__gc_alloc(size_t, GCTypeInfo*, uint64_t)`数组指针随后保存到另一个 root 槽
+2. LLVMCodeGenerator 通过 create_string 生成字符串常量；FunctionEmiiter::createRootedTemporary 将活动托管值保存到 entry 槽位，并按 Backend runtime 描述注册 root。
+3. LLVMCodeGenerator 处理 create_array，分配前从 root 槽加载托管元素，保证收集期间字符串存活。
+4. ModuleEmmiter::getRuntimeValueArrayGCType 生成装箱数组元数据；通用 llvmTy2GCType/getArrayGCType helper 为原始布局生成 __gc_get_array_type_with_length 调用。
+5. FunctionEmiiter::createHeapAlloc 计算 payload 大小并调用 __gc_alloc，结果通过 root 槽保护。
 6. 执行 `concat_string(words[0], words[1])` 时，`instgen` 在生成调用前用 `createRootedTemporary` 暂存托管参数运行时 `concat_string(const char*, const char*)` 也会在分配结果前将两个 C 指针注册到临时 runtime scope
 7. 调用结果保存在 entry block 的 root 槽中如果后续分配超过 GC 阈值，`__gc_collect()` 会标记 `words`、数组引用到的两个字符串以及 `result`，然后只清扫不可达对象
-8. 生成的 return 指令中，`LLVMFunction::gcLeaveAllScopes()` 生成所需的 `__gc_leave_scope()` 调用
+8. 返回时由 FunctionEmiiter::gcLeaveAllScopes 生成所需 __gc_leave_scope 调用。
 
 概念上的关键 LLVM 调用如下：
 
