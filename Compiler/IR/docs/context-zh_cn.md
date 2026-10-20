@@ -19,6 +19,9 @@ Program
       拥有 IRStructDecl 对象
       拥有按 StructDeclId 驻留的 IRStructType
     拥有 Function 和 IRValue 对象
+  拥有 LoweringSession
+    拥有 BackendModule 对象
+      拥有 BackendFunction 描述
 ```
 
 同一个 `Program` 的全部模块共享一个 `IRContext`。每个 `Module` 持有独立的 `NamingContext`，后者构成命名结构体的模块级命名空间边界。
@@ -64,7 +67,8 @@ Program
 NamingContext -> IRStructDecl（语义声明）
 NamingContext -> IRStructType（Backend 类型）
 IRContext -> 基础及派生类型、TypeInfo、LLVM Context
-LoweringSession -> 非拥有的声明 ID 与 Backend 类型映射
+LoweringSession -> BackendModule -> BackendFunction
+LoweringSession -> 非拥有的类型与源函数索引
 ```
 
 `IRStructDecl` 保存语义字段、默认值和声明完成状态，不拥有 `IRStructType`。`NamingContext` 用独立容器拥有 Backend 结构体类型；字段类型指针为非拥有引用。storage 访问器仅作为 Lowering 桥接接口，不是语义构造输入；`Module` 不再暴露 Backend 布局查询。同一命名空间的 Backend 类型缓存只能绑定一个 `IRContext`，传入其他 context 会被拒绝。类型缓存是延迟初始化的 mutable 状态，语义声明解析保持只读。
@@ -79,7 +83,7 @@ IR 生成器遇到类型标识符时，会通过当前模块的 `NamingContext` 
 
 ## 5. LLVM Context 所有权
 
-LLVM 类型使用 `IRContext` 拥有的 `llvm::LLVMContext` 创建。LLVM Codegen 从 `Program` 获取同一个 Context，不会为同一份 IR 程序另行创建不相关的 LLVM Context。
+LLVM 类型使用 `IRContext` 拥有的 `llvm::LLVMContext` 创建。调用方将 lowered 根 `BackendModule` 与同一个 Context 传给 `LLVMCodeGenerator`；emitter 拒绝不匹配的 Context，不再调用 Session。CLI 将全部可达的生成模块交给 JIT。
 
 `IRContext::releaseLLVMContext()` 用于 JIT 交接等需要转移 LLVM Context 所有权的路径。所有权转移后，调用方不得再从该 `IRContext` 请求 LLVM Context。
 
@@ -92,3 +96,12 @@ Context/Lowering 接口支持先声明、后补全：再次 lowering 结构体�
 命名类型解析限定在模块内部，跨模块类型导入和类型别名不属于当前 Context 功能。针对性验证可运行 `sakurae-ir-context-tests --struct-lowering`；无参数运行仍包含原有 Context 测试。
 
 派生类型缓存以非拥有的 `IRType*` 作为键，可能引用 `NamingContext` 拥有的结构体。Program 销毁时先销毁 Session，再销毁模块和 NamingContext，最后销毁 IRContext；停止使用相关类型后才进行销毁。不得在所属 NamingContext 销毁后继续使用结构体或引用它的派生类型。
+
+## 7. Backend 函数与模块 Lowering
+
+`LoweringSession::lowerModule(const Module&)` 转换可达导入图；`lowerFunction(const Function&)` 返回所属模块拥有的函数描述。重复调用复用模块/函数身份并刷新类型，包括首次 lowering 后才完成的未使用 opaque 结构体。Session 只接受所属 Program 的模块。
+
+`BackendFunction` 非拥有地引用源函数，保存 lowered 签名及具名参数、linkage、Raw/Boxed/Void ABI 策略、分开的 GC 值 root 与槽位 root 描述，以及 value/type-operand 类型表。原有 Block、Instruction、Value 仍属于 Semantic IR。`BackendModule` 拥有本模块函数描述，索引导入函数、runtime 声明、符号和结构体布局。递归导入支持环，菱形导入复用函数身份，不同函数的 source 名称或 linkage 别名冲突会被拒绝。
+
+`BackendModule::verify()` 不创建 LLVM 对象即可验证描述图；`toString()` 输出签名、ABI/root 元数据、导入和布局。模型头文件不保存 LLVM API 字段；LLVM wrapper 继续保存生成的函数/模块、基本块、alloca、builder 和当前 GC 作用域状态。常量表示隔离与 `IRType::toLLVMType()` 外移仍分别属于阶段 6、7。
+

@@ -6,9 +6,10 @@
 
 当前语义检查以 `TypeInfo` 为准：`CallableValue` 只接受 `FunctionTypeInfo` 对应的语义类型，
 函数调用和重载不读取 storage 签名。`typeof` 和类型描述值使用 `TypeID::TypeDescriptor`，
-通过 Session lowering 得到 `IRTypeInfoType`。常量语义类型从内容 variant 推导，Generator
-不从 `IRType` 反推语义类型。下文中的 storage 构造与缓存仍是阶段 4/6 待迁移的兼容表示，
-不参与 Generator 的语义判断。
+通过 Session lowering 得到 `IRTypeInfoType`。常量显式保存语义 `TypeInfo*`，Generator
+不从 `IRType` 反推语义类型。Function/Instruction/Value 构造仅使用语义类型；阶段 5 将
+lowered 签名和值类型存入 `BackendFunction`，LLVM Codegen 消费该描述，不再调用 Session。
+下文中的 storage 构造示例属于历史表示；常量表示隔离仍留待阶段 6。
 
 ## 1. 分层模型
 

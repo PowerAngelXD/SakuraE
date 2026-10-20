@@ -19,6 +19,9 @@ Program
       owns IRStructDecl objects
       owns IRStructType objects interned by StructDeclId
     owns Function and IRValue objects
+  owns LoweringSession
+    owns BackendModule objects
+      owns BackendFunction descriptions
 ```
 
 `IRContext` is shared by all modules in one `Program`. `NamingContext` belongs to one `Module` and establishes the namespace boundary for named structures.
@@ -64,7 +67,8 @@ The current ownership relationship is intentionally direct:
 NamingContext -> IRStructDecl (semantic declaration)
 NamingContext -> IRStructType (Backend type)
 IRContext -> basic and derived types, TypeInfo, LLVM Context
-LoweringSession -> non-owning declaration-ID/Backend-type mappings
+LoweringSession -> BackendModule -> BackendFunction
+LoweringSession -> non-owning type and source-function indexes
 ```
 
 `IRStructDecl` stores semantic fields, defaults, and completion state; it does not own `IRStructType`. `NamingContext` owns Backend structure types in a separate container; field type pointers remain non-owning. The storage accessors are a Lowering bridge, rather than Semantic construction inputs; `Module` does not expose a Backend layout lookup. Its Backend cache binds to one `IRContext` and rejects requests using another context. The lazily initialized cache is mutable, while semantic declaration resolution remains read-only.
@@ -79,7 +83,7 @@ The IR generator resolves a type identifier through the current module's `Naming
 
 ## 5. LLVM Context Ownership
 
-LLVM types are created with the `llvm::LLVMContext` owned by `IRContext`. LLVM code generation receives that same context from `Program`; it does not create an unrelated LLVM context for the same IR program.
+LLVM types are created with the `llvm::LLVMContext` owned by `IRContext`. The caller supplies the lowered root `BackendModule` and that same context to `LLVMCodeGenerator`; the emitter rejects a mismatched context and never invokes the Session. The CLI transfers all reachable emitted modules to the JIT.
 
 `IRContext::releaseLLVMContext()` exists for paths that must transfer ownership of the LLVM context, such as a JIT handoff. After ownership has been released, callers must not request the context again from that `IRContext`.
 
@@ -92,3 +96,12 @@ Layout validation follows by-value structures and array fields to detect cycles;
 Named-type lookup is module-local; cross-module type import and type aliases are outside this Context feature. Run `sakurae-ir-context-tests --struct-lowering` for focused validation; running without arguments still includes the original Context tests.
 
 Derived-type caches use non-owning `IRType*` keys and may reference structures owned by `NamingContext`. Program teardown destroys the Session first, then modules and their NamingContexts, and finally the IRContext, after related type use has stopped. Structure types and derived types referring to them must not be used after their owning NamingContext is destroyed.
+
+## 7. Backend Function and Module Lowering
+
+`LoweringSession::lowerModule(const Module&)` lowers the reachable import graph. `lowerFunction(const Function&)` returns its module-owned function description. Repeated calls preserve module/function identity and refresh types, including unused opaque structures completed after the first lowering. The Session only accepts modules from its owning Program.
+
+`BackendFunction` stores the source function non-owningly, its lowered signature and named parameters, linkage, Raw/Boxed/Void ABI choices, separate GC value-root and slot-root decisions, and value/type-operand tables. The original Blocks, Instructions, and Values remain in Semantic IR. `BackendModule` owns local function descriptions and indexes imported functions, runtime declarations, symbols, and structure layouts. Recursive imports are cycle-safe; diamond imports share function identity, while conflicting source names or linkage aliases are rejected.
+
+`BackendModule::verify()` validates the description graph without creating LLVM objects; `toString()` dumps signatures, ABI/root metadata, imports, and layouts. Model headers contain no LLVM API fields. LLVM wrappers retain generated functions/modules, basic blocks, allocas, builders, and active GC scope state. Constant representation isolation and moving `IRType::toLLVMType()` remain stages 6 and 7.
+

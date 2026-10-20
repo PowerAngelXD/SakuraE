@@ -7,9 +7,10 @@ This document describes the value representations used by the frontend, SakuraE 
 Semantic checks now use `TypeInfo`: `CallableValue` accepts only a semantic function type backed by
 `FunctionTypeInfo`, and calls and overload resolution do not inspect storage signatures. `typeof` and
 type-description values use `TypeID::TypeDescriptor`, lowered through the Session to `IRTypeInfoType`.
-Constant semantic types are derived from their content variant, not from `IRType`. Storage constructors
-and caches described below remain compatibility representations pending stages 4/6; they do not drive
-Generator semantic decisions.
+Constants explicitly store their semantic `TypeInfo*`; Generator never infers it from `IRType`.
+Function/Instruction/Value construction is semantic-only. Stage 5 stores lowered signatures and
+value types in `BackendFunction`, which LLVM Codegen consumes without invoking the Session.
+Storage-construction examples below are historical; constant representation isolation remains stage 6.
 
 ## 1. Layered model
 
