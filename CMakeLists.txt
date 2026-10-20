@@ -51,6 +51,7 @@ add_executable(
     Compiler/IR/Semantic/type/type_info.cpp
     Compiler/IR/Semantic/value/constant.cpp
         Compiler/LLVMCodegen/LLVMCodegenerator.cpp
+    Compiler/LLVMCodegen/LLVMTypeMapper.cpp
     Runtime/alloc.cpp
     Runtime/gc.cpp
     Runtime/input.cpp
@@ -111,6 +112,7 @@ add_executable(
 add_executable(
     sakurae-ir-context-tests
     Compiler/IR/tests/context_tests.cpp
+    Compiler/LLVMCodegen/LLVMTypeMapper.cpp
     Compiler/IR/Lowering/session.cpp
         Compiler/IR/Backend/type/type.cpp
     Compiler/IR/Semantic/type/type_info.cpp

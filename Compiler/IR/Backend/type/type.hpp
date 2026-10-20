@@ -8,6 +8,7 @@
 #include <llvm/IR/Type.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <optional>
+#include <vector>
 
 #include "includes/String.hpp"
 
@@ -117,6 +118,7 @@ namespace sakuraE::IR {
                 }
             }()), bitWidth(bw) {}
     public:
+        unsigned getBitWidth() const { return bitWidth; }
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
     };
@@ -237,6 +239,7 @@ namespace sakuraE::IR {
         llvm::Type* toLLVMType(llvm::LLVMContext& ctx) override;
         fzlib::String toString() override;
         IRType* getReturnType() const { return returnType; }
+        const std::vector<IRType*>& getParamTypes() const { return paramsType; }
     };
 
     class IRStructType : public IRType {
@@ -251,6 +254,7 @@ namespace sakuraE::IR {
         fzlib::String toString() override;
 
         const fzlib::String& getName() const;
+        const fzlib::String& getModuleID() const { return parentModID; }
         std::size_t getCount() const;
         std::optional<FieldInfo> findMember(const fzlib::String& target) const;
         const std::vector<FieldInfo>& getFields() const;
