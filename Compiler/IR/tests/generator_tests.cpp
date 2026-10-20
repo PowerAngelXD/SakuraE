@@ -400,6 +400,49 @@ void testBackendABIAndGCRootDecisions() {
     backend->verify();
 }
 
+void testBackendRuntimeDescriptions() {
+    using namespace sakuraE::IR;
+    const sakuraE::PositionInfo info {1, 1, "backend-runtime-descriptions"};
+    Program program("backend-runtime-descriptions");
+    auto& types = program.getContext().typeInfoPool();
+    auto* integer = types.makeBasicTypeID(Int32);
+    auto* text = types.makeBasicTypeID(String);
+    auto* pointer = types.makePointerTypeID(types.makeBasicTypeID(Char));
+    auto* array = types.makeArrayTypeID(integer, 2);
+    program.buildModule("main", info);
+    auto* source = static_cast<Function*>(program.curMod()->buildFunction("metadata", integer, {}, info));
+    source->setFuncDefineInfo({{"text", text}, {"pointer", pointer}}, integer);
+    auto* textDescriptor = Constant::get(text, info);
+    auto* pointerDescriptor = Constant::get(pointer, info);
+    auto* arrayDescriptor = Constant::get(array, info);
+    auto* nullArray = Constant::getNullHandle(types.wrapTypeAsNullable(array, info), info);
+    auto* literal = Constant::get(fzlib::String("alive"), types, info);
+    for (auto* constant : {textDescriptor, pointerDescriptor, arrayDescriptor, nullArray, literal}) {
+        source->curBlock()->createInstruction(OpKind::constant, constant->getSemanticType(), {constant}, "metadata.constant");
+    }
+    source->curBlock()->createReturn(Constant::get(std::int32_t{0}, types, info));
+    auto* backend = program.lowering().lowerFunction(*source);
+    assert(backend->parameters[0].second == backend->parameters[1].second);
+    assert(backend->gcInfo.parameterRoots[0] && !backend->gcInfo.parameterRoots[1]);
+    assert(backend->parameterRuntimeTypes[0]->tag == RuntimeValueTag::String);
+    assert(backend->parameterRuntimeTypes[1]->tag == RuntimeValueTag::Pointer);
+    const auto* textDescription = backend->typeOperands.at(textDescriptor);
+    const auto* pointerDescription = backend->typeOperands.at(pointerDescriptor);
+    assert(textDescription->storage == pointerDescription->storage);
+    assert(textDescription != pointerDescription);
+    assert(textDescription->kind == RuntimeDescriptionKind::String);
+    assert(pointerDescription->kind == RuntimeDescriptionKind::Pointer);
+    assert(pointerDescription->element->kind == RuntimeDescriptionKind::I8);
+    assert(backend->typeOperands.at(arrayDescriptor)->count == 2);
+    assert(backend->constants.at(nullArray) == ConstantKind::Null);
+    assert(backend->runtimeType(nullArray).representation == ValueRepresentation::ManagedArray);
+    assert(backend->constants.at(literal) == ConstantKind::String);
+    assert(backend->tracksRoot(literal));
+    assert(program.lowering().lowerFunction(*source) == backend);
+    assert(backend->typeOperands.at(textDescriptor) == textDescription);
+    backend->parent->verify();
+}
+
 int main() {
     using namespace sakuraE::IR;
 
@@ -415,6 +458,7 @@ int main() {
     testBackendModuleIdentityAndCompletion();
     testBackendImportGraphAndConflicts();
     testBackendABIAndGCRootDecisions();
+    testBackendRuntimeDescriptions();
 
     IRGenerator generator("generator-test");
     generator.startGenerate(
