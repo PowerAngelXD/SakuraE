@@ -30,31 +30,31 @@ namespace sakuraE::runtime {
         Function
     };
 
-    struct TypeInfo {
+    struct RuntimeTypeInfo {
         const RuntimeTypeKind kind;
         const char* const name;
-        const TypeInfo* const element_type;
+        const RuntimeTypeInfo* const element_type;
         const std::uint64_t element_count;
         const void* const layout;
 
-        TypeInfo(
+        RuntimeTypeInfo(
             RuntimeTypeKind type_kind,
             const char* type_name,
-            const TypeInfo* element = nullptr,
+            const RuntimeTypeInfo* element = nullptr,
             std::uint64_t count = 0,
             const void* type_layout = nullptr);
 
-        TypeInfo(const TypeInfo&) = delete;
-        TypeInfo& operator=(const TypeInfo&) = delete;
+        RuntimeTypeInfo(const RuntimeTypeInfo&) = delete;
+        RuntimeTypeInfo& operator=(const RuntimeTypeInfo&) = delete;
     };
 
-    extern "C" const TypeInfo* __runtime_type_info_basic(std::uint8_t kind);
-    extern "C" const TypeInfo* __runtime_type_info_pointer(const TypeInfo* element);
-    extern "C" const TypeInfo* __runtime_type_info_reference(const TypeInfo* element);
-    extern "C" const TypeInfo* __runtime_type_info_array(
-        const TypeInfo* element,
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_basic(std::uint8_t kind);
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_pointer(const RuntimeTypeInfo* element);
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_reference(const RuntimeTypeInfo* element);
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_array(
+        const RuntimeTypeInfo* element,
         std::uint64_t count);
-    extern "C" const TypeInfo* __runtime_type_info_struct(
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_struct(
         const char* name,
         const void* layout);
 }

@@ -12,10 +12,10 @@
 #include <vector>
 
 namespace sakuraE::runtime {
-    TypeInfo::TypeInfo(
+    RuntimeTypeInfo::RuntimeTypeInfo(
         RuntimeTypeKind type_kind,
         const char* type_name,
-        const TypeInfo* element,
+        const RuntimeTypeInfo* element,
         std::uint64_t count,
         const void* type_layout)
         : kind(type_kind),
@@ -27,13 +27,13 @@ namespace sakuraE::runtime {
     namespace {
         constexpr std::size_t BASIC_TYPE_COUNT = 16;
 
-        std::array<const TypeInfo*, BASIC_TYPE_COUNT> basic_types{};
-        std::vector<std::unique_ptr<TypeInfo>> type_storage;
+        std::array<const RuntimeTypeInfo*, BASIC_TYPE_COUNT> basic_types{};
+        std::vector<std::unique_ptr<RuntimeTypeInfo>> type_storage;
         std::list<std::string> name_storage;
-        std::map<std::pair<const TypeInfo*, std::uint64_t>, const TypeInfo*> array_types;
-        std::map<const TypeInfo*, const TypeInfo*> pointer_types;
-        std::map<const TypeInfo*, const TypeInfo*> reference_types;
-        std::map<std::pair<std::string, const void*>, const TypeInfo*> struct_types;
+        std::map<std::pair<const RuntimeTypeInfo*, std::uint64_t>, const RuntimeTypeInfo*> array_types;
+        std::map<const RuntimeTypeInfo*, const RuntimeTypeInfo*> pointer_types;
+        std::map<const RuntimeTypeInfo*, const RuntimeTypeInfo*> reference_types;
+        std::map<std::pair<std::string, const void*>, const RuntimeTypeInfo*> struct_types;
 
         const char* stable_name(std::string name) {
             name_storage.push_back(std::move(name));
@@ -57,13 +57,13 @@ namespace sakuraE::runtime {
             }
         }
 
-        const TypeInfo* store(
+        const RuntimeTypeInfo* store(
             RuntimeTypeKind kind,
             const char* name,
-            const TypeInfo* element = nullptr,
+            const RuntimeTypeInfo* element = nullptr,
             std::uint64_t count = 0,
             const void* layout = nullptr) {
-            type_storage.push_back(std::make_unique<TypeInfo>(kind, name, element, count, layout));
+            type_storage.push_back(std::make_unique<RuntimeTypeInfo>(kind, name, element, count, layout));
             return type_storage.back().get();
         }
 
@@ -72,7 +72,7 @@ namespace sakuraE::runtime {
         }
     }
 
-    extern "C" const TypeInfo* __runtime_type_info_basic(std::uint8_t kind) {
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_basic(std::uint8_t kind) {
         if (!valid_basic_kind(kind)) {
             std::fprintf(stderr, "[Runtime Error] Invalid basic runtime type kind: %u\n", kind);
             std::exit(1);
@@ -86,7 +86,7 @@ namespace sakuraE::runtime {
         return basic_types[index];
     }
 
-    extern "C" const TypeInfo* __runtime_type_info_pointer(const TypeInfo* element) {
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_pointer(const RuntimeTypeInfo* element) {
         if (!element) return nullptr;
 
         auto it = pointer_types.find(element);
@@ -100,7 +100,7 @@ namespace sakuraE::runtime {
         return result;
     }
 
-    extern "C" const TypeInfo* __runtime_type_info_reference(const TypeInfo* element) {
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_reference(const RuntimeTypeInfo* element) {
         if (!element) return nullptr;
 
         auto it = reference_types.find(element);
@@ -114,8 +114,8 @@ namespace sakuraE::runtime {
         return result;
     }
 
-    extern "C" const TypeInfo* __runtime_type_info_array(
-        const TypeInfo* element,
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_array(
+        const RuntimeTypeInfo* element,
         std::uint64_t count) {
         if (!element) return nullptr;
 
@@ -132,7 +132,7 @@ namespace sakuraE::runtime {
         return result;
     }
 
-    extern "C" const TypeInfo* __runtime_type_info_struct(
+    extern "C" const RuntimeTypeInfo* __runtime_type_info_struct(
         const char* name,
         const void* layout) {
         std::string type_name = name ? name : "struct";

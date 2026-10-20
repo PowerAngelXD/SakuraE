@@ -23,7 +23,7 @@ namespace sakuraE::runtime {
             case RuntimeType::Bool: printf("%s", value->data.boolean ? "true" : "false"); break;
             case RuntimeType::Pointer: printf("%p", value->data.pointer); break;
             case RuntimeType::TypeInfo: {
-                auto* type_info = static_cast<const TypeInfo*>(value->data.pointer);
+                auto* type_info = static_cast<const RuntimeTypeInfo*>(value->data.pointer);
                 if (type_info && type_info->name) printf("%s", type_info->name);
                 else printf("<typeinfo:null>");
                 break;
