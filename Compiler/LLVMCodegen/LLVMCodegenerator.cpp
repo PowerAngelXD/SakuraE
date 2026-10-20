@@ -119,6 +119,11 @@ namespace sakuraE::Codegen {
                 bind(ins, instResult);
                 break;
             }
+            case IR::OpKind::lgc_not: {
+                auto* operand = rawValue(ins->arg(0), curFn);
+                instResult = boxRaw(builder->CreateNot(operand, "logical.not"), runtimeType(ins), curFn);
+                break;
+            }
             case IR::OpKind::lgc_equal:
             case IR::OpKind::lgc_not_equal:
             case IR::OpKind::lgc_mr_than:

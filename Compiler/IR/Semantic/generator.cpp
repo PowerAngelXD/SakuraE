@@ -303,6 +303,11 @@ namespace sakuraE::IR {
             auto preOp = (*node)[ASTTag::PreOp]->getToken();
             switch (preOp.type) {
                 case TokenType::LGC_NOT: {
+                    const auto* operandType = resultAddr->getSemanticType();
+                    if (!operandType || operandType->getTypeID() != TypeID::Bool) {
+                        throw SakuraError(OccurredTerm::IR_GENERATING,
+                                          "Logical not requires a bool operand.", preOp.info);
+                    }
                     resultValue = createLoad(resultAddr, preOp.info);
 
                     resultValue = curFunc()

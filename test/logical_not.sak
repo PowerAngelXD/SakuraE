@@ -1,0 +1,16 @@
+func invert(value: bool) -> bool {
+    return !value;
+}
+func main() -> i32 {
+    let yes = true;
+    let no = false;
+    println(!yes);
+    println(!no);
+    yes = !yes;
+    println(yes);
+    println(invert(no));
+    if (!no) {
+        println("not-branch");
+    }
+    return 0;
+}

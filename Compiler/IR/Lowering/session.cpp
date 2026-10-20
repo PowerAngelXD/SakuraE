@@ -166,6 +166,12 @@ namespace sakuraE::IR {
                         (!function->typeOperands.contains(value) || !function->typeOperands.at(value))) {
                         throw std::runtime_error("Backend sizeof is missing its lowered type operand");
                     }
+                    if (instruction->getKind() == OpKind::lgc_not &&
+                        (instruction->getOperands().size() != 1 || !instruction->arg(0) ||
+                         runtimeType.kind != RuntimeDescriptionKind::Bool ||
+                         function->runtimeType(instruction->arg(0)).kind != RuntimeDescriptionKind::Bool)) {
+                        throw std::runtime_error("Invalid backend logical-not operands or result");
+                    }
                 }
                 if (dynamic_cast<const Constant*>(value)) {
                     const auto kind = function->constants.find(value);
@@ -392,6 +398,14 @@ namespace sakuraE::IR {
                 }
                 if (instruction->getKind() == OpKind::_sizeof) {
                     function.typeOperands.emplace(value, lowerRuntimeType(instruction->getTypeOperand()));
+                }
+                if (instruction->getKind() == OpKind::lgc_not) {
+                    const auto& operands = instruction->getOperands();
+                    if (operands.size() != 1 || !operands[0] || !operands[0]->getSemanticType() ||
+                        operands[0]->getSemanticType()->getTypeID() != TypeID::Bool ||
+                        instruction->getSemanticType()->getTypeID() != TypeID::Bool) {
+                        throw std::runtime_error("Logical not requires one bool operand and a bool result");
+                    }
                 }
             }
             if (const auto* constant = dynamic_cast<const Constant*>(value)) {
