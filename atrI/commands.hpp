@@ -1,6 +1,7 @@
 #ifndef SAKURAE_ATRI_COMMANDS_HPP
 #define SAKURAE_ATRI_COMMANDS_HPP
 
+#include <cstring>
 #include <ctime>
 #include <iostream>
 #include <llvm/ExecutionEngine/Orc/CoreContainers.h>
@@ -122,6 +123,7 @@ namespace atri::cmds {
 
         runtimeSymbols[JIT->mangleAndIntern("__alloc")] = {llvm::orc::ExecutorAddr::fromPtr(&__alloc), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("__free")] = { llvm::orc::ExecutorAddr::fromPtr(&__free), llvm::JITSymbolFlags::Exported };
+        runtimeSymbols[JIT->mangleAndIntern("strlen")] = { llvm::orc::ExecutorAddr::fromPtr(&std::strlen), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("create_string")] = { llvm::orc::ExecutorAddr::fromPtr(&create_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("free_string")] = { llvm::orc::ExecutorAddr::fromPtr(&free_string), llvm::JITSymbolFlags::Exported };
         runtimeSymbols[JIT->mangleAndIntern("concat_string")] = { llvm::orc::ExecutorAddr::fromPtr(&concat_string), llvm::JITSymbolFlags::Exported };

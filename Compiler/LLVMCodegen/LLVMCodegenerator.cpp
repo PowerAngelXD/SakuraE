@@ -124,6 +124,22 @@ namespace sakuraE::Codegen {
                 instResult = boxRaw(builder->CreateNot(operand, "logical.not"), runtimeType(ins), curFn);
                 break;
             }
+            case IR::OpKind::gmem: {
+                const auto& field = curFn->backend.fieldAccess(ins);
+                auto* base = toLLVMValue(ins->arg(0), curFn);
+                const auto* address = dynamic_cast<const IR::Instruction*>(ins->arg(0));
+                if (isPointerSlot(address)) base = builder->CreateLoad(builder->getPtrTy(), base, "struct.handle");
+                auto* present = llvm::BasicBlock::Create(*context, "struct.present", curFn->content);
+                auto* missing = llvm::BasicBlock::Create(*context, "struct.null", curFn->content);
+                builder->CreateCondBr(builder->CreateIsNotNull(base), present, missing);
+                builder->SetInsertPoint(missing);
+                builder->CreateIntrinsic(llvm::Intrinsic::trap, llvm::ArrayRef<llvm::Type*>{}, llvm::ArrayRef<llvm::Value*>{});
+                builder->CreateUnreachable();
+                builder->SetInsertPoint(present);
+                instResult = builder->CreateStructGEP(map(field.layout, *context), base,
+                    static_cast<unsigned>(field.index), "field.address");
+                break;
+            }
             case IR::OpKind::lgc_equal:
             case IR::OpKind::lgc_not_equal:
             case IR::OpKind::lgc_mr_than:
@@ -185,6 +201,13 @@ namespace sakuraE::Codegen {
                     if (isPointerSlot(dynamic_cast<const IR::Instruction*>(irAddr))) {
                         builder->CreateStore(srcVal, destAddr);
                     }
+                    else if (isRawFieldAddress(irAddr) && storageType(irAddr)->isStruct()) {
+                        auto* type = map(storageType(irAddr), *context);
+                        builder->CreateStore(builder->CreateLoad(type, srcVal, "struct.copy"), destAddr);
+                    }
+                    else if (isRawFieldAddress(irAddr) && storageType(irAddr)->isArray()) {
+                        throw std::runtime_error("Whole embedded array assignment is not supported; assign indexed elements");
+                    }
                     else {
                         auto* raw = runtimeType(ins->arg(1)).representation == IR::ValueRepresentation::Boxed
                             ? unboxRaw(srcVal, storageType(ins->arg(1)), curFn) : srcVal;
@@ -226,6 +249,17 @@ namespace sakuraE::Codegen {
                 bool baseIsLValue = addrInst && addrInst->isLValue();
 
                 if (addrIRType->isArray()) {
+                    if (isRawFieldAddress(ins->arg(0))) {
+                        auto* array = static_cast<IR::IRArrayType*>(addrIRType);
+                        auto* index64 = builder->CreateIntCast(indexVal, builder->getInt64Ty(),
+                            runtimeType(ins->arg(1)).kind != IR::RuntimeDescriptionKind::U32 &&
+                            runtimeType(ins->arg(1)).kind != IR::RuntimeDescriptionKind::U64, "field.index");
+                        builder->CreateCall(curFn->parent->lookup("__runtime_check_array_bounds")->content,
+                            {index64, builder->getInt64(array->getNumElements())});
+                        instResult = builder->CreateGEP(map(addrIRType, *context), addr,
+                            {builder->getInt64(0), index64}, "field.array.element");
+                        break;
+                    }
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.array.base");
                     }
@@ -266,7 +300,7 @@ namespace sakuraE::Codegen {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.string.base");
                     }
                     // 语言层字符串是 RuntimeValue*，索引操作作用于其底层字符 payload
-                    addr = unboxRaw(addr, addrIRType, curFn);
+                    if (!isRawFieldAddress(ins->arg(0))) addr = unboxRaw(addr, addrIRType, curFn);
                     elementType = map(rootModule.context->getCharTy(), *context);
                 }
                 else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Pointer) {
@@ -286,7 +320,7 @@ namespace sakuraE::Codegen {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.ptr.base");
                     }
                     // 指针变量存储装箱后的指针值，索引操作需要取得 RuntimeValue::Pointer 中的实际地址
-                    addr = unboxRaw(addr, addrIRType, curFn);
+                    if (!isRawFieldAddress(ins->arg(0))) addr = unboxRaw(addr, addrIRType, curFn);
                     elementType = map(pointeeTy, *context);
                 }
                 else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Reference) {
@@ -408,10 +442,31 @@ namespace sakuraE::Codegen {
                 if (isPointerSlot(dynamic_cast<const IR::Instruction*>(ins->arg(0)))) {
                     instResult = builder->CreateLoad(builder->getPtrTy(), addr, "load.slot");
                 }
+                else if (isRawFieldAddress(ins->arg(0)) && storageType(ins)->isStruct()) {
+                    instResult = addr;
+                }
+                else if (isRawFieldAddress(ins->arg(0)) && storageType(ins)->isArray()) {
+                    throw std::runtime_error("Whole embedded array materialization is not supported; use indexed elements");
+                }
                 else {
                     auto* type = storageType(ins);
                     auto* raw = builder->CreateLoad(map(type, *context), addr, "load.raw");
-                    instResult = boxRaw(raw, runtimeType(ins), curFn);
+                    if (runtimeType(ins).representation == IR::ValueRepresentation::Boxed) {
+                        instResult = boxRaw(raw, runtimeType(ins), curFn);
+                        if (runtimeType(ins).kind == IR::RuntimeDescriptionKind::String) {
+                            auto callee = curFn->parent->content->getOrInsertFunction("strlen",
+                                builder->getInt64Ty(), builder->getPtrTy());
+                            auto* characters = builder->CreateSelect(builder->CreateIsNull(raw),
+                                builder->CreateGlobalString("", "empty.field.string"), raw);
+                            auto* length = builder->CreateCall(callee, {characters}, "field.string.length");
+                            auto* payload = builder->CreateStructGEP(runtimeValueType(), instResult, 2);
+                            builder->CreateStore(length, builder->CreateGEP(builder->getInt64Ty(), payload,
+                                builder->getInt64(1), "field.string.length.slot"));
+                        }
+                    }
+                    else {
+                        instResult = raw;
+                    }
                 }
 
                 bind(ins, instResult);
@@ -420,8 +475,6 @@ namespace sakuraE::Codegen {
             case IR::OpKind::br: {
                 auto targetBlockValue = toLLVMValue(ins->arg(0), curFn);
 
-                auto currentBlock = llvm::cast<llvm::BasicBlock>(toLLVMValue(ins->getParent(), curFn));
-                builder->SetInsertPoint(currentBlock);
 
                 llvm::BasicBlock* targetBlock = llvm::cast<llvm::BasicBlock>(targetBlockValue);
 
