@@ -6,8 +6,8 @@
 
 类型职责统一为：`TypeInfo` 表达源语言语义类型，`IRType` 表达 storage 类型，
 `RuntimeTypeInfo` 表达运行时类型元数据。`IRTypeInfoType` 只是 `IRType` 的具体子类，
-不是第三层类型体系。当前 runtime C++ 符号仍为 `sakuraE::runtime::TypeInfo`，
-后续阶段 6 统一为 `RuntimeTypeInfo`，同步迁移调用点，不保留兼容别名。
+不是第三层类型体系。runtime C++ 符号已统一为 `sakuraE::runtime::RuntimeTypeInfo`，
+所有调用点同步迁移，没有保留旧名称兼容别名。
 
 ```text
 AST / Semantic Analysis
@@ -42,9 +42,9 @@ LLVM emitter 再根据这些描述遍历原有 Block/Instruction，建立 LLVM �
 Backend IR，并维护语义对象到 Backend 对象的映射；Program 的 `IRContext` 拥有基础及派生
 类型，各 Module 的 `NamingContext` 拥有命名结构体类型。Session 引用这些类型，不重复拥有。
 
-`LLVMFunction`/`LLVMModule` 如果在过渡期继续使用，应理解为 Backend IR 对象，而不是
-`llvm::Function`/`llvm::Module` 的封装。为减少歧义，推荐最终改名为
-`BackendFunction`/`BackendModule`，目录使用 `Compiler/IR/Backend`。
+`BackendFunction`/`BackendModule` 位于 `Compiler/IR/Backend`，是唯一的 Backend 描述。
+`FunctionEmiiter`/`ModuleEmmiter` 是独立的 LLVM emitter，分别位于同名 .hpp/.cpp 文件；
+它们保存实际 LLVM 状态，不是 Backend 描述的别名，也不复制语义函数体。
 
 ## 核心原则
 
@@ -53,8 +53,7 @@ Backend IR，并维护语义对象到 Backend 对象的映射；Program 的 `IRC
 2. 语义判断只使用 `TypeInfo`：可赋值性、nullable、指针/引用、重载解析、函数参数匹配、
    结构体字段和控制流检查不得依赖 `IRTypeID`。
 3. `IRType` 是 backend/storage 类型；`IRType -> llvm::Type*` 只能发生在 LLVM Codegen。
-4. `TypeInfo -> IRType` 只能发生在 Lowering。`TypeInfo::toIRType()` 仅作为过渡兼容接口，
-   不得新增调用点，最终删除。
+4. `TypeInfo -> IRType` 只能发生在 Lowering。`TypeInfo::toIRType()` 已删除，不保留兼容入口。
 5. Backend IR 不保存 LLVM API 对象；LLVM Codegen 负责 `llvm::Module`、`llvm::Function`、
    `llvm::BasicBlock`、`llvm::IRBuilder`、LLVM value 映射和 intrinsic 生成。
 6. 一个 `Program` 对应一个 `IRContext`，由 `Program` 持有，语义类型与 Backend/storage 类型
@@ -269,7 +268,7 @@ Backend IR 不是另一套完整的前端 IR，而是 lowering 产物和 LLVM Co
 
 ### BackendFunction
 
-`BackendFunction`（过渡期可称 `LLVMFunction`）至少保存：
+`BackendFunction` 至少保存：
 
 ```cpp
 class BackendFunction {
@@ -291,7 +290,7 @@ Instruction 表达；BackendFunction 只提供它们所需的 storage/ABI 描述
 
 ### BackendModule
 
-`BackendModule`（过渡期可称 `LLVMModule`）至少保存：
+`BackendModule` 至少保存：
 
 ```cpp
 class BackendModule {
@@ -311,12 +310,12 @@ class BackendModule {
 LLVM Codegen 只消费 Backend IR：
 
 ```cpp
-class LLVMModuleEmitter {
+class ModuleEmmiter {
     BackendModule* source;
     llvm::Module* module;
 };
 
-class LLVMFunctionEmitter {
+class FunctionEmiiter {
     BackendFunction* source;
     llvm::Function* function;
     std::unordered_map<const IR::Block*, llvm::BasicBlock*> blocks;
@@ -418,7 +417,7 @@ makeStructTypeID 仍只负责驻留，不单独解析声明；必须由 Program 
   `StructDeclId -> IRStructType*` 结果映射，不修改语义声明注册表。
 - 为独立 `lowerType()` 提供 `StructResolver` 或语义源上下文，不能依赖 Backend 类型指针
   反向查找声明。
-- `TypeInfo::toIRType()` 保留为 deprecated 兼容接口，最终删除。
+- 过渡兼容接口 `TypeInfo::toIRType()` 已删除，类型转换仅通过 Session。
 
 验收：所有 `TypeInfo -> IRType` 转换集中在 Lowering；同一 Program 中重复转换复用类型
 及结构体身份，已缓存的 opaque 类型可以在语义声明完成后补齐布局；Session 销毁不释放
@@ -437,7 +436,7 @@ sizeof 仍保持既有支持范围，通过 inferExprType 检查类型而不求�
 不从 storage 类型推断。
 阶段 4 整理后，Function/Instruction/Value 的构造仅使用语义类型，storage 字段及旧构造
 参数已移除。阶段 5 后，LLVM Codegen 从 BackendFunction 的 side table 获取 storage 类型，
-不再调用 Program 的 Session。常量表示隔离和 LLVM 类型映射外移仍留待阶段 6、7。
+不再调用 Program 的 Session。阶段 6、7 已完成常量表示隔离和 LLVM 类型映射外移。
 
 验收覆盖：Context 驻留与 nullable、语义声明引用检查、无 storage 的语义函数调用、
 数值/指针重载、字符串及数组索引、引用与解引用、字段访问、非法索引/return/参数、
@@ -463,8 +462,8 @@ IRValue 不再保存 storage 类型。NamingContext 已迁入 Semantic/context�
 
 按既定所有权方案，NamingContext 仍用独立容器拥有命名结构体 storage 类型，并通过
 桥接接口供 Lowering 按需创建或查询；Program 仍拥有共享 IRContext 与持久 Session。
-storage 函数描述及 value type side table 留待阶段 5，LLVM 依赖外移留待阶段 7；本阶段
-不新增 BackendFunction/BackendModule，也不将整个 Semantic 目录零 Backend 引用作为验收条件。
+本阶段完成后继续在阶段 5 实现 storage 函数描述及 value type side table，在阶段 7
+移出 LLVM 依赖；不将整个 Semantic 目录零 Backend 引用作为本阶段验收条件。
 
 - 保留当前 `Function`、`Module`、`Block`、`Instruction` 和 `Value`，不新增平行 Semantic
   model 或 Storage model。
@@ -489,17 +488,17 @@ valueTypes 和 typeOperands（sizeof/类型描述常量的 lowered 类型）。B
 导入环和菱形依赖按身份去重，不同函数的 source/linkage 符号冲突在 lowering 阶段拒绝。
 
 LLVMCodeGenerator 的入口为 BackendModule 与显式 LLVMContext，不再接收 Program 或调用
-Session。既有 LLVMFunction/LLVMModule 留作生成状态，消费 Backend ABI 与类型表；CLI 将
+Session。FunctionEmiiter/ModuleEmmiter 保存生成状态，消费 Backend ABI 与类型表；CLI 将
 所有可达生成模块交给 JIT。Backend model 不保存 LLVM API 对象，也不复制函数体。
-阶段 6 的常量表示重构和阶段 7 的 toLLVMType 外移未开展；字符串常量判别仍读取语义类型。
+阶段 6、7 已继续完成：常量表示来自 Backend 描述，LLVM 类型转换已外移，详见下节。
 
 验证：Context/Generator 测试通过，新增覆盖对象复用、opaque 补全、跨 Program 拒绝、
 导入环/菱形去重、冲突重试及 ABI/GC 区分；实际跨模块 JIT 返回 73，CLI 字符串函数调用、
 数组与直接 sizeof 路径运行通过。完整 CTest 中 LanguageServer 的 AST 形状断言失败，
 该模块未改动。随后已修复 scalar load 的装箱不一致：指针槽位读取 ptr，原始 payload
 读取后装箱，store 采用相同槽位判别。sizeof_basic、repeat、两项 20000 次 GC 循环及
-load_boxing 的参数/指针/数组/字符读写场景已通过实际 CLI/JIT 验证。typeof emitter
-仍为空分支，不属于这次 load 修复。
+load_boxing 的参数/指针/数组/字符读写场景已通过实际 CLI/JIT 验证。typeof 暂不实现，
+emitter 会显式报告 deferred，不再静默跳过。
 
 - 新增 Backend IR 目录和 `BackendFunction`、`BackendModule`。
 - 实现 `IRFunction -> BackendFunction`：函数签名、参数、返回类型、linkage、ABI、GC/runtime
@@ -520,6 +519,14 @@ LLVM API 类型，Session 与 Program 的销毁顺序不会留下悬空引用。
 
 ### 阶段 6：重构 Constant 和 runtime type info
 
+当前实现状态：已完成（按用户要求排除 typeof 实现）。Session 驻留 RuntimeTypeDescription，
+BackendFunction 非拥有地索引 runtimeTypes、ConstantKind 和 typeOperands。描述保存 kind、
+tag、表示方式、元素/长度与名义结构体身份；这不是第四套语义/storage 类型体系，
+而是生成 RuntimeTypeInfo 所需的 Backend 策略。语言 string 与 char* 即使 storage 相同，
+仍具有不同 tag、GC 与 runtime 元数据。null array/struct 使用直接 null handle。
+Runtime C++ 类型改名为 RuntimeTypeInfo，工厂 C 符号不变。Codegen 不读取编译器 TypeInfo。
+struct 元数据仍只有名义身份，layout 为 null；函数/descriptor 自身元数据缺少工厂时显式报错。
+
 - Semantic 常量以 `TypeInfo*` 表达其语义类型；null、字符串、数组和 GC 值的 storage 表示
   由 lowering/Backend 描述决定。
 - 区分 `TypeInfo`（源语言语义类型）、`IRType`（storage 类型）和 `RuntimeTypeInfo`（运行时类型元数据）。
@@ -531,6 +538,11 @@ LLVM API 类型，Session 与 Program 的销毁顺序不会留下悬空引用。
 已有语义指令保持现状，不能把暂缓的运行时路径标记为已实现。
 
 ### 阶段 7：LLVM 类型映射外移
+
+当前实现状态：已完成。Codegen::map(IRType*, LLVMContext&) 集中处理所有 storage 映射，
+支持 opaque 原地补全、递归指针/引用及后续完成的内嵌结构体布局。已删除全部
+IRType::toLLVMType；IRContext 不再拥有或暴露 LLVMContext，CLI 创建并向 JIT 转移所有权。
+Compiler/IR 的生产代码无 LLVM 头文件或 API；映射测试显式依赖 LLVMCodegen。
 
 - 新增 `Compiler/LLVMCodegen/LLVMTypeMapper.hpp/.cpp`：
 
@@ -544,6 +556,33 @@ llvm::Type* map(IRType* type, llvm::LLVMContext& context);
 验收：`IRType -> llvm::Type*` 只发生在 LLVM Codegen。
 
 ### 阶段 8：删除兼容层
+
+当前实现状态：本节五项兼容层均已删除或迁移，不保留 shim。额外删除按 char* 反推
+字符串身份的 IRType::isString；runtime 元数据没有旧 TypeInfo 别名。历史值构造示例已
+替换为当前接口文档。typeof 保持暂缓，不把其语义指令当作已完成的运行时功能。
+
+验证：构建、Context/Generator 测试和结构体 lowering 专项通过。实际 CLI 运行 sizeof、
+load_boxing、match/repeat、20000 次 GC 参数/数组循环、nullable 数组传递通过；
+独立 JIT 输出 string、ptr<i8>、[2]i32 并完成跨模块返回 73。已知 LanguageServer
+AST 断言未重复运行，该独立失败不作为本次迁移已修复项。
+
+### 迁移后的指令补齐与 emitter 拆分
+
+- lgc_not 已实现 bool 拆箱、取反及结果装箱；语义层和 Lowering 均拒绝非 bool。
+- gmem 在 Lowering 中解析字段名，保存 BackendFieldAccess（布局、索引、字段描述、storage 策略）；
+  emitter 不查询语义声明。现有非空 struct handle 指向原始 IRStructType 布局，字段标量读写
+  使用原始 storage，嵌套结构体保持内嵌地址，内嵌数组支持带边界检查的元素读写。
+- 字符串/原生字符指针字段按原始 payload 读取，语言值边界装箱；字符串 wrapper 补齐长度。
+- 动态 null struct handle 在字段访问前 trap；未支持指令按操作名报错。typeof 明确暂缓。
+- LLVMFunction/LLVMModule 已更名并抽取为 FunctionEmiiter.hpp/.cpp、ModuleEmmiter.hpp/.cpp；
+  头文件声明，方法在对应 cpp 实现，无旧类名兼容层。
+
+范围：未增加源语言结构体构造、完整 GC struct object 或字段反射；whole embedded array
+值物化/赋值仍明确不支持，不能将原始内嵌数组冒充托管数组 payload。
+验证：Context/Generator/Codegen 三项测试通过；Codegen 测试实际 JIT 验证原生结构体字段、
+嵌套字段、内嵌数组、字符串/指针字段及 bool 取反，检查非法字段及未支持指令报错。
+CLI logical_not、sizeof_basic、load_boxing 与 GC 参数循环通过。
+
 
 删除或完成迁移：
 
@@ -597,7 +636,7 @@ AST
        IRFunction -> BackendFunction
        IRModule   -> BackendModule
   -> Backend IR Verification
-  -> LLVMTypeMapper / LLVMFunctionEmitter / LLVMModuleEmitter
+  -> LLVMTypeMapper / FunctionEmiiter / ModuleEmmiter
   -> LLVM IR
 ```
 
