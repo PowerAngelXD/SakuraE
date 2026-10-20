@@ -275,6 +275,131 @@ void testSemanticFixtures() {
     }
 }
 
+void testBackendModuleIdentityAndCompletion() {
+    using namespace sakuraE::IR;
+    const sakuraE::PositionInfo info {1, 1, "backend-completion"};
+    Program program("backend-completion");
+    program.buildModule("definitions", info);
+    auto* source = program.curMod();
+    source->declareStruct("Unused", info);
+    const auto id = source->lookupStruct("Unused")->getDeclId();
+    auto* integer = program.getContext().typeInfoPool().makeBasicTypeID(Int32);
+    auto* function = static_cast<Function*>(source->buildFunction("answer", integer, {}, info));
+    function->curBlock()->createReturn(Constant::get(std::int32_t{42}, program.getContext().typeInfoPool(), info));
+
+    auto& lowering = program.lowering();
+    auto* backend = lowering.lowerModule(*source);
+    auto* unused = backend->structTypes.at(id);
+    auto* answer = lowering.lowerFunction(*function);
+    assert(!unused->isComplete());
+    assert(backend->lookup("answer") == answer);
+    source->implStruct("Unused", {{"value", integer, info}}, {}, info);
+    assert(lowering.lowerModule(*source) == backend);
+    assert(lowering.lowerFunction(*function) == answer);
+    assert(backend->structTypes.at(id) == unused);
+    assert(unused->isComplete());
+    assert(unused->findMember("value")->type == program.getContext().getInt32Ty());
+    assert(source->lookupStruct("Unused")->getFields()[0].type == integer);
+    backend->verify();
+
+    Program foreign("backend-foreign");
+    bool rejected = false;
+    try { foreign.lowering().lowerModule(*source); }
+    catch (const std::exception&) { rejected = true; }
+    assert(rejected);
+}
+
+void testBackendImportGraphAndConflicts() {
+    using namespace sakuraE::IR;
+    const sakuraE::PositionInfo info {1, 1, "backend-imports"};
+    Program program("backend-imports");
+    auto* integer = program.getContext().typeInfoPool().makeBasicTypeID(Int32);
+    program.buildModule("leaf", info);
+    auto* leaf = program.curMod();
+    auto* function = static_cast<Function*>(leaf->buildFunction("shared", integer, {}, info));
+    function->curBlock()->createReturn(Constant::get(std::int32_t{7}, program.getContext().typeInfoPool(), info));
+    program.buildModule("left", info);
+    auto* left = program.curMod();
+    left->use(leaf);
+    program.buildModule("right", info);
+    auto* right = program.curMod();
+    right->use(leaf);
+    program.buildModule("root", info);
+    auto* root = program.curMod();
+    root->use(left);
+    root->use(right);
+    leaf->use(root);
+    auto& lowering = program.lowering();
+    auto* backend = lowering.lowerModule(*root);
+    assert(backend->lookup("shared") == lowering.lowerFunction(*function));
+    assert(backend->lookup("shared")->linkageName == "shared");
+    std::size_t sharedImports = 0;
+    for (const auto* imported : backend->imports) sharedImports += imported->source == function;
+    assert(sharedImports == 1);
+    assert(lowering.lowerModule(*root) == backend);
+    backend->verify();
+
+    program.buildModule("conflicting", info);
+    auto* conflicting = program.curMod();
+    conflicting->buildFunction("shared", integer, {}, info);
+    program.buildModule("ambiguous", info);
+    auto* ambiguous = program.curMod();
+    ambiguous->use(leaf);
+    ambiguous->use(conflicting);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        bool rejected = false;
+        try { lowering.lowerModule(*ambiguous); }
+        catch (const std::exception&) { rejected = true; }
+        assert(rejected);
+    }
+    assert(lowering.lowerModule(*root) == backend);
+    assert(backend->lookup("shared")->source == function);
+}
+
+void testBackendABIAndGCRootDecisions() {
+    using namespace sakuraE::IR;
+    IRGenerator generator("backend-abi");
+    generator.startGenerate(
+        "func keep(text: string) -> string { let saved = text; return saved; } "
+        "func main() -> i32 { let array = [1, 2]; let pointer = &array; "
+        "let size = sizeof(pointer); let description = typeof(size); "
+        "println(keep(\"alive\")); return 0; }", "backend-abi");
+    auto& program = generator.getProgram();
+    auto* backend = program.lowering().lowerModule(*program.curMod());
+    const auto* allocate = backend->lookup("__gc_alloc");
+    const auto* print = backend->lookup("println");
+    const auto* createString = backend->lookup("create_string");
+    assert(allocate->abi.result == ABIValueKind::Raw);
+    assert(allocate->abi.parameters[0] == ABIValueKind::Raw);
+    assert(print->abi.result == ABIValueKind::Void);
+    assert(print->abi.parameters[0] == ABIValueKind::Boxed);
+    assert(createString->abi.result == ABIValueKind::Boxed);
+    assert(createString->abi.parameters[0] == ABIValueKind::Raw);
+    for (const auto& function : backend->functions) {
+        if (function->sourceName != "main") {
+            assert(function->abi.result == ABIValueKind::Boxed);
+            assert(function->gcInfo.parameterRoots[0]);
+        }
+        for (const auto* block : function->source->getBlocks()) {
+            for (const auto* instruction : block->getInstructions()) {
+                auto* storage = function->storageType(instruction);
+                if (instruction->getKind() == OpKind::create_alloca && storage->isArray()) {
+                    assert(function->rootsSlot(instruction));
+                    assert(!function->tracksRoot(instruction));
+                }
+                if (instruction->getKind() == OpKind::gaddr) {
+                    assert(!function->tracksRoot(instruction));
+                    assert(!function->rootsSlot(instruction));
+                }
+                if (instruction->getKind() == OpKind::_sizeof) {
+                    assert(function->typeOperands.at(instruction)->isPointer());
+                }
+            }
+        }
+    }
+    backend->verify();
+}
+
 int main() {
     using namespace sakuraE::IR;
 
@@ -287,6 +412,9 @@ int main() {
     testSemanticTypeAcceptance();
     testSemanticOperations();
     testSemanticFixtures();
+    testBackendModuleIdentityAndCompletion();
+    testBackendImportGraphAndConflicts();
+    testBackendABIAndGCRootDecisions();
 
     IRGenerator generator("generator-test");
     generator.startGenerate(
