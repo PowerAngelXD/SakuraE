@@ -352,7 +352,7 @@ namespace sakuraE::Codegen {
                 break;
             }
             case IR::OpKind::_typeof: {
-                break;
+                throw std::runtime_error("LLVM emission for typeof is deferred");
             }
             case IR::OpKind::_sizeof: {
                 auto* llvmType = map(curFn->backend.typeOperands.at(ins)->storage, *context);
@@ -517,8 +517,11 @@ namespace sakuraE::Codegen {
                 curFn->gcLeaveScope();
                 break;
             }
-            default:
+            case IR::OpKind::empty:
                 break;
+            default:
+                throw std::runtime_error(("Unsupported LLVM instruction: " +
+                    fzlib::String(magic_enum::enum_name(ins->getKind())) + " in " + curFn->backend.sourceName).c_str());
         }
         if (instResult)
             bind(ins, instResult);
