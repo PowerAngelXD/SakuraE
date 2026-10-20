@@ -318,6 +318,14 @@ extern "C" RuntimeValue* __runtime_alloc_value();
 
 `LLVMCodeGenerator::boxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` 分配 wrapper、写入 Runtime tag，并把原始值写入 union 存储区。`unboxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` 根据 IR 类型对应的 LLVM 类型读取 raw 值。
 
+load/store 通过 `LLVMCodeGenerator::isPointerSlot()` 区分目标地址中的表示：局部变量、
+参数、语言指针解引用得到的槽位，以及托管数组元素槽位（含数组引用）保存指针。
+load 读取 `ptr`，保留已有 wrapper 或数组 payload；store 替换该指针。字符串字符索引
+等原始 payload 地址则按 storage 标量类型读取，再装箱供语言值消费者使用，写入时拆箱。
+不能只根据 `IRType` 判断槽位表示，否则从 boxed 局部槽位执行 `load i32/i64` 会把指针
+位模式误读为标量。`test/load_boxing.sak`、`test/sizeof_basic.sak` 和 repeat 样例通过
+CLI/JIT 验证这些边界。
+
 当前 tag 映射如下：
 
 | IR 类型 | Runtime tag |

@@ -319,6 +319,15 @@ The generated code always uses `RuntimeValue*`; it does not pass `RuntimeValue` 
 
 `LLVMCodeGenerator::boxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` allocates a wrapper, writes the runtime tag, and stores the raw value in the union storage. `unboxRaw(llvm::Value*, IR::IRType*, LLVMFunction*)` loads the raw field using the IR type's LLVM type.
 
+Loads and stores distinguish the addressed representation using `LLVMCodeGenerator::isPointerSlot()`:
+locals, parameters, dereferenced language pointers, and managed array element slots (including array
+references) contain pointers. Loads read `ptr` and preserve the existing wrapper or array payload;
+stores replace that pointer. Raw payload addresses such as string character indices instead load
+the storage scalar and box it for language consumers, while stores unbox the source value.
+`IRType` alone is not a slot representation: loading `i32`/`i64` from a boxed local would interpret
+pointer bits as a scalar. `test/load_boxing.sak`, `test/sizeof_basic.sak`, and the repeat fixtures
+exercise these boundaries through the CLI/JIT.
+
 The current tag mapping is:
 
 | IR type | Runtime tag |

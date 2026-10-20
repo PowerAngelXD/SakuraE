@@ -246,13 +246,7 @@ namespace sakuraE::Codegen {
                 llvm::Value* srcVal = toLLVMValue(ins->arg(1), curFn);
 
                 if (destAddr && srcVal) {
-                    if (llvm::isa<llvm::AllocaInst>(destAddr)) {
-                        builder->CreateStore(srcVal, destAddr);
-                    }
-                    else if (auto* destination = dynamic_cast<IR::Instruction*>(ins->arg(0));
-                             destination && destination->getKind() == IR::OpKind::indexing &&
-                             storageType(destination->arg(0))->isArray()) {
-                        // 托管数组的元素是 RuntimeValue*，因此索引赋值需要替换包装指针
+                    if (isPointerSlot(dynamic_cast<const IR::Instruction*>(irAddr))) {
                         builder->CreateStore(srcVal, destAddr);
                     }
                     else {
@@ -529,11 +523,14 @@ namespace sakuraE::Codegen {
             }
             case IR::OpKind::load: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
-                llvm::Type* type = storageType(ins)->toLLVMType(*context);
-
-                sutils::println("try to load:" + storageType(ins)->toString() + ", Name: " + ins->getName());
-
-                instResult = builder->CreateLoad(type, addr, "load.tmp");
+                if (isPointerSlot(dynamic_cast<const IR::Instruction*>(ins->arg(0)))) {
+                    instResult = builder->CreateLoad(builder->getPtrTy(), addr, "load.slot");
+                }
+                else {
+                    auto* type = storageType(ins);
+                    auto* raw = builder->CreateLoad(type->toLLVMType(*context), addr, "load.raw");
+                    instResult = boxRaw(raw, type, curFn);
+                }
 
                 bind(ins, instResult);
                 break;

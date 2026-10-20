@@ -449,6 +449,24 @@ namespace sakuraE::Codegen {
             return activeFunction->storageType(value);
         }
 
+        // Language locals/parameters and managed array elements hold pointers, not raw scalars.
+        bool isPointerSlot(const IR::Instruction* address) const {
+            if (!address) return false;
+            switch (address->getKind()) {
+                case IR::OpKind::create_alloca:
+                case IR::OpKind::param:
+                case IR::OpKind::deref:
+                    return true;
+                case IR::OpKind::indexing: {
+                    auto* base = storageType(address->arg(0));
+                    return base->isArray() || (base->isRef() &&
+                        static_cast<IR::IRRefType*>(base)->getElementType()->isArray());
+                }
+                default:
+                    return false;
+            }
+        }
+
         llvm::Value* rawValue(IR::IRValue* value, LLVMFunction* curFn) {
             return unboxRaw(toLLVMValue(value, curFn), storageType(value), curFn);
         }

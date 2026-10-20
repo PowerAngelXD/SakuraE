@@ -1,0 +1,31 @@
+func scalar(value: i32) -> i32 {
+    return value + 1;
+}
+
+func main() -> i32 {
+    let number = 41;
+    println(scalar(number));
+    let pointer = &number;
+    println(*pointer);
+    *pointer = 43;
+    println(number);
+    let values = [5, 6];
+    println(values[1]);
+    values[1] = 7;
+    println(values[1]);
+    let reference = ref values;
+    reference[0] = 8;
+    println(reference[0]);
+    let text = "abc";
+    println(text[1]);
+    text[0] = 'z';
+    println(text);
+    let flag = true;
+    println(flag);
+    let fraction = 1.5;
+    println(fraction);
+    let character = 'x';
+    let characterPointer = &character;
+    println(*characterPointer);
+    return 0;
+}
