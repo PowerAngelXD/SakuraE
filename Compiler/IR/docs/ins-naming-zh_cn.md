@@ -12,7 +12,7 @@
 > IRValue* createCondBr(IRValue* cond, IRValue* thenBlock, IRValue* elseBlock) {
 >       if (!instructions.back()->isTerminal())
 >            return createInstruction(OpKind::cond_br,
->                                      IRType::getVoidTy(),
+>                                      getSemanticType(),
 >                                      {cond, thenBlock, elseBlock},
 >                                      "cond_br.(" + thenBlock->getName() + ").(" + elseBlock->getName() + ")");
 >           
@@ -30,7 +30,7 @@
 > curFunc()
 >    ->block(thenExitBlockIndex)
 >    ->createInstruction(OpKind::br,
->                        IRType::getVoidTy(),
+>                        curFunc()->curBlock()->getSemanticType(),
 >                        {mergeBlock},
 >                        "br.if.merge");
 > ```
