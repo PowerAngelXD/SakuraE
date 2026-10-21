@@ -46,8 +46,16 @@ namespace sakuraE::runtime {
         constexpr size_t MIN_LIMIT = 1024 * 1024;
 
         // 单线程实现只维护一套显式 root stack。
-        // root 中保存的是“槽位地址”，GC 每次扫描时再读取槽位里的最新指针值。
-        std::vector<void**> global_roots;
+        // root 中保存的是“槽位地址”，GC 每次扫描时再读取槽位里的最新值：
+        // - Pointer：槽位存放托管对象指针（或指向托管对象内部的地址）；
+        // - ValueSlot：槽位存放 RuntimeValue*，扫描时按其当前类型标签追踪 payload，
+        //   这样槽位被重新赋值为另一个 RuntimeValue 后 root 仍指向最新值。
+        enum class RootKind : std::uint8_t { Pointer, ValueSlot };
+        struct RootEntry {
+            void** addr;
+            RootKind kind;
+        };
+        std::vector<RootEntry> global_roots;
 
         // 每次进入一个词法作用域时记录 root stack 的深度，
         // 离开作用域后直接回退即可。
@@ -443,7 +451,7 @@ namespace sakuraE::runtime {
         }
 
         // 保存槽位地址而不是对象值，使对象被移动或重写后 root 仍能反映最新值。
-        global_roots.push_back(addr);
+        global_roots.push_back({addr, RootKind::Pointer});
     }
 
     extern "C" void __gc_register_value(RuntimeValue* value) {
@@ -473,10 +481,12 @@ namespace sakuraE::runtime {
         }
     }
 
+    // 只登记槽位地址；collect 时才读取槽位中的 RuntimeValue*，因此槽位此时为空或之后被重新赋值都安全
     extern "C" void __gc_register_value_slot(RuntimeValue** slot) {
-        if (slot && *slot) {
-            __gc_register_value(*slot);
+        if (!slot) {
+            return;
         }
+        global_roots.push_back({reinterpret_cast<void**>(slot), RootKind::ValueSlot});
     }
 
     extern "C" void __gc_pop(uint32_t times) {
@@ -523,9 +533,15 @@ namespace sakuraE::runtime {
 
         gc_collecting = true;
 
-        for (void** addr : global_roots) {
-            if (addr && *addr) {
-                __gc_scan_unlocked(*addr);
+        for (const RootEntry& root : global_roots) {
+            if (!root.addr || !*root.addr) {
+                continue;
+            }
+            if (root.kind == RootKind::ValueSlot) {
+                __gc_scan_value(static_cast<const RuntimeValue*>(*root.addr));
+            }
+            else {
+                __gc_scan_unlocked(*root.addr);
             }
         }
 
