@@ -44,8 +44,8 @@
 #include "Runtime/gc.h"
 #include "Runtime/rttype.h"
 #include "LLVMTypeMapper.hpp"
-#include "FunctionEmiiter.hpp"
-#include "ModuleEmmiter.hpp"
+#include "FunctionEmitter.hpp"
+#include "ModuleEmitter.hpp"
 
 namespace sakuraE::Codegen {
     // LLVM 代码生成总驱动：把 lowering 产出的 Backend IR（BackendModule/BackendFunction）发射为 LLVM IR。
@@ -62,8 +62,8 @@ namespace sakuraE::Codegen {
         llvm::IRBuilder<>* builder;
     private:
         // 两个发射器需要访问私有的值映射、装箱与 ABI 辅助方法
-        friend struct FunctionEmiiter;
-        friend struct ModuleEmmiter;
+        friend struct FunctionEmitter;
+        friend struct ModuleEmitter;
 
 
         // 返回与运行时 runtime::RuntimeValue 布局一致的 LLVM 结构体 "sakurae.RuntimeValue"：
@@ -99,7 +99,7 @@ namespace sakuraE::Codegen {
 
         // 装箱：在运行时分配一个新的 RuntimeValue，写入类型标签并把原始值 raw 存进 data 起始处，返回 RuntimeValue*。
         // 只允许 Boxed 表示且带有有效标签的运行时类型；ManagedArray/Handle 等表示不经过装箱。
-        llvm::Value* boxRaw(llvm::Value* raw, const IR::RuntimeTypeDescription& type, FunctionEmiiter* curFn) {
+        llvm::Value* boxRaw(llvm::Value* raw, const IR::RuntimeTypeDescription& type, FunctionEmitter* curFn) {
             if (type.representation != IR::ValueRepresentation::Boxed || type.tag == IR::RuntimeValueTag::None) {
                 throw std::runtime_error("Cannot box a non-boxed backend representation");
             }
@@ -121,13 +121,13 @@ namespace sakuraE::Codegen {
 
         // 生成获取运行时类型元数据(RuntimeTypeInfo) 的代码：按描述递归发射 __runtime_type_info_* 工厂调用，
         // 返回 const RuntimeTypeInfo*。运行时会按参数缓存（intern）结果，同一类型多次调用得到同一指针。
-        llvm::Value* runtimeTypeInfo(const IR::RuntimeTypeDescription& type, FunctionEmiiter* curFn) {
+        llvm::Value* runtimeTypeInfo(const IR::RuntimeTypeDescription& type, FunctionEmitter* curFn) {
             // 工厂函数均声明在 __runtime 模块中，通过当前模块的符号表查找
             auto callFactory = [&](const fzlib::String& name, std::vector<llvm::Value*> args) {
                 auto* fn = curFn->parent->lookup(name);
                 return builder->CreateCall(fn->content, args, "runtime.typeinfo");
             };
-            using Kind = IR::RuntimeDescriptionKind;
+            using Kind = IR::RuntimeTypeKind;
             // 基础类型：先把 Backend 描述种类换算成运行时的 RuntimeTypeKind，最后统一调用 __runtime_type_info_basic
             runtime::RuntimeTypeKind kind;
             switch (type.kind) {
@@ -169,13 +169,13 @@ namespace sakuraE::Codegen {
 
         // 拆箱：从 RuntimeValue 的 data 字段（字段 2）按 storage 类型 type 读取原始值。
         // 不检查类型标签，调用方须保证 boxed 的运行时类型与 type 一致。
-        llvm::Value* unboxRaw(llvm::Value* boxed, IR::IRType* type, FunctionEmiiter* curFn) {
+        llvm::Value* unboxRaw(llvm::Value* boxed, IR::IRType* type, FunctionEmitter* curFn) {
             auto* dataSlot = builder->CreateStructGEP(runtimeValueType(), boxed, 2);
             auto* rawSlot = builder->CreateBitCast(dataSlot, llvm::PointerType::getUnqual(*context));
             return builder->CreateLoad(map(type, *context), rawSlot, "unboxed.value");
         }
 
-        // 当前正在生成函数体的 BackendFunction，由 FunctionEmiiter::codegen() 设置；
+        // 当前正在生成函数体的 BackendFunction，由 FunctionEmitter::codegen() 设置；
         // storageType()/runtimeType() 依赖它查询 lowering 记录的逐值元数据
         const IR::BackendFunction* activeFunction = nullptr;
 
@@ -243,7 +243,7 @@ namespace sakuraE::Codegen {
         }
 
         // 取得值的原始(Raw) 形式：装箱表示的值先拆箱，其余表示（ManagedArray/Handle 等）原样返回
-        llvm::Value* rawValue(IR::IRValue* value, FunctionEmiiter* curFn) {
+        llvm::Value* rawValue(IR::IRValue* value, FunctionEmitter* curFn) {
             auto* emitted = toLLVMValue(value, curFn);
             if (runtimeType(value).representation != IR::ValueRepresentation::Boxed) return emitted;
             return unboxRaw(emitted, storageType(value), curFn);
@@ -251,7 +251,7 @@ namespace sakuraE::Codegen {
 
         // 为非字符串、非数组常量生成 LLVM 值；常量种类以 lowering 记录的 ConstantKind 为准。
         // 标量常量装箱为新的 RuntimeValue*；Null 只适用于托管数组/句柄表示，直接生成 null 指针。
-        llvm::Value* boxConstant(IR::Constant* constant, FunctionEmiiter* curFn) {
+        llvm::Value* boxConstant(IR::Constant* constant, FunctionEmitter* curFn) {
             using Kind = IR::ConstantKind;
             const auto& type = runtimeType(constant);
             switch (curFn->backend.constants.at(constant)) {
@@ -300,7 +300,7 @@ namespace sakuraE::Codegen {
 
         // 模块 =================================================================
         // 所有可达模块的发射器（拥有，析构时 delete），按 start() 的广度优先发现顺序排列，根模块在首位
-        std::vector<ModuleEmmiter*> modules;
+        std::vector<ModuleEmitter*> modules;
         // =====================================================================
 
 
@@ -324,7 +324,7 @@ namespace sakuraE::Codegen {
         // 执行完整代码生成：收集可达模块 -> 声明所有函数 -> 生成函数体 -> verifyModule 校验
         void start();
         // 返回模块发射器列表的副本；发射器仍归本对象所有
-        std::vector<ModuleEmmiter*> getModules() {
+        std::vector<ModuleEmitter*> getModules() {
             return modules;
         }
         // 调试输出：print 把所有模块的 LLVM IR 打印到 stdout，toString 返回其拼接文本
@@ -333,14 +333,14 @@ namespace sakuraE::Codegen {
 
     private:
         // 为单条 IR 指令生成 LLVM 代码并 bind 结果；已生成过的指令直接复用已有值（实现见 .cpp）
-        llvm::Value* instgen(IR::Instruction* ins, FunctionEmiiter* curFn);
+        llvm::Value* instgen(IR::Instruction* ins, FunctionEmitter* curFn);
         // 为数组常量在 GC 堆上分配托管数组并逐元素写入（元素为 RuntimeValue* 或托管数组指针）
-        llvm::Value* emitArrayConstant(IR::Constant* constant, FunctionEmiiter* curFn);
+        llvm::Value* emitArrayConstant(IR::Constant* constant, FunctionEmitter* curFn);
 
         // 工具方法 ============================================================
         // 常量分派：数组常量 -> emitArrayConstant；字符串常量 -> 全局 C 字符串经 create_string 装箱；
         // 其余 -> boxConstant。常量不会缓存，每次使用都会重新生成（因此每次得到新的 RuntimeValue*）。
-        llvm::Value* toLLVMConstant(IR::Constant* constant, FunctionEmiiter* curFn) {
+        llvm::Value* toLLVMConstant(IR::Constant* constant, FunctionEmitter* curFn) {
             if (curFn->backend.constants.at(constant) == IR::ConstantKind::Array) {
                 return emitArrayConstant(constant, curFn);
             }
@@ -359,7 +359,7 @@ namespace sakuraE::Codegen {
         // 1. 被保护的值从其 GC root 槽位重新 load（保证跨分配点后使用的是 root 槽中的值）；
         // 2. 已绑定的值直接返回；3. 常量即时生成；4. 尚未生成的指令递归调用 instgen 生成；
         // 5. 函数引用解析为当前模块中该函数的 LLVM 声明。
-        llvm::Value* toLLVMValue(IR::IRValue* value, FunctionEmiiter* curFn) {
+        llvm::Value* toLLVMValue(IR::IRValue* value, FunctionEmitter* curFn) {
             if (protectedValueSlots.contains(value)) {
                 auto* slot = protectedValueSlots[value];
                 return builder->CreateLoad(slot->getAllocatedType(), slot, "gc.protected.load");
@@ -471,10 +471,10 @@ namespace sakuraE::Codegen {
             const IR::RuntimeTypeDescription& lhsType,
             const IR::RuntimeTypeDescription& rhsType,
             IR::OpKind kind,
-            FunctionEmiiter* curFn
+            FunctionEmitter* curFn
         ) {
-            if (lhsType.kind == IR::RuntimeDescriptionKind::String || rhsType.kind == IR::RuntimeDescriptionKind::String) {
-                if (lhsType.kind != IR::RuntimeDescriptionKind::String || rhsType.kind != IR::RuntimeDescriptionKind::String) {
+            if (lhsType.kind == IR::RuntimeTypeKind::String || rhsType.kind == IR::RuntimeTypeKind::String) {
+                if (lhsType.kind != IR::RuntimeTypeKind::String || rhsType.kind != IR::RuntimeTypeKind::String) {
                     throw std::runtime_error("String values cannot be compared with raw pointer values.");
                 }
 

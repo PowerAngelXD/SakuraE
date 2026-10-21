@@ -41,19 +41,19 @@ namespace sakuraE::IR {
         // void/函数/类型描述符不能作为字段存储，抛出异常。
         FieldStorageKind fieldStorage(const RuntimeTypeDescription& type) {
             switch (type.kind) {
-                case RuntimeDescriptionKind::I8:
-                case RuntimeDescriptionKind::I32:
-                case RuntimeDescriptionKind::I64:
-                case RuntimeDescriptionKind::U32:
-                case RuntimeDescriptionKind::U64:
-                case RuntimeDescriptionKind::F32:
-                case RuntimeDescriptionKind::F64:
-                case RuntimeDescriptionKind::Bool: return FieldStorageKind::Scalar;
-                case RuntimeDescriptionKind::String:
-                case RuntimeDescriptionKind::Pointer: return FieldStorageKind::Pointer;
-                case RuntimeDescriptionKind::Reference: return FieldStorageKind::Reference;
-                case RuntimeDescriptionKind::Struct: return FieldStorageKind::EmbeddedStruct;
-                case RuntimeDescriptionKind::Array: return FieldStorageKind::EmbeddedArray;
+                case RuntimeTypeKind::I8:
+                case RuntimeTypeKind::I32:
+                case RuntimeTypeKind::I64:
+                case RuntimeTypeKind::U32:
+                case RuntimeTypeKind::U64:
+                case RuntimeTypeKind::F32:
+                case RuntimeTypeKind::F64:
+                case RuntimeTypeKind::Bool: return FieldStorageKind::Scalar;
+                case RuntimeTypeKind::String:
+                case RuntimeTypeKind::Pointer: return FieldStorageKind::Pointer;
+                case RuntimeTypeKind::Reference: return FieldStorageKind::Reference;
+                case RuntimeTypeKind::Struct: return FieldStorageKind::EmbeddedStruct;
+                case RuntimeTypeKind::Array: return FieldStorageKind::EmbeddedArray;
                 default: throw std::runtime_error("Unsupported backend struct field representation");
             }
         }
@@ -260,8 +260,8 @@ namespace sakuraE::IR {
                     // 逻辑非要求一个 bool 操作数且结果为 bool
                     if (instruction->getKind() == OpKind::lgc_not &&
                         (instruction->getOperands().size() != 1 || !instruction->arg(0) ||
-                         runtimeType.kind != RuntimeDescriptionKind::Bool ||
-                         function->runtimeType(instruction->arg(0)).kind != RuntimeDescriptionKind::Bool)) {
+                         runtimeType.kind != RuntimeTypeKind::Bool ||
+                         function->runtimeType(instruction->arg(0)).kind != RuntimeTypeKind::Bool)) {
                         throw std::runtime_error("Invalid backend logical-not operands or result");
                     }
                 }
@@ -413,7 +413,7 @@ namespace sakuraE::IR {
         auto description = std::make_unique<RuntimeTypeDescription>();
         description->storage = storage;
         description->representation = ValueRepresentation::Boxed;
-        using Kind = RuntimeDescriptionKind;
+        using Kind = RuntimeTypeKind;
         using Tag = RuntimeValueTag;
         switch (type->getTypeID()) {
             case TypeID::Void:

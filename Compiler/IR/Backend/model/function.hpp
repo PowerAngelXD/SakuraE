@@ -20,7 +20,7 @@ namespace sakuraE::IR {
 
     // Backend IR 的函数级模型：IRFunction 经 LoweringSession lowering 后得到 BackendFunction，
     // 它不复制指令，而是以语义 IR 值指针为键，附加 storage 类型、运行时类型元数据、ABI 与 GC root 等后端元数据，
-    // 供 FunctionEmiiter/LLVMCodeGenerator 只读消费。
+    // 供 FunctionEmitter/LLVMCodeGenerator 只读消费。
     // 函数的链接方式：Definition 为本模块定义并生成函数体；External 为外部声明（__runtime 模块中的运行时函数）
     enum class Linkage { Definition, External };
     // 值在函数边界（参数/返回值）上的 ABI 形态：
@@ -28,7 +28,7 @@ namespace sakuraE::IR {
     enum class ABIValueKind { Void, Raw, Boxed };
 
     // 运行时类型描述的种类，与语义类型一一对应；Descriptor 表示类型描述符(typeinfo) 值本身
-    enum class RuntimeDescriptionKind {
+    enum class RuntimeTypeKind {
         Void, I8, I32, I64, U32, U64, F32, F64, Bool, String,
         Pointer, Reference, Array, Struct, Function, Descriptor
     };
@@ -51,7 +51,7 @@ namespace sakuraE::IR {
     // 所有图边（element）以及 BackendFunction 对它的引用都是非拥有的。
     struct RuntimeTypeDescription {
         // 描述种类
-        RuntimeDescriptionKind kind = RuntimeDescriptionKind::Void;
+        RuntimeTypeKind kind = RuntimeTypeKind::Void;
         // 装箱时使用的运行时标签；None 表示不可装箱
         RuntimeValueTag tag = RuntimeValueTag::None;
         // 值的后端表示策略
@@ -67,7 +67,7 @@ namespace sakuraE::IR {
 
         // 是否为 GC 托管对象（字符串或数组）：托管值需要注册为 GC root
         bool managed() const {
-            return kind == RuntimeDescriptionKind::String || kind == RuntimeDescriptionKind::Array;
+            return kind == RuntimeTypeKind::String || kind == RuntimeTypeKind::Array;
         }
     };
 

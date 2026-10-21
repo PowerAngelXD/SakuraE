@@ -9,7 +9,7 @@
 namespace sakuraE::IR {
     // 符号表条目：把标识符名称绑定到一个"地址"值上。
     // T 必须是指针类型：语义 IR 阶段为 IRValue*（create_alloca/param 指令、Function 等），
-    // LLVM codegen 阶段为 llvm::Value*（FunctionEmiiter 中的 alloca）。
+    // LLVM codegen 阶段为 llvm::Value*（FunctionEmitter 中的 alloca）。
     // 继承 IRValue 只是为了复用其名称与语义类型(TypeInfo)字段；类型为非拥有引用，
     // codegen 侧声明时传 nullptr。address 同样是非拥有引用，生命周期由所属 Function/Module 管理。
     template<typename T>

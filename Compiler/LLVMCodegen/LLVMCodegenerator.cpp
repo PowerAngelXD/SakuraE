@@ -25,7 +25,7 @@ namespace sakuraE::Codegen {
     // 先逐个求值元素，再通过 __gc_alloc 分配 payload，最后把元素逐个写入。
     // 返回值是托管数组 payload 指针；本函数离开时不会为其注册 root，
     // 是否需要保护由调用方（create_array 分支）根据 Backend GC 信息决定。
-    llvm::Value* LLVMCodeGenerator::emitArrayConstant(IR::Constant* constant, FunctionEmiiter* curFn) {
+    llvm::Value* LLVMCodeGenerator::emitArrayConstant(IR::Constant* constant, FunctionEmitter* curFn) {
         // Backend IR 必须已把该常量标记为 Array 种类，否则说明 lowering 与 emit 不一致
         if (curFn->backend.constants.at(constant) != IR::ConstantKind::Array) {
             throw std::runtime_error("Array emitter requires a lowered array constant");
@@ -77,10 +77,10 @@ namespace sakuraE::Codegen {
     }
 
     // 单条 Semantic IR 指令的 LLVM 生成入口。
-    // 指令既可能按基本块顺序被 FunctionEmiiter::codegen 驱动生成，也可能作为其他指令的操作数
+    // 指令既可能按基本块顺序被 FunctionEmitter::codegen 驱动生成，也可能作为其他指令的操作数
     // 经 toLLVMValue 被按需提前生成；生成结果通过 bind 缓存到 instructionMap，保证每条指令只 emit 一次。
     // 约束：调用前 activeFunction 必须已指向当前 BackendFunction，storageType/runtimeType 依赖它查询。
-    llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins, FunctionEmiiter* curFn) {
+    llvm::Value* LLVMCodeGenerator::instgen(IR::Instruction* ins, FunctionEmitter* curFn) {
         llvm::Value* instResult = nullptr;
         // 已生成过（或已被 GC root 槽位保护）则直接复用，避免重复 emit
         if (hasLLVMValue(ins)) return toLLVMValue(ins, curFn);
@@ -311,8 +311,8 @@ namespace sakuraE::Codegen {
                         auto* array = static_cast<IR::IRArrayType*>(addrIRType);
                         // 下标统一扩展到 i64；仅 U32/U64 按无符号扩展，其余按有符号扩展
                         auto* index64 = builder->CreateIntCast(indexVal, builder->getInt64Ty(),
-                            runtimeType(ins->arg(1)).kind != IR::RuntimeDescriptionKind::U32 &&
-                            runtimeType(ins->arg(1)).kind != IR::RuntimeDescriptionKind::U64, "field.index");
+                            runtimeType(ins->arg(1)).kind != IR::RuntimeTypeKind::U32 &&
+                            runtimeType(ins->arg(1)).kind != IR::RuntimeTypeKind::U64, "field.index");
                         // 运行时边界检查：越界时 __runtime_check_array_bounds 记录错误并结束 JIT 工作线程
                         builder->CreateCall(curFn->parent->lookup("__runtime_check_array_bounds")->content,
                             {index64, builder->getInt64(array->getNumElements())});
@@ -360,7 +360,7 @@ namespace sakuraE::Codegen {
                     break;
                 }
                 // 字符串：按字符(char storage)索引其底层字符 payload
-                else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::String) {
+                else if (addrRuntimeType.kind == IR::RuntimeTypeKind::String) {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.string.base");
                     }
@@ -370,14 +370,14 @@ namespace sakuraE::Codegen {
                     elementType = map(rootModule.context->getCharTy(), *context);
                 }
                 // 指针：目前仅支持字符指针(*i8)的下标访问，按 pointee storage 类型做指针算术
-                else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Pointer) {
+                else if (addrRuntimeType.kind == IR::RuntimeTypeKind::Pointer) {
                     auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
                     auto* pointeeTy = ptrTy->getElementType();
 
                     if (!pointeeTy) {
                         throw std::runtime_error("Indexing failed: pointer operand has no element type.");
                     }
-                    if (!addrRuntimeType.element || addrRuntimeType.element->kind != IR::RuntimeDescriptionKind::I8) {
+                    if (!addrRuntimeType.element || addrRuntimeType.element->kind != IR::RuntimeTypeKind::I8) {
                         throw std::runtime_error(
                             "Indexing failed: only character pointers are currently supported for pointer indexing."
                         );
@@ -391,7 +391,7 @@ namespace sakuraE::Codegen {
                     elementType = map(pointeeTy, *context);
                 }
                 // 引用：引用值本身是被引用槽位的地址，先取得槽位，再按被引用对象的种类分派
-                else if (addrRuntimeType.kind == IR::RuntimeDescriptionKind::Reference) {
+                else if (addrRuntimeType.kind == IR::RuntimeTypeKind::Reference) {
                     const auto* refElement = addrRuntimeType.element;
                     auto* refElementTy = refElement ? refElement->storage : nullptr;
                     llvm::Value* refAddr = addr;
@@ -418,14 +418,14 @@ namespace sakuraE::Codegen {
                         break;
                     }
                     // 引用字符串：从被引用槽位取出 RuntimeValue*，再拆箱得到字符 payload
-                    else if (refElement->kind == IR::RuntimeDescriptionKind::String) {
+                    else if (refElement->kind == IR::RuntimeTypeKind::String) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.string.base");
                         addr = unboxRaw(addr, refElementTy, curFn);
                         elementType = map(rootModule.context->getCharTy(), *context);
                     }
                     // 引用字符指针：从被引用槽位取出装箱指针并拆箱得到实际地址
-                    else if (refElement->kind == IR::RuntimeDescriptionKind::Pointer && refElement->element &&
-                        refElement->element->kind == IR::RuntimeDescriptionKind::I8) {
+                    else if (refElement->kind == IR::RuntimeTypeKind::Pointer && refElement->element &&
+                        refElement->element->kind == IR::RuntimeTypeKind::I8) {
                         auto* ptrTy = static_cast<IR::IRPointerType*>(refElementTy);
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.ptr.base");
                         addr = unboxRaw(addr, refElementTy, curFn);
@@ -456,7 +456,7 @@ namespace sakuraE::Codegen {
                 bind(ins, instResult);
                 break;
             }
-            // param：函数参数。参数在函数入口已被 spill 到 entry 块的槽位（见 FunctionEmiiter::codegen），
+            // param：函数参数。参数在函数入口已被 spill 到 entry 块的槽位（见 FunctionEmitter::codegen），
             // 这里按 "param.<参数名>" 解析出参数名，返回该槽位地址作为左值
             case IR::OpKind::param: {
                 auto insName = ins->getName();
@@ -544,7 +544,7 @@ namespace sakuraE::Codegen {
                         // 字符串字段的 storage 只是字符指针，装箱后还需补上 RuntimeString.length：
                         // 对 null 指针用空串代替调用 strlen（避免空指针解引用），
                         // 把长度写到 RuntimeValue.data 的第二个 i64（即 data.string.length）
-                        if (runtimeType(ins).kind == IR::RuntimeDescriptionKind::String) {
+                        if (runtimeType(ins).kind == IR::RuntimeTypeKind::String) {
                             auto callee = curFn->parent->content->getOrInsertFunction("strlen",
                                 builder->getInt64Ty(), builder->getPtrTy());
                             auto* characters = builder->CreateSelect(builder->CreateIsNull(raw),
@@ -564,7 +564,7 @@ namespace sakuraE::Codegen {
                 bind(ins, instResult);
                 break;
             }
-            // br：无条件跳转。目标基本块已由 FunctionEmiiter::codegen 预先创建并 bind，这里直接取出生成 br
+            // br：无条件跳转。目标基本块已由 FunctionEmitter::codegen 预先创建并 bind，这里直接取出生成 br
             case IR::OpKind::br: {
                 auto targetBlockValue = toLLVMValue(ins->arg(0), curFn);
 
@@ -703,7 +703,7 @@ namespace sakuraE::Codegen {
         std::unordered_set<const IR::BackendModule*> visited{&rootModule};
         for (std::size_t i = 0; i < reachable.size(); ++i) {
             const auto* source = reachable[i];
-            modules.push_back(new ModuleEmmiter(*source, *this));
+            modules.push_back(new ModuleEmitter(*source, *this));
             for (const auto* dependency : source->usingModules) {
                 if (visited.insert(dependency).second) {
                     reachable.push_back(dependency);

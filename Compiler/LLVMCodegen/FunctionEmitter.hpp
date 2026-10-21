@@ -1,5 +1,5 @@
-#ifndef SAKURAE_FUNCTIONEMIITER_HPP
-#define SAKURAE_FUNCTIONEMIITER_HPP
+#ifndef SAKURAE_FUNCTIONEmitter_HPP
+#define SAKURAE_FUNCTIONEmitter_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -24,13 +24,13 @@ namespace sakuraE::IR {
 
 namespace sakuraE::Codegen {
     class LLVMCodeGenerator;
-    struct ModuleEmmiter;
+    struct ModuleEmitter;
 
     // 单个 BackendFunction 到 llvm::Function 的发射器。
     // 先由 impl() 按 ABI 声明 LLVM 函数，再由 codegen() 生成函数体（external 函数只声明）；
     // 同时负责函数内的 GC root scope、entry block 中的 alloca 槽位以及参数槽位管理。
     // 由所属 ModuleEmmiter 创建并 delete。
-    struct FunctionEmiiter {
+    struct FunctionEmitter {
         // 被发射的 Backend IR 函数（非拥有引用，由 LoweringSession 持有）
         const IR::BackendFunction& backend;
         // 为 true 时只生成 LLVM 函数声明（runtime 函数或从其他模块导入的函数），不生成函数体
@@ -40,7 +40,7 @@ namespace sakuraE::Codegen {
         // 源语言标识符 -> 存储槽位（alloca）的作用域表，参数与局部变量在此声明
         IR::Scope<llvm::Value*> scope;
         // 所属模块发射器（非拥有），用于按名查找函数声明和获取 llvm::Module/DataLayout
-        ModuleEmmiter* parent = nullptr;
+        ModuleEmitter* parent = nullptr;
         // 共享的代码生成上下文（LLVMContext、IRBuilder、值映射）
         LLVMCodeGenerator& codegenContext;
         // 参数名 -> 入口处为参数创建的 alloca 槽位，供 param 指令取地址
@@ -51,11 +51,11 @@ namespace sakuraE::Codegen {
         llvm::BasicBlock* entryBlock = nullptr;
 
         // 仅保存引用/指针，LLVM 函数在 impl() 中才创建
-        FunctionEmiiter(const IR::BackendFunction& source,
+        FunctionEmitter(const IR::BackendFunction& source,
                        bool isExternal,
-                       ModuleEmmiter* p,
+                       ModuleEmitter* p,
                        LLVMCodeGenerator& codegen);
-        ~FunctionEmiiter();
+        ~FunctionEmitter();
 
         // GC root scope：分别发射 __gc_enter_scope / __gc_leave_scope 调用并维护 gcScopeDepth；
         // gcLeaveScope 在深度为 0 时不发射任何调用，gcLeaveAllScopes 依次离开所有已进入的 scope
@@ -99,4 +99,4 @@ namespace sakuraE::Codegen {
     };
 }
 
-#endif /* !SAKURAE_FUNCTIONEMIITER_HPP */
+#endif /* !SAKURAE_FUNCTIONEmitter_HPP */

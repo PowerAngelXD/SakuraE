@@ -425,7 +425,7 @@ void testBackendABIAndGCRootDecisions() {
                     assert(!function->rootsSlot(instruction));
                 }
                 if (instruction->getKind() == OpKind::_sizeof) {
-                    assert(function->typeOperands.at(instruction)->kind == RuntimeDescriptionKind::Pointer);
+                    assert(function->typeOperands.at(instruction)->kind == RuntimeTypeKind::Pointer);
                 }
             }
         }
@@ -466,9 +466,9 @@ void testBackendRuntimeDescriptions() {
     const auto* pointerDescription = backend->typeOperands.at(pointerDescriptor);
     assert(textDescription->storage == pointerDescription->storage);
     assert(textDescription != pointerDescription);
-    assert(textDescription->kind == RuntimeDescriptionKind::String);
-    assert(pointerDescription->kind == RuntimeDescriptionKind::Pointer);
-    assert(pointerDescription->element->kind == RuntimeDescriptionKind::I8);
+    assert(textDescription->kind == RuntimeTypeKind::String);
+    assert(pointerDescription->kind == RuntimeTypeKind::Pointer);
+    assert(pointerDescription->element->kind == RuntimeTypeKind::I8);
     assert(backend->typeOperands.at(arrayDescriptor)->count == 2);
     assert(backend->constants.at(nullArray) == ConstantKind::Null);
     assert(backend->runtimeType(nullArray).representation == ValueRepresentation::ManagedArray);

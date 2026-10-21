@@ -103,5 +103,5 @@ Context/Lowering 接口支持先声明、后补全：再次 lowering 结构体�
 
 `BackendModule::verify()` 不创建 LLVM 对象即可验证描述图；`toString()` 输出签名、ABI/root 元数据、导入和布局。Session 还拥有 runtime 描述图，BackendFunction 非拥有地索引常量类别、值表示和类型操作数。字符串与字符指针即使 storage 相同，也保留不同描述。LLVM wrapper 继续保存生成的函数/模块、基本块、alloca、builder 和活动 GC 作用域状态；`typeof` 代码生成暂缓实现。
 
-FunctionEmiiter 与 ModuleEmmiter 为命名空间级类型，分别在同名头文件声明、cpp 文件实现全部方法；generator 负责协调，不保留旧嵌套类兼容别名。Lowering 将字段选择器解析为 BackendFieldAccess，emitter 只读取原始布局、索引和 storage 策略。typeof 暂缓并明确报告 emission 错误。
+FunctionEmitter 与 ModuleEmmiter 为命名空间级类型，分别在同名头文件声明、cpp 文件实现全部方法；generator 负责协调，不保留旧嵌套类兼容别名。Lowering 将字段选择器解析为 BackendFieldAccess，emitter 只读取原始布局、索引和 storage 策略。typeof 暂缓并明确报告 emission 错误。
 

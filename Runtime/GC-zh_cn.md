@@ -239,13 +239,13 @@ func main() -> i32 {
 完整数据流如下：
 
 1. 前端生成数组字面量 IR 指令和字符串常量 IR 值
-2. LLVMCodeGenerator 通过 create_string 生成字符串常量；FunctionEmiiter::createRootedTemporary 将活动托管值保存到 entry 槽位，并按 Backend runtime 描述注册 root。
+2. LLVMCodeGenerator 通过 create_string 生成字符串常量；FunctionEmitter::createRootedTemporary 将活动托管值保存到 entry 槽位，并按 Backend runtime 描述注册 root。
 3. LLVMCodeGenerator 处理 create_array，分配前从 root 槽加载托管元素，保证收集期间字符串存活。
 4. ModuleEmmiter::getRuntimeValueArrayGCType 生成装箱数组元数据；通用 llvmTy2GCType/getArrayGCType helper 为原始布局生成 __gc_get_array_type_with_length 调用。
-5. FunctionEmiiter::createHeapAlloc 计算 payload 大小并调用 __gc_alloc，结果通过 root 槽保护。
+5. FunctionEmitter::createHeapAlloc 计算 payload 大小并调用 __gc_alloc，结果通过 root 槽保护。
 6. 执行 `concat_string(words[0], words[1])` 时，`instgen` 在生成调用前用 `createRootedTemporary` 暂存托管参数运行时 `concat_string(const char*, const char*)` 也会在分配结果前将两个 C 指针注册到临时 runtime scope
 7. 调用结果保存在 entry block 的 root 槽中如果后续分配超过 GC 阈值，`__gc_collect()` 会标记 `words`、数组引用到的两个字符串以及 `result`，然后只清扫不可达对象
-8. 返回时由 FunctionEmiiter::gcLeaveAllScopes 生成所需 __gc_leave_scope 调用。
+8. 返回时由 FunctionEmitter::gcLeaveAllScopes 生成所需 __gc_leave_scope 调用。
 
 概念上的关键 LLVM 调用如下：
 
