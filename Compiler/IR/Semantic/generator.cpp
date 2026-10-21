@@ -15,6 +15,10 @@
 #include <variant>
 
 namespace sakuraE::IR {
+    // 判断表达式节点是否就是一个 `null` 字面量。
+    // 解析器会把字面量层层包在 WholeExpr/AddExpr/MulExpr/PrimExpr 等单子节点包装中，
+    // 因此这里沿"只有一个子节点"的链递归向下，直到 LiteralNode 再检查 token 类型；
+    // 任何一层出现多个子节点（即真正的运算表达式）都视为非 null 字面量。
     static bool isNullLiteralExpression(const NodePtr& node) {
         if (!node) return false;
         if (node->getTag() == ASTTag::LiteralNode && node->hasNode(ASTTag::Literal)) {
@@ -24,6 +28,13 @@ namespace sakuraE::IR {
         return children.size() == 1 && isNullLiteralExpression(children.front());
     }
 
+    // 生成入口：把一份源码编译为一个新的 Semantic IR 模块。
+    // 流程分为四遍：
+    //   1. 词法 + 逐条语句解析，把 AST 缓存到 parsedStatements（生成器持有 AST 的生命周期）；
+    //   2. 预声明所有结构体为 opaque 结构体，使后续类型解析可以前向引用/递归引用结构体；
+    //   3. 按源码顺序访问每条语句生成 IR（结构体定义语句在此遍补全字段）；
+    //   4. 所有结构体补全后，再对每个结构体的语义类型(TypeInfo)做整体递归校验。
+    // 一个 IRGenerator 实例只允许生成一次，重复调用视为调用方逻辑错误。
     void IRGenerator::startGenerate(const fzlib::String& source, fzlib::String moduleName) {
         if (hasGenerated) {
             throw std::logic_error("IRGenerator supports one source generation per instance");
@@ -33,6 +44,7 @@ namespace sakuraE::IR {
         hasGenerated = true;
         parsedStatements.clear();
 
+        // 解析失败时优先抛出解析器给出的 SakuraError；err 为空属于解析器内部错误。
         sakuraE::Lexer lexer(source);
         auto tokens = lexer.tokenize();
         TokenIter current = tokens.cbegin();
@@ -49,6 +61,7 @@ namespace sakuraE::IR {
             current = result.end;
         }
 
+        // 第二遍：仅登记结构体名字（opaque 结构体），字段留待 visitStructDefineStmtNode 补全。
         for (const auto& node : parsedStatements) {
             NodePtr statement = node->getTag() == ASTTag::Stmt ? (*node)[ASTTag::Stmt] : node;
             if (statement->getTag() != ASTTag::StructDefineStmtNode) {
@@ -62,6 +75,8 @@ namespace sakuraE::IR {
         for (const auto& node : parsedStatements) {
             visitStmt(node);
         }
+        // 第四遍：此时所有结构体都已补全，validateSemanticType 会递归检查字段类型是否
+        // 都属于本 Program 的 TypeInfoContext、且引用的结构体声明都能解析。
         for (const auto& node : parsedStatements) {
             NodePtr statement = node->getTag() == ASTTag::Stmt ? (*node)[ASTTag::Stmt] : node;
             if (statement->getTag() == ASTTag::StructDefineStmtNode) {
@@ -73,6 +88,9 @@ namespace sakuraE::IR {
         }
     }
 
+    // 字面量 -> `constant` 指令：把 token 转为 Constant，并以其语义类型作为指令类型。
+    // `null` 在这里没有目标类型可用，必须经由带 expectedType 的 visitWholeExprNode 处理，
+    // 因此在此直接报错。
     IRValue* IRGenerator::visitLiteralNode(NodePtr node) {
         auto token = (*node)[ASTTag::Literal]->getToken();
         if (token.type == TokenType::NULL_LITERAL) {
@@ -95,6 +113,9 @@ namespace sakuraE::IR {
             );
     }
 
+    // 为 `null` 字面量物化一个空句柄常量。
+    // 约束：目标类型必须存在、必须是可空类型，且其底层类型只能是结构体或数组
+    // （与 getTypeInfoFromNode 中"只有结构体/数组可空"的规则一致）。
     IRValue* IRGenerator::materializeNull(TypeInfo* targetType, PositionInfo info) {
         if (!targetType) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
@@ -119,6 +140,9 @@ namespace sakuraE::IR {
         );
     }
 
+    // 带期望类型的整体表达式访问：仅用于给 `null` 字面量提供目标类型。
+    // 非 null 表达式直接走普通 visitWholeExprNode，expectedType 被忽略（不做隐式转换）；
+    // null 表达式则沿单子节点包装找到 LiteralNode，以其位置信息报错/物化。
     IRValue* IRGenerator::visitWholeExprNode(NodePtr node, TypeInfo* expectedType) {
         if (!isNullLiteralExpression(node)) return visitWholeExprNode(node);
         NodePtr current = node;
@@ -129,6 +153,9 @@ namespace sakuraE::IR {
                                (*current)[ASTTag::Literal]->getToken().info);
     }
 
+    // 下标运算 `addr[index]`：addr 为被索引对象的地址（左值），返回 `indexing` 左值指令。
+    // 下标只接受 i32/i64/ui32/ui64；先剥掉一层引用类型，然后按底层类型确定元素类型：
+    // 数组 -> 元素类型，指针 -> 指向类型，string -> char；其余（或元素为 void）不可索引。
     IRValue* IRGenerator::visitIndexOpNode(IRValue* addr, NodePtr node) {
         auto* indexValue = visitAddExprNode((*node)[ASTTag::HeadExpr]);
         const auto* indexType = indexValue->getSemanticType();
@@ -147,10 +174,15 @@ namespace sakuraE::IR {
         if (!element || element->getTypeID() == Void) {
             throw SakuraError(OccurredTerm::IR_GENERATING, "Cannot index this semantic type.", node->getPosInfo());
         }
+        // 结果是左值：后续可继续被 load/store，或被 isInteriorGCManagedLValue 检查。
         return curFunc()->curBlock()->createInstruction(
             OpKind::indexing, element, {addr, indexValue}, "indexing." + addr->getName());
     }
 
+    // 调用的公共收尾：参数已求值完毕，校验签名后生成 `call` 指令。
+    // addr 必须带函数类型；参数个数必须与签名一致；每个实参都需可赋值给形参类型。
+    // 例外：运行时 print/println 接受任意装箱值，因此跳过实参类型检查，只要求有语义类型。
+    // 注意 `call` 的操作数只有实参，被调函数靠指令名 "call.<函数名>" 传递给代码生成。
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node, const std::vector<IRValue*>& args) {
         const auto* type = addr->getSemanticType();
         const auto* signature = type ? type->getFunctionTypeInfo() : nullptr;
@@ -173,6 +205,9 @@ namespace sakuraE::IR {
             OpKind::call, result, args, "call." + addr->getName());
     }
 
+    // 对已求值得到的可调用值（例如调用结果）再进行调用：
+    // 按签名为每个实参提供期望类型（以便 `null` 实参物化），超出形参个数的实参无期望类型；
+    // 实参个数不匹配统一交由三参数版本 visitCallingOpNode 报错。
     IRValue* IRGenerator::visitCallingOpNode(IRValue* addr, NodePtr node) {
         std::vector<IRValue*> arguments;
         const auto* type = addr->getSemanticType();
@@ -186,6 +221,8 @@ namespace sakuraE::IR {
         return visitCallingOpNode(addr, node, arguments);
     }
 
+    // 访问原子标识符（成员访问链中的一环）：标识符本身、或括号内的标识符表达式，
+    // 后接零个或多个下标/调用后缀。返回值通常是地址（左值），由调用方决定是否 load。
     IRValue* IRGenerator::visitAtomIdentifierNode(NodePtr node) {
         IRValue* currentAddr = nullptr;
 
@@ -193,15 +230,22 @@ namespace sakuraE::IR {
             auto name = (*node)[ASTTag::Identifier]->getToken().content;
             auto ops = (*node)[ASTTag::Ops]->getChildren();
 
+            // 情况一：`name(args)...` 形式的直接调用，需要在这里做重载解析。
             if (!ops.empty() && ops[0]->getTag() == ASTTag::CallingOpNode) {
                 std::vector<IRValue*> argValues;
                 auto argExprs = (*ops[0])[ASTTag::Exprs]->getChildren();
+                // 候选函数：同名且参数个数相同的已改编函数（名字形如 name_<类型...>）。
+                // 仅当候选唯一时才把它的形参类型作为实参的期望类型（用于物化 null）；
+                // 多个候选时无法确定期望类型，实参按自身类型求值。
                 auto candidates = curModule()->findFunctionCandidates(name, argExprs.size());
                 const auto* expected = candidates.size() == 1 ? candidates[0]->getFunctionTypeInfo() : nullptr;
                 for (std::size_t index = 0; index < argExprs.size(); ++index) {
                     argValues.push_back(visitWholeExprNode(argExprs[index],
                         expected ? expected->getArgTypes()[index] : nullptr));
                 }
+                // 重载打分：每个实参必须可赋值给形参；类型不完全相同（如非空 -> 可空）计 1 分，
+                // 选总分最低者。同分出现两个则记为二义；之后若出现更低分则清除二义标记。
+                // bestScore 初值为 实参数+1，保证任何匹配的候选都能胜出。
                 Function* callee = nullptr;
                 std::size_t bestScore = argValues.size() + 1;
                 bool ambiguous = false;
@@ -221,10 +265,13 @@ namespace sakuraE::IR {
                     else if (score == bestScore) ambiguous = true;
                 }
                 if (ambiguous) throw SakuraError(OccurredTerm::IR_GENERATING, "Ambiguous semantic function overload.", node->getPosInfo());
+                // 没有匹配的改编函数时，回退到按原始名查找运行时函数（如 print/println，
+                // 它们接受任意装箱值，没有按参数类型改编的重载）。
                 if (!callee) callee = curModule()->lookupRuntimeFunction(name);
                 if (!callee) throw SakuraError(OccurredTerm::IR_GENERATING, "No compatible function overload: " + name, node->getPosInfo());
                 currentAddr = visitCallingOpNode(callee, ops[0], argValues);
 
+                // 第一个调用后缀已处理，剩余后缀依次作用于调用结果。
                 for (size_t i = 1; i < ops.size(); ++i) {
                     if (ops[i]->getTag() == ASTTag::IndexOpNode)
                         currentAddr = visitIndexOpNode(currentAddr, ops[i]);
@@ -233,6 +280,7 @@ namespace sakuraE::IR {
                 }
                 return currentAddr;
             }
+            // 情况二：普通变量引用，查找到其地址（作用域中登记的 alloca/param 等）。
             else {
                 currentAddr = lookup(name, node->getPosInfo())->address;
             }
@@ -241,6 +289,7 @@ namespace sakuraE::IR {
             currentAddr = visitIdentifierExprNode((*node)[ASTTag::IdentifierExprNode]);
         }
 
+        // 依次应用下标/调用后缀（直接调用分支已提前返回，不会走到这里）。
         if (node->hasNode(ASTTag::Ops)) {
             auto ops = (*node)[ASTTag::Ops]->getChildren();
             for (auto op : ops) {
@@ -254,9 +303,14 @@ namespace sakuraE::IR {
         return currentAddr;
     }
 
+    // 访问完整的标识符表达式：`a.b[i].c(...)` 形式的成员访问链，外加可选的前缀/后缀运算。
+    // 返回值约定：无运算时返回地址（左值），由 visitPrimExprNode 等调用方决定是否 load；
+    // 有前缀/后缀运算时返回运算产生的值（或 store 指令）。
     IRValue* IRGenerator::visitIdentifierExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
         IRValue* resultAddr = visitAtomIdentifierNode(chain[0]);
+        // 对链上后续每一环做字段访问：基对象（可空类型先取底层类型）必须是结构体，
+        // 字段类型从结构体声明中查得，生成 `gmem` 左值指令（字段名作为字符串常量操作数）。
         for (std::size_t i = 1; i < chain.size(); i ++) {
             auto name = (*chain[i])[ASTTag::Identifier]->getToken().content;
 
@@ -281,6 +335,7 @@ namespace sakuraE::IR {
                     "gmem." + name
                 );
 
+            // 字段访问后的下标/调用后缀；其他标签忽略。
             if (chain[i]->hasNode(ASTTag::Ops)) {
                 for (auto op: (*chain[i])[ASTTag::Ops]->getChildren()) {
                     switch (op->getTag()) {
@@ -299,9 +354,11 @@ namespace sakuraE::IR {
         }
 
         IRValue* resultValue = resultAddr;
+        // 前缀运算符。
         if (node->hasNode(ASTTag::PreOp)) {
             auto preOp = (*node)[ASTTag::PreOp]->getToken();
             switch (preOp.type) {
+                // `!x`：要求操作数为 bool，先 load 再取反。
                 case TokenType::LGC_NOT: {
                     const auto* operandType = resultAddr->getSemanticType();
                     if (!operandType || operandType->getTypeID() != TypeID::Bool) {
@@ -320,6 +377,9 @@ namespace sakuraE::IR {
                         );
                     break;
                 }
+                // `++x`：load -> +1 -> store，返回 store 指令（前缀自增不产生可继续使用的值）。
+                // 结果类型按数值提升规则(handleUnlogicalBinaryCalc)计算；若提升后类型与变量不同，
+                // createStore 会因类型不兼容报错。
                 case TokenType::AINC: {
                     resultValue = createLoad(resultAddr, preOp.info);
 
@@ -335,6 +395,7 @@ namespace sakuraE::IR {
                     return createStore(resultAddr, resultValue, preOp.info);
                     break;
                 }
+                // `--x`：与 `++x` 相同，只是使用减法。
                 case TokenType::SDEC: {
                     resultValue = createLoad(resultAddr, preOp.info);
                     resultValue = curFunc()
@@ -349,6 +410,10 @@ namespace sakuraE::IR {
                     return createStore(resultAddr, resultValue, preOp.info);
                     break;
                 }
+                // `&x`：取地址，得到指向 x 语义类型的指针。只允许对左值取地址，
+                // 且禁止取得 GC 托管对象的内部地址（数组元素、字符串字符等）：
+                // 编译器不会把派生的内部地址登记为 GC root，仅持有该地址无法让对象保持存活，
+                // 对象被回收后地址即悬空，因此不能作为稳定的语言级指针。
                 case TokenType::AND: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
                         if (inst->isLValue()) {
@@ -368,6 +433,7 @@ namespace sakuraE::IR {
                                     node->getPosInfo());
                     break;
                 }
+                // `ref x`：取引用，规则同 `&x`，但结果为引用类型。
                 case TokenType::KEYWORD_REF: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
                         if (inst->isLValue()) {
@@ -387,6 +453,9 @@ namespace sakuraE::IR {
                                     node->getPosInfo());
                     break;
                 }
+                // `*p`：解引用。p 必须是指针类型的左值：先 load 出指针值，
+                // 再生成 `deref` 左值指令（类型为指向类型），因此 `*p = v` 可以继续赋值。
+                // 不允许解引用 void 指针。
                 case TokenType::MUL: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
                         if (inst->isLValue()) {
@@ -420,6 +489,8 @@ namespace sakuraE::IR {
             }
         }
 
+        // 后缀运算符 `x++`/`x--`：同样 load -> 运算 -> store，但返回的是运算后的新值
+        // （而非旧值），这与 C 语义不同。
         if (node->hasNode(ASTTag::Op)) {
             auto op = (*node)[ASTTag::Op]->getToken();
             switch (op.type) {
@@ -461,9 +532,13 @@ namespace sakuraE::IR {
         return resultValue;
     }
 
+    // 内建可调用运算符 sizeof/typeof。
     IRValue* IRGenerator::visitInnerCallableExprNode(NodePtr node) {
         auto callingNode = (*node)[ASTTag::CallingOpNode];
 
+        // sizeof 只做静态类型推导（inferExprType），不对实参求值，因此不产生副作用。
+        // `_sizeof` 指令没有操作数，被测类型通过 type operand 附加，
+        // 代码生成阶段按该类型的 storage 类型(IRType)在 DataLayout 中的分配大小求值，结果为 ui64。
         if (node->hasNode(ASTTag::Sizeof)) {
             auto exprs = (*callingNode)[ASTTag::Exprs]->getChildren();
             if (exprs.size() != 1) {
@@ -488,6 +563,7 @@ namespace sakuraE::IR {
             return sizeofValue;
         }
 
+        // typeof 需要真正对实参求值（副作用会发生），结果为 TypeDescriptor（运行时类型元数据）。
         std::vector<IRValue*> args;
         for (auto argNode: (*callingNode)[ASTTag::Exprs]->getChildren()) {
             args.push_back(visitWholeExprNode(argNode));
@@ -518,6 +594,8 @@ namespace sakuraE::IR {
         );
     }
 
+    // 基本表达式：字面量、sizeof/typeof、标识符表达式或括号表达式。
+    // 标识符表达式若得到左值则在此 load 成右值——这是"地址 -> 值"转换的统一位置。
     IRValue* IRGenerator::visitPrimExprNode(NodePtr node) {
         if (node->hasNode(ASTTag::Literal)) {
             return visitLiteralNode((*node)[ASTTag::Literal]);
@@ -537,6 +615,7 @@ namespace sakuraE::IR {
         }
     }
 
+    // 乘除模表达式：左结合地依次处理 `*`、`/`、`%`，结果类型按数值提升规则计算。
     IRValue* IRGenerator::visitMulExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
         IRValue* lhs = visitPrimExprNode(chain[0]);
@@ -582,6 +661,7 @@ namespace sakuraE::IR {
         return lhs;
     }
 
+    // 加减表达式：左结合地依次处理 `+`、`-`，结果类型按数值提升规则计算。
     IRValue* IRGenerator::visitAddExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
 
@@ -620,6 +700,8 @@ namespace sakuraE::IR {
         return lhs;
     }
 
+    // 比较表达式：`< <= > >= == !=`，结果恒为 bool。
+    // 注意此处不检查左右操作数的语义类型是否可比较。
     IRValue* IRGenerator::visitLogicExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
 
@@ -690,6 +772,13 @@ namespace sakuraE::IR {
         return lhs;
     }
 
+    // 逻辑表达式 `&&`/`||`，按短路语义构建控制流：
+    // 用一个 bool 临时变量 tbv.N（初值为 lhs）保存结果；先建立汇合块 short.cur.merge，
+    // 再为每个右操作数建立 and.rhsN / or.rhsN 块。
+    //   &&：lhs 为真才进入 rhs 块，否则直接到汇合块（结果保持 lhs=false）；
+    //   ||：lhs 为假才进入 rhs 块，否则直接到汇合块（结果保持 lhs=true）。
+    // rhs 块中把右操作数写入临时变量后跳到汇合块，最终在汇合块中 load 临时变量作为结果。
+    // 块名计数器使用 static，保证同一进程内块名唯一。
     IRValue* IRGenerator::visitBinaryExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
         IRValue* lhs = visitLogicExprNode(chain[0]);
@@ -707,6 +796,8 @@ namespace sakuraE::IR {
 
         if (node->hasNode(ASTTag::Ops)) {
             auto opChain = (*node)[ASTTag::Ops]->getChildren();
+            // beforeBlockIndex：当前要追加条件跳转的块；shortCurBlockIndex：汇合块下标。
+            // buildBlock 会把游标移到新块，因此下标需在建块后立即记录。
             long beforeBlockIndex = curFunc()->cur();
             IRValue* mergeBlock = curFunc()->buildBlock("short.cur.merge");
             long shortCurBlockIndex = curFunc()->cur();
@@ -722,6 +813,7 @@ namespace sakuraE::IR {
                         curFunc()->moveCursor(rhsBlockIndex);
                         IRValue* rhs = visitLogicExprNode(chain[i]);
 
+                        // 条件跳转补到 before 块；之后的 store 写在当前游标所在块（右操作数求值完的块）。
                         curFunc()
                             ->block(beforeBlockIndex)
                             ->createCondBr(lhs, rhsBlock, mergeBlock);
@@ -732,6 +824,9 @@ namespace sakuraE::IR {
                             ->block(rhsBlockIndex)
                             ->createBr(mergeBlock);
 
+                        // 下一个操作数的条件跳转挂在本 rhs 块上。
+                        // 注意：本 rhs 块已经以 br 结尾，Block::createCondBr 遇到已有终结指令会直接忽略，
+                        // 且条件仍使用最初的 lhs，因此三个及以上操作数的链目前不能正确短路。
                         beforeBlockIndex = rhsBlockIndex;
                         break;
                     }
@@ -761,6 +856,7 @@ namespace sakuraE::IR {
                         break;
                 }
             }
+            // 所有分支汇合后，后续代码继续生成在汇合块中。
             curFunc()->moveCursor(shortCurBlockIndex);
         }
         return curFunc()
@@ -770,6 +866,8 @@ namespace sakuraE::IR {
                                             {resultAddr}, "load." + resultAddrName);
     }
 
+    // 数组字面量 `[e0, e1, ...]`：以首元素的语义类型作为元素类型，
+    // 其余元素必须可赋值给该类型；结果是长度为元素个数的数组类型的 `create_array` 指令。
     IRValue* IRGenerator::visitArrayExprNode(NodePtr node) {
         std::vector<IRValue*> rawArray;
 
@@ -799,6 +897,11 @@ namespace sakuraE::IR {
                                         "create-array");
     }
 
+    // 赋值表达式：`=`、`+=`、`-=`、`*=`、`/=`。
+    // 目标通过 visitIdentifierExprNode 得到地址（左值），右值以目标类型作为期望类型求值，
+    // 使 `x = null` 能对可空目标物化空句柄。
+    // 复合赋值为 load -> 运算 -> store；运算结果经数值提升后若与目标类型不同，createStore 会报类型不兼容。
+    // 返回值为最终的 store 指令。
     IRValue* IRGenerator::visitAssignExprNode(NodePtr node) {
         IRValue* resultAddr = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
         IRValue* value = visitWholeExprNode((*node)[ASTTag::HeadExpr], resultAddr->getSemanticType());
@@ -870,6 +973,7 @@ namespace sakuraE::IR {
         return resultValue;
     }
 
+    // 整体表达式分发：加减表达式 / 逻辑二元表达式 / 数组字面量 / 赋值表达式。
     IRValue* IRGenerator::visitWholeExprNode(NodePtr node) {
         if (!node) return nullptr;
 
@@ -887,6 +991,8 @@ namespace sakuraE::IR {
         }
     }
 
+    // 类型修饰节点 -> 一条 TypeDescriptor 类型的 `constant` 指令，常量内容为解析得到的 TypeInfo*。
+    // 调用方（如 visitDeclareStmtNode）会从该常量中取回 TypeInfo。
     IRValue* IRGenerator::visitTypeModifierNode(NodePtr node) {
         return curFunc()
             ->curBlock()
@@ -898,6 +1004,12 @@ namespace sakuraE::IR {
 
     // 语句
 
+    // 变量声明 `let name: T = init`：
+    // - 有类型标注时先解析出声明的语义类型（visitTypeModifierNode 会额外生成一条 TypeDescriptor 常量指令，
+    //   这里从其操作数中取回 TypeInfo*）；
+    // - 初值以声明类型作为期望类型求值，使 `let x: T? = null` 可以物化空句柄；
+    // - 类型与初值都缺失时无法确定变量类型，报错；
+    // - 最终类型优先取声明类型，否则取初值的语义类型；兼容性检查与默认初值由 createAlloca 负责。
     IRValue* IRGenerator::visitDeclareStmtNode(NodePtr node) {
         auto identifier = (*node)[ASTTag::Identifier]->getToken();
         IRValue* typeInfoIRValue = nullptr;
@@ -928,6 +1040,7 @@ namespace sakuraE::IR {
         return createAlloca(identifier.content, semanticType, initVal, node->getPosInfo());
     }
 
+    // 表达式语句：标识符表达式（如调用、自增）或赋值表达式，结果值被丢弃。
     IRValue* IRGenerator::visitExprStmtNode(NodePtr node) {
         if (node->hasNode(ASTTag::IdentifierExprNode)) {
             return visitIdentifierExprNode((*node)[ASTTag::IdentifierExprNode]);
@@ -936,6 +1049,12 @@ namespace sakuraE::IR {
             return visitAssignExprNode((*node)[ASTTag::AssignExprNode]);
     }
 
+    // 语句块：新建一个名为 blockName 的基本块（buildBlock 会把游标移到新块），并在其中生成所有语句。
+    // beforeBlock != -1 时，从该块补一条 br 跳入新块（函数定义用它把 entry 块接到函数体）；
+    // 其他调用方（if/while/for 等）自行连接控制流，传 -1。
+    // 语句块同时开启一个新的词法作用域：符号表 enter/leave，并生成 enter_scope/leave_scope 指令，
+    // 代码生成据此进入/离开 GC root 作用域。
+    // 返回值是块的入口基本块；块内语句可能又建立新块，调用方需在调用后用 cur() 取得出口块。
     IRValue* IRGenerator::visitBlockStmtNode(NodePtr node, fzlib::String blockName, long beforeBlock) {
         IRValue* block = curFunc()->buildBlock(blockName);
 
@@ -951,6 +1070,7 @@ namespace sakuraE::IR {
         curFunc()->fnScope().enter();
         curFunc()->curBlock()->createEnterScope();
 
+        // 游标已在新块上（buildBlock 已移动），这里等价于空操作。
         curFunc()->moveCursor(curFunc()->cur());
 
         for (auto stmt: (*node)[ASTTag::Stmts]->getChildren()) {
@@ -958,14 +1078,19 @@ namespace sakuraE::IR {
         }
 
 
+        // leave_scope 插在当前（出口）块的终结指令之前，保证 return/br 之前先离开 GC root 作用域。
         curFunc()->curBlock()->createLeaveScope();
         curFunc()->fnScope().leave();
 
         return block;
     }
 
+    // if 语句：before 块中求条件 -> if.then /（可选）if.else -> if.merge。
+    // 所有基本块先按顺序建好，再回头给 before/then 出口/else 出口补跳转指令；
+    // 若某出口块已被 return/break 等终结，Block::createBr/createCondBr 会自动忽略新增跳转。
     IRValue* IRGenerator::visitIfStmtNode(NodePtr node) {
         IRValue* cond = visitBinaryExprNode((*node)[ASTTag::Condition]);
+        // 条件求值本身可能建块（如短路逻辑），因此 before 块取求值后的当前块。
         int beforeBlockIndex = curFunc()->cur();
 
         // if.then：条件为真时执行的基本块
@@ -1014,6 +1139,8 @@ namespace sakuraE::IR {
     }
 
 
+    // while 语句：before -> while.prep（求条件）-> while.then（循环体）/ while.merge。
+    // 条件放在独立的 prep 块中，使每次循环都重新求值；循环体结束跳回 prep。
     IRValue* IRGenerator::visitWhileStmtNode(NodePtr node) {
         int beforeBlockIndex = curFunc()->cur();
 
@@ -1035,6 +1162,7 @@ namespace sakuraE::IR {
         int mergeBlockIndex = curFunc()->cur();
         //
 
+        // 在生成循环体之前压入循环信息：continue 跳回 prep 重新求条件，break 跳到 merge。
         curFunc()->enterLoop(prepareBlock, mergeBlock);
 
         // while.then：循环体基本块
@@ -1059,6 +1187,8 @@ namespace sakuraE::IR {
         return mergeBlock;
     }
 
+    // for 语句：init（当前块）-> for.cond -> for.body -> for.step -> for.cond，条件为假时到 for.merge。
+    // 外层额外开一个符号表作用域，使 init 中声明的循环变量只在 for 内可见。
     IRValue* IRGenerator::visitForStmtNode(NodePtr node) {
         curFunc()->fnScope().enter();
 
@@ -1090,6 +1220,8 @@ namespace sakuraE::IR {
         int mergeBlockIndex = curFunc()->cur();
         //
 
+        // 注意：循环信息在循环体生成之后才压栈，且 continue 目标为 cond 而非 step；
+        // 因此循环体内的 break/continue 看不到本循环（会作用于外层循环或报"不在循环中"）。
         curFunc()->enterLoop(condBlock, mergeBlock);
 
         // init -> cond
@@ -1122,6 +1254,10 @@ namespace sakuraE::IR {
         return mergeBlock;
     }
 
+    // repeat(n) 语句：执行循环体 n 次。
+    // 隐藏计数器 $repeat_counter.N（i32，初值 0）与上限值在 repeat.prepare 块中建立/求值；
+    // repeat.cond 中比较 counter < limit；repeat.then 为循环体；repeat.step 中 counter + 1 后跳回 cond。
+    // 外层开一个符号表作用域，隐藏计数器只在本语句内可见。
     IRValue* IRGenerator::visitRepeatStmtNode(NodePtr node) {
         curFunc()->fnScope().enter();
 
@@ -1129,6 +1265,7 @@ namespace sakuraE::IR {
 
         // repeat.prepare：重复循环准备基本块
         IRValue* prepareBlock = curFunc()->buildBlock("repeat.prepare");
+        // 注意：repeat_counter 从未自增，所有隐藏计数器都同名，依赖各自的作用域隔离。
         static int repeat_counter = 1;
         IRValue* counter = createAlloca(
             "$repeat_counter." + std::to_string(repeat_counter),
@@ -1141,6 +1278,7 @@ namespace sakuraE::IR {
 
         // repeat.cond：重复循环条件基本块
         IRValue* condBlock = curFunc()->buildBlock("repeat.cond");
+        // 在 cond 块中 load 计数器；step 块复用该值（cond 支配 step，跨块使用是安全的）。
         IRValue* counterLoadVal = createLoad(counter, node->getPosInfo());
         IRValue* condResult = curFunc()
             ->curBlock()
@@ -1179,6 +1317,8 @@ namespace sakuraE::IR {
         int mergeBlockIndex = curFunc()->cur();
         //
 
+        // 与 for 相同：循环信息在循环体生成之后才压栈，循环体内的 break/continue 看不到本循环；
+        // continue 目标为 cond（会跳过 step）。
         curFunc()->enterLoop(condBlock, mergeBlock);
 
         // before -> prepare
@@ -1212,6 +1352,11 @@ namespace sakuraE::IR {
         return mergeBlock;
     }
 
+    // match 语句：被匹配值在 before 块中只 load 一次，随后按顺序逐个比较：
+    //   before -> case0 -(相等)-> then0 -> merge
+    //               \-(不等)-> case1 -> ... -> 最后一个 case 不等时 -> default -> merge
+    // 约束：必须有 default，且 default 必须是最后一个分支。
+    // 各 case 块先生成（并记录出口块、比较结果、then 块），循环结束后再统一补条件跳转。
     IRValue* IRGenerator::visitMatchStmtNode(NodePtr node) {
         IRValue* identifier = visitIdentifierExprNode((*node)[ASTTag::Identifier]);
         IRValue* idenValue = createLoad(identifier, node->getPosInfo());
@@ -1224,14 +1369,17 @@ namespace sakuraE::IR {
 
         int beforeBlockIndex = curFunc()->cur();
 
+        // 先建立汇合块，使各分支体生成时就能跳到它。
         IRValue* mergeBlock = curFunc()->buildBlock("match.merge");
         int mergeBlockExitIndex = curFunc()->cur();
 
         bool hasDefault = false;
         for (std::size_t i = 0; i < cases.size(); i ++) {
+            // 静态计数器保证不同 match 语句的块名互不冲突。
             static int matchCaseIndex = 0;
 
             auto cs = cases[i];
+            // default 分支：只生成分支体并跳到 merge，其入口块作为最后一个 case 的"不等"目标。
             if (cs->hasNode(ASTTag::Default)) {
                 if (i != cases.size() - 1) {
                     throw SakuraError(
@@ -1246,6 +1394,7 @@ namespace sakuraE::IR {
                     ->curBlock()
                     ->createBr(mergeBlock);
             }
+            // 普通 case：新建 case 块，在其中求目标值并做相等比较，然后生成 then 块。
             else if (cs->hasNode(ASTTag::HeadExpr)) {
                 IRValue* caseBlock = curFunc()->buildBlock("match.case." + std::to_string(matchCaseIndex));
                 IRValue* targetValue = visitWholeExprNode((*cs)[ASTTag::HeadExpr]);
@@ -1263,6 +1412,7 @@ namespace sakuraE::IR {
                 IRValue* thenBlock = visitBlockStmtNode((*cs)[ASTTag::Block], "match.then." + std::to_string(matchCaseIndex));
                 int thenBlockExitIndex = curFunc()->cur();
 
+                // 条件跳转需要下一个 case 块，此时尚未建立，故先记录，稍后统一连接。
                 caseBlockPairs.emplace_back(caseBlockExitIndex, condResult, thenBlock);
 
                 curFunc()
@@ -1279,6 +1429,9 @@ namespace sakuraE::IR {
                 node->getPosInfo()
             );
 
+        // 补全每个 case 的条件跳转：相等进入对应 then 块，不等进入下一个 case 块；
+        // 由于 default 必为最后一个分支，caseBlockPairs 的最后一项下标恰为 cases.size() - 2，
+        // 它的"不等"目标是 default 块。
         for (std::size_t i = 0; i < caseBlockPairs.size(); i ++) {
             int caseBlockExitIndex = std::get<0>(caseBlockPairs[i]);
             IRValue* condResult = std::get<1>(caseBlockPairs[i]);
@@ -1294,6 +1447,7 @@ namespace sakuraE::IR {
                     ->createCondBr(condResult, thenBlock, defaultThenBlock);
         }
 
+        // before 块跳入第一个 case；只有 default 时直接跳入 default。
         if (caseBlockPairs.empty()) {
             curFunc()
                 ->block(beforeBlockIndex)
@@ -1310,6 +1464,13 @@ namespace sakuraE::IR {
         return mergeBlock;
     }
 
+    // 函数定义：
+    // 1. 解析返回类型与形参（类型列表与名字列表是 Args 的两个子节点，按下标一一对应）；
+    // 2. 用形参语义类型改编函数名（name_<类型>...），以支持重载；无参函数保持原名；
+    // 3. buildFunction 创建函数及其 entry 块，并把模块游标切到该函数；
+    // 4. 在 entry 块中为每个形参生成 `param` 指令并登记到函数作用域；
+    // 5. 函数体作为语句块生成，entry 块以 br 跳入函数体块。
+    // 约束：main 必须返回 i32；函数体中至少要出现一条 return 语句。
     IRValue* IRGenerator::visitFuncDefineStmtNode(NodePtr node) {
         auto fnName = (*node)[ASTTag::Identifier]->getToken().content;
         TypeInfo* semanticReturnType = getTypeInfoFromNode((*node)[ASTTag::Type]);
@@ -1339,6 +1500,7 @@ namespace sakuraE::IR {
             }
         }
 
+        // 这里比较的是改编后的名字：只有无参的 main 才会命中此检查。
         if (fnName == "main" && semanticReturnType->getTypeID() != Int32) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
@@ -1349,6 +1511,7 @@ namespace sakuraE::IR {
 
         visitBlockStmtNode((*node)[ASTTag::Block], "fn." + fnName, initBlockIndex);
 
+        // 返回检查器只记录"函数中出现过 return"，并不验证所有控制流路径都有返回。
         if (!curFunc()->getReturnChecker()) {
             throw SakuraError(
                 OccurredTerm::IR_GENERATING,
@@ -1359,6 +1522,13 @@ namespace sakuraE::IR {
         return fn;
     };
 
+    // 结构体定义：补全在 startGenerate 第二遍中预声明的 opaque 结构体。
+    // 逐个收集字段（名字、语义类型、位置），校验：
+    // - 字段名不可重复；
+    // - 字段默认值目前只支持 `null`，且字段必须是可空的结构体/数组类型（默认值为空句柄常量）；
+    // - 字段类型不可为 void。
+    // 字段类型可以引用尚未补全的结构体（含自身），因为它们已作为 opaque 结构体登记；
+    // 结构体整体的递归合法性在 startGenerate 第四遍中校验。不产生任何指令，返回 nullptr。
     IRValue* IRGenerator::visitStructDefineStmtNode(NodePtr node) {
         const auto name = (*node)[ASTTag::Identifier]->getToken();
         std::vector<SemanticField> members;
@@ -1416,10 +1586,15 @@ namespace sakuraE::IR {
             }
         }
 
+        // 由 NamingContext 把字段与默认值写入已声明的结构体声明，完成补全。
         curModule()->implStruct(name.content, std::move(members), std::move(defaultValues), name.info);
         return nullptr;
     }
 
+    // return 语句：
+    // - 无返回值时函数必须返回 void；有返回值时函数不能是 void；
+    // - 返回值以函数返回类型作为期望类型求值（支持 `return null`），且必须可赋值给返回类型；
+    // - 生成 ret 并标记函数已出现 return（供 visitFuncDefineStmtNode 检查）。
     IRValue* IRGenerator::visitReturnStmtNode(NodePtr node) {
         if (!node->hasNode(ASTTag::HeadExpr)) {
             if (curFunc()->getSemanticReturnType()->getTypeID() != Void) {
@@ -1463,6 +1638,7 @@ namespace sakuraE::IR {
         }
     }
 
+    // break：跳到最内层循环的 break 目标（循环的 merge 块）；不在循环中则报错。
     IRValue* IRGenerator::visitBreakStmtNode(NodePtr node) {
         if (curFunc()->isLookEmpty()) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
@@ -1474,6 +1650,7 @@ namespace sakuraE::IR {
         return curFunc()->curBlock()->createBr(target);
     }
 
+    // continue：跳到最内层循环的 continue 目标（条件块）；不在循环中则报错。
     IRValue* IRGenerator::visitContinueStmtNode(NodePtr node) {
         if (curFunc()->isLookEmpty()) {
             throw SakuraError(OccurredTerm::IR_GENERATING,
@@ -1485,6 +1662,8 @@ namespace sakuraE::IR {
         return curFunc()->curBlock()->createBr(target);
     }
 
+    // 语句分发：剥掉可选的 Stmt 包装节点后，按语句标签调用对应的 visit 函数；
+    // 未知语句标签报错。
     IRValue* IRGenerator::visitStmt(NodePtr node) {
         NodePtr stmt;
         if (node->getTag() == ASTTag::Stmt)
