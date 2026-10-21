@@ -776,13 +776,14 @@ namespace sakuraE::IR {
         return lhs;
     }
 
-    // 逻辑表达式 `&&`/`||`，按短路语义构建控制流：
-    // 用一个 bool 临时变量 tbv.N（初值为 lhs）保存结果；先建立汇合块 short.cur.merge，
-    // 再为每个右操作数建立 and.rhsN / or.rhsN 块。
-    //   &&：lhs 为真才进入 rhs 块，否则直接到汇合块（结果保持 lhs=false）；
-    //   ||：lhs 为假才进入 rhs 块，否则直接到汇合块（结果保持 lhs=true）。
-    // rhs 块中把右操作数写入临时变量后跳到汇合块，最终在汇合块中 load 临时变量作为结果。
-    // 块名计数器使用 static，保证同一进程内块名唯一。
+    // 逻辑表达式 `&&`/`||`：两者同优先级、从左到右结合，即 `a || b && c` 等价于 `(a || b) && c`。
+    // 用一个 bool 临时变量 tbv.N（初值为 lhs）保存累积结果，每个右操作数对应一对块：
+    //   tbv.N.rhs.i：求第 i 个操作数并写入临时变量；
+    //   tbv.N.join.i：load 累积结果，作为下一步的判断点。
+    // 不变量：进入第 i 步时，临时变量中保存的是前 i 个操作数从左到右的计算结果。
+    //   &&：累积结果为真才进入 rhs 块，否则跳到 join 块（结果保持 false）；
+    //   ||：累积结果为假才进入 rhs 块，否则跳到 join 块（结果保持 true）。
+    // 最后一个 join 块即汇合点，后续代码继续生成在其中。
     IRValue* IRGenerator::visitBinaryExprNode(NodePtr node) {
         auto chain = (*node)[ASTTag::Exprs]->getChildren();
         IRValue* lhs = visitLogicExprNode(chain[0]);
@@ -798,76 +799,50 @@ namespace sakuraE::IR {
                                            program.getContext().typeInfoPool().makeBasicTypeID(TypeID::Bool),
                                            lhs, node->getPosInfo());
 
-        if (node->hasNode(ASTTag::Ops)) {
-            auto opChain = (*node)[ASTTag::Ops]->getChildren();
-            // beforeBlockIndex：当前要追加条件跳转的块；shortCurBlockIndex：汇合块下标。
-            // buildBlock 会把游标移到新块，因此下标需在建块后立即记录。
-            long beforeBlockIndex = curFunc()->cur();
-            IRValue* mergeBlock = curFunc()->buildBlock("short.cur.merge");
-            long shortCurBlockIndex = curFunc()->cur();
-            for (std::size_t i = 1; i < chain.size(); i ++) {
-                switch (opChain[i - 1]->getToken().type)
-                {
-                    case TokenType::LGC_AND: {
-                        static int andRhsBlockID = 0;
-                        IRValue* rhsBlock = curFunc()->buildBlock("and.rhs" + std::to_string(andRhsBlockID));
-                        andRhsBlockID ++;
-                        long rhsBlockIndex = curFunc()->cur();
+        auto opChain = (*node)[ASTTag::Ops]->getChildren();
+        // testBlockIndex：本步要挂条件跳转的块；第一步是 lhs 求值完成后的块，之后是上一步的 join 块。
+        // cond：本步的条件值，只在 testBlock 中定义和使用，不跨块引用，从而满足支配关系。
+        long testBlockIndex = curFunc()->cur();
+        IRValue* cond = lhs;
 
-                        curFunc()->moveCursor(rhsBlockIndex);
-                        IRValue* rhs = visitLogicExprNode(chain[i]);
+        for (std::size_t i = 1; i < chain.size(); i ++) {
+            const auto& opToken = opChain[i - 1]->getToken();
 
-                        // 条件跳转补到 before 块；之后的 store 写在当前游标所在块（右操作数求值完的块）。
-                        curFunc()
-                            ->block(beforeBlockIndex)
-                            ->createCondBr(lhs, rhsBlock, mergeBlock);
+            bool isAnd = opToken.type == TokenType::LGC_AND;
+            fzlib::String suffix = std::to_string(i);
 
-                        createStore(resultAddr, rhs, opChain[i - 1]->getToken().info);
+            // buildBlock 会把游标移到新块，因此下标需在建块后立即记录
+            IRValue* rhsBlock = curFunc()->buildBlock(resultAddrName + ".rhs." + suffix);
+            long rhsBlockIndex = curFunc()->cur();
+            IRValue* joinBlock = curFunc()->buildBlock(resultAddrName + ".join." + suffix);
+            long joinBlockIndex = curFunc()->cur();
 
-                        curFunc()
-                            ->block(rhsBlockIndex)
-                            ->createBr(mergeBlock);
-
-                        // 下一个操作数的条件跳转挂在本 rhs 块上。
-                        // 注意：本 rhs 块已经以 br 结尾，Block::createCondBr 遇到已有终结指令会直接忽略，
-                        // 且条件仍使用最初的 lhs，因此三个及以上操作数的链目前不能正确短路。
-                        beforeBlockIndex = rhsBlockIndex;
-                        break;
-                    }
-                    case TokenType::LGC_OR: {
-                        static int orRhsBlockID = 0;
-                        IRValue* rhsBlock = curFunc()->buildBlock("or.rhs" + std::to_string(orRhsBlockID));
-                        orRhsBlockID ++;
-                        long rhsBlockIndex = curFunc()->cur();
-
-                        curFunc()->moveCursor(rhsBlockIndex);
-                        IRValue* rhs = visitLogicExprNode(chain[i]);
-
-                        curFunc()
-                            ->block(beforeBlockIndex)
-                            ->createCondBr(lhs, mergeBlock, rhsBlock);
-
-                        createStore(resultAddr, rhs, opChain[i - 1]->getToken().info);
-
-                        curFunc()
-                            ->block(rhsBlockIndex)
-                            ->createBr(mergeBlock);
-
-                        beforeBlockIndex = rhsBlockIndex;
-                        break;
-                    }
-                    default:
-                        break;
-                }
+            // 在求右操作数之前挂条件跳转：testBlock 此时一定尚无终结指令
+            if (isAnd) {
+                curFunc()->block(testBlockIndex)->createCondBr(cond, rhsBlock, joinBlock);
             }
-            // 所有分支汇合后，后续代码继续生成在汇合块中。
-            curFunc()->moveCursor(shortCurBlockIndex);
-        }
-        return curFunc()
+            else {
+                curFunc()->block(testBlockIndex)->createCondBr(cond, joinBlock, rhsBlock);
+            }
+
+            // 右操作数可能自行建块（如嵌套短路），store 与 br 都必须写在其求值完成后的当前块
+            curFunc()->moveCursor(rhsBlockIndex);
+            IRValue* rhs = visitLogicExprNode(chain[i]);
+            createStore(resultAddr, rhs, opToken.info);
+            curFunc()->curBlock()->createBr(joinBlock);
+
+            // join 块中重新 load 累积结果，作为下一步的条件
+            curFunc()->moveCursor(joinBlockIndex);
+            cond = curFunc()
                         ->curBlock()
                         ->createInstruction(OpKind::load,
                                             resultAddr->getSemanticType(),
-                                            {resultAddr}, "load." + resultAddrName);
+                                            {resultAddr}, "load." + resultAddrName + "." + suffix);
+            testBlockIndex = joinBlockIndex;
+        }
+
+        // 游标停在最后一个 join 块，cond 即整条链的结果
+        return cond;
     }
 
     // 数组字面量 `[e0, e1, ...]`：以首元素的语义类型作为元素类型，
