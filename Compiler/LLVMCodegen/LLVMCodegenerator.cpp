@@ -76,6 +76,18 @@ namespace sakuraE::Codegen {
         return arrayPtr;
     }
 
+    void LLVMCodeGenerator::emitBoundsCheck(llvm::Value* index64, llvm::Value* length, FunctionEmitter* curFn) {
+        builder->CreateCall(curFn->parent->lookup("__runtime_check_array_bounds")->content, {index64, length});
+    }
+
+    llvm::Value* LLVMCodeGenerator::rawStringLength(llvm::Value* characters, FunctionEmitter* curFn) {
+        auto callee = curFn->parent->content->getOrInsertFunction("strlen",
+            builder->getInt64Ty(), builder->getPtrTy());
+        auto* nonNull = builder->CreateSelect(builder->CreateIsNull(characters),
+            builder->CreateGlobalString("", "empty.field.string"), characters);
+        return builder->CreateCall(callee, {nonNull}, "field.string.length");
+    }
+
     // 单条 Semantic IR 指令的 LLVM 生成入口。
     // 指令既可能按基本块顺序被 FunctionEmitter::codegen 驱动生成，也可能作为其他指令的操作数
     // 经 toLLVMValue 被按需提前生成；生成结果通过 bind 缓存到 instructionMap，保证每条指令只 emit 一次。
@@ -291,32 +303,26 @@ namespace sakuraE::Codegen {
                 break;
             }
             // indexing：下标访问，结果是元素地址（左值），由后续 load/store 读写。
-            // 根据被索引对象的 storage 类型与运行时类型分为：托管数组、嵌入数组字段、字符串、字符指针、引用
+            // 根据被索引对象的 storage 类型与运行时类型分为：托管数组、嵌入数组字段、字符串、字符指针、引用。
+            // 下标统一扩展到 i64；数组与字符串都会做运行时边界检查，原始字符指针没有长度信息，不做检查
             case IR::OpKind::indexing: {
                 llvm::Value* addr = toLLVMValue(ins->arg(0), curFn);
-                llvm::Value* indexVal = rawValue(ins->arg(1), curFn);
+                auto* index64 = indexToI64(ins->arg(1), rawValue(ins->arg(1), curFn), "index.i64");
 
                 auto addrIRType = storageType(ins->arg(0));
                 const auto& addrRuntimeType = runtimeType(ins->arg(0));
-                // 调试输出：每次 emit 下标访问都会打印基址的 IR 类型
-                sutils::println("addr IR type: " + addrIRType->toString());
                 llvm::Type* elementType = nullptr;
                 // 基址是左值（槽位地址）时，需要先从槽位 load 出真正的对象指针
                 auto* addrInst = dynamic_cast<IR::Instruction*>(ins->arg(0));
                 bool baseIsLValue = addrInst && addrInst->isLValue();
 
                 if (addrIRType->isArray()) {
-                    // 嵌入在结构体中的数组字段：基址是原始字段地址，元素按原始 storage 连续存放
+                    auto* arrayType = static_cast<IR::IRArrayType*>(addrIRType);
+                    // 运行时边界检查，长度取自 storage 数组类型的静态元素个数
+                    emitBoundsCheck(index64, builder->getInt64(arrayType->getNumElements()), curFn);
+                    // 嵌入在结构体中的数组字段：基址是原始字段地址，元素按原始 storage 连续存放；
+                    // 在 [N x T] 上做 GEP {0, index} 得到元素原始地址；break 跳出 switch，由末尾统一 bind
                     if (isRawFieldAddress(ins->arg(0))) {
-                        auto* array = static_cast<IR::IRArrayType*>(addrIRType);
-                        // 下标统一扩展到 i64；仅 U32/U64 按无符号扩展，其余按有符号扩展
-                        auto* index64 = builder->CreateIntCast(indexVal, builder->getInt64Ty(),
-                            runtimeType(ins->arg(1)).kind != IR::RuntimeTypeKind::U32 &&
-                            runtimeType(ins->arg(1)).kind != IR::RuntimeTypeKind::U64, "field.index");
-                        // 运行时边界检查：越界时 __runtime_check_array_bounds 记录错误并结束 JIT 工作线程
-                        builder->CreateCall(curFn->parent->lookup("__runtime_check_array_bounds")->content,
-                            {index64, builder->getInt64(array->getNumElements())});
-                        // 在 [N x T] 上做 GEP {0, index} 得到元素原始地址；break 跳出 switch，由末尾统一 bind
                         instResult = builder->CreateGEP(map(addrIRType, *context), addr,
                             {builder->getInt64(0), index64}, "field.array.element");
                         break;
@@ -325,51 +331,30 @@ namespace sakuraE::Codegen {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.array.base");
                     }
-                    auto* arrayType = static_cast<IR::IRArrayType*>(addrIRType);
-                    // 根据下标的 storage 类型决定扩展到 i64 时是否按无符号处理
-                    bool isUnsigned = false;
-                    switch (storageType(ins->arg(1))->getIRTypeID()) {
-                        case IR::IRTypeID::UInteger32TyID:
-                        case IR::IRTypeID::UInteger64TyID:
-                        case IR::IRTypeID::UIntegerNTyID:
-                            isUnsigned = true;
-                            break;
-                        default:
-                            break;
-                    }
-                    auto* index64 = builder->CreateIntCast(
-                        indexVal,
-                        llvm::Type::getInt64Ty(*context),
-                        !isUnsigned,
-                        "index.i64");
-                    // 运行时边界检查，长度取自 storage 数组类型的静态元素个数
-                    auto* boundsCheck = curFn->parent->lookup("__runtime_check_array_bounds");
-                    builder->CreateCall(boundsCheck->content, {
-                        index64,
-                        builder->getInt64(arrayType->getNumElements())
-                    });
-                    /* 完全装箱模式下，托管数组存储 RuntimeValue* 元素
-                     * 对此类数组进行索引会直接返回包装对象
-                     */
-                    auto* boxedElement = builder->CreateGEP(
+                    // 完全装箱模式下托管数组存储 RuntimeValue* 元素；保留元素槽位作为左值，后续 load 取得其中的 RuntimeValue*
+                    instResult = builder->CreateGEP(
                         llvm::PointerType::getUnqual(*context), addr, {index64}, "indexing.boxed.array");
-                    /* 保留元素槽位作为左值，后续 load 会取得其中存储的 RuntimeValue*
-                     */
-                    instResult = boxedElement;
                     bind(ins, instResult);
                     break;
                 }
-                // 字符串：按字符(char storage)索引其底层字符 payload
+                // 字符串：按字符(char storage)索引其底层字符 payload，长度取自 RuntimeString.length
                 else if (addrRuntimeType.kind == IR::RuntimeTypeKind::String) {
                     if (baseIsLValue) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), addr, "indexing.string.base");
                     }
-                    // 语言层字符串是 RuntimeValue*，索引操作作用于其底层字符 payload；
-                    // 嵌入结构体中的字符串字段（原始字段地址）存放的已是原始字符指针，无需拆箱
-                    if (!isRawFieldAddress(ins->arg(0))) addr = unboxRaw(addr, addrIRType, curFn);
+                    // 嵌入结构体中的字符串字段（原始字段地址）存放的已是原始字符指针，长度只能由 strlen 得到；
+                    // 语言层字符串是 RuntimeValue*，先读出 length 再拆箱得到字符 payload
+                    if (isRawFieldAddress(ins->arg(0))) {
+                        emitBoundsCheck(index64, rawStringLength(addr, curFn), curFn);
+                    }
+                    else {
+                        emitBoundsCheck(index64, boxedStringLength(addr), curFn);
+                        addr = unboxRaw(addr, addrIRType, curFn);
+                    }
                     elementType = map(rootModule.context->getCharTy(), *context);
                 }
-                // 指针：目前仅支持字符指针(*i8)的下标访问，按 pointee storage 类型做指针算术
+                // 指针：目前仅支持字符指针(*i8)的下标访问，按 pointee storage 类型做指针算术；
+                // 原始指针不携带长度，因此不做边界检查
                 else if (addrRuntimeType.kind == IR::RuntimeTypeKind::Pointer) {
                     auto* ptrTy = static_cast<IR::IRPointerType*>(addrIRType);
                     auto* pointeeTy = ptrTy->getElementType();
@@ -407,23 +392,24 @@ namespace sakuraE::Codegen {
                         );
                     }
 
-                    // 引用托管数组：从被引用槽位 load 出 payload 指针，返回 RuntimeValue* 元素槽位作为左值。
-                    // 注意此路径直接使用原始下标，既未扩展到 i64 也未做边界检查
+                    // 引用托管数组：边界检查后从被引用槽位 load 出 payload 指针，返回 RuntimeValue* 元素槽位作为左值
                     if (refElementTy->isArray()) {
+                        auto* arrayType = static_cast<IR::IRArrayType*>(refElementTy);
+                        emitBoundsCheck(index64, builder->getInt64(arrayType->getNumElements()), curFn);
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.array.base");
-                        auto* boxedElement = builder->CreateGEP(
-                            llvm::PointerType::getUnqual(*context), addr, {indexVal}, "indexing.ref.boxed.array");
-                        instResult = boxedElement;
+                        instResult = builder->CreateGEP(
+                            llvm::PointerType::getUnqual(*context), addr, {index64}, "indexing.ref.boxed.array");
                         bind(ins, instResult);
                         break;
                     }
-                    // 引用字符串：从被引用槽位取出 RuntimeValue*，再拆箱得到字符 payload
+                    // 引用字符串：从被引用槽位取出 RuntimeValue*，检查长度后拆箱得到字符 payload
                     else if (refElement->kind == IR::RuntimeTypeKind::String) {
                         addr = builder->CreateLoad(llvm::PointerType::getUnqual(*context), refAddr, "indexing.ref.string.base");
+                        emitBoundsCheck(index64, boxedStringLength(addr), curFn);
                         addr = unboxRaw(addr, refElementTy, curFn);
                         elementType = map(rootModule.context->getCharTy(), *context);
                     }
-                    // 引用字符指针：从被引用槽位取出装箱指针并拆箱得到实际地址
+                    // 引用字符指针：从被引用槽位取出装箱指针并拆箱得到实际地址（同样不做边界检查）
                     else if (refElement->kind == IR::RuntimeTypeKind::Pointer && refElement->element &&
                         refElement->element->kind == IR::RuntimeTypeKind::I8) {
                         auto* ptrTy = static_cast<IR::IRPointerType*>(refElementTy);
@@ -449,10 +435,8 @@ namespace sakuraE::Codegen {
                     throw std::runtime_error("Indexing failed: failed to resolve element type.");
                 }
 
-                // 按元素 storage 类型做 GEP，得到原始元素地址（字符串/指针路径未做边界检查）
-                auto ptr = builder->CreateGEP(elementType, addr, {indexVal}, "indexing.ptr");
-
-                instResult = ptr;
+                // 按元素 storage 类型做 GEP，得到原始元素地址
+                instResult = builder->CreateGEP(elementType, addr, {index64}, "indexing.ptr");
                 bind(ins, instResult);
                 break;
             }
@@ -541,15 +525,10 @@ namespace sakuraE::Codegen {
                     auto* raw = builder->CreateLoad(map(type, *context), addr, "load.raw");
                     if (runtimeType(ins).representation == IR::ValueRepresentation::Boxed) {
                         instResult = boxRaw(raw, runtimeType(ins), curFn);
-                        // 字符串字段的 storage 只是字符指针，装箱后还需补上 RuntimeString.length：
-                        // 对 null 指针用空串代替调用 strlen（避免空指针解引用），
-                        // 把长度写到 RuntimeValue.data 的第二个 i64（即 data.string.length）
+                        // 字符串字段的 storage 只是字符指针，装箱后还需补上 RuntimeString.length
+                        // （rawStringLength 对 null 指针返回 0），写到 RuntimeValue.data 的第二个 i64（即 data.string.length）
                         if (runtimeType(ins).kind == IR::RuntimeTypeKind::String) {
-                            auto callee = curFn->parent->content->getOrInsertFunction("strlen",
-                                builder->getInt64Ty(), builder->getPtrTy());
-                            auto* characters = builder->CreateSelect(builder->CreateIsNull(raw),
-                                builder->CreateGlobalString("", "empty.field.string"), raw);
-                            auto* length = builder->CreateCall(callee, {characters}, "field.string.length");
+                            auto* length = rawStringLength(raw, curFn);
                             auto* payload = builder->CreateStructGEP(runtimeValueType(), instResult, 2);
                             builder->CreateStore(length, builder->CreateGEP(builder->getInt64Ty(), payload,
                                 builder->getInt64(1), "field.string.length.slot"));

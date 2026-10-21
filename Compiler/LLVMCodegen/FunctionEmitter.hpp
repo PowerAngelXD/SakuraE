@@ -84,7 +84,7 @@ namespace sakuraE::Codegen {
             llvm::Value* value,
             const fzlib::String& slotName,
             const IR::RuntimeTypeDescription& type);
-        // 在 entry block 第一条指令（函数级 __gc_enter_scope 调用）之后创建 alloca，
+        // 在 entry block 的首个可插入位置（所有已有指令之前）创建 alloca，
         // 创建后恢复原插入点，返回槽位
         llvm::AllocaInst* createAlloca(llvm::Type* ty, llvm::Value* arraySize = nullptr, fzlib::String n = "");
         // 按类型 t 的 DataLayout 分配大小在 GC 堆上分配 payload（对象 header 由运行时添加）

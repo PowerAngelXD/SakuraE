@@ -175,6 +175,28 @@ namespace sakuraE::Codegen {
             return builder->CreateLoad(map(type, *context), rawSlot, "unboxed.value");
         }
 
+        // 把下标统一扩展/截断到 i64：仅无符号整数（U32/U64）按零扩展，其余按符号扩展，
+        // 与 __runtime_check_array_bounds 的 int64 下标参数保持一致
+        llvm::Value* indexToI64(const IR::IRValue* index, llvm::Value* raw, const char* name) {
+            const auto kind = runtimeType(index).kind;
+            const bool isSigned = kind != IR::RuntimeTypeKind::U32 && kind != IR::RuntimeTypeKind::U64;
+            return builder->CreateIntCast(raw, builder->getInt64Ty(), isSigned, name);
+        }
+
+        // 发射运行时边界检查：index64 < 0 或 >= length 时运行时记录错误并结束 JIT 工作线程
+        void emitBoundsCheck(llvm::Value* index64, llvm::Value* length, FunctionEmitter* curFn);
+
+        // 读取装箱字符串的长度：RuntimeValue.data 是 RuntimeString{data, length}，length 位于 data 之后第二个 i64
+        llvm::Value* boxedStringLength(llvm::Value* boxed) {
+            auto* payload = builder->CreateStructGEP(runtimeValueType(), boxed, 2);
+            auto* lengthSlot = builder->CreateGEP(builder->getInt64Ty(), payload,
+                builder->getInt64(1), "string.length.slot");
+            return builder->CreateLoad(builder->getInt64Ty(), lengthSlot, "string.length");
+        }
+
+        // 原始字符指针（结构体内嵌字符串字段）的长度：null 视为空串，避免对空指针调用 strlen
+        llvm::Value* rawStringLength(llvm::Value* characters, FunctionEmitter* curFn);
+
         // 当前正在生成函数体的 BackendFunction，由 FunctionEmitter::codegen() 设置；
         // storageType()/runtimeType() 依赖它查询 lowering 记录的逐值元数据
         const IR::BackendFunction* activeFunction = nullptr;

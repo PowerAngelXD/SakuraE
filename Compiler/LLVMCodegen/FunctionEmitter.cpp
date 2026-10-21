@@ -40,10 +40,13 @@ namespace sakuraE::Codegen {
         gcScopeDepth --;
     }
 
-    // ret 前调用：离开函数内所有尚未关闭的 scope（含函数级 scope），保证 root 栈与调用前一致
+    // ret 前调用：离开函数内所有尚未关闭的 scope（含函数级 scope），保证 root 栈与调用前一致。
+    // ret 是终结指令，只结束当前控制流路径；gcScopeDepth 记录的是按发射顺序的词法深度，
+    // 后续基本块（如 if 之后的另一个 return）仍处于同一深度，因此这里只发射调用而不修改计数
     void FunctionEmitter::gcLeaveAllScopes() {
-        while (gcScopeDepth > 0) {
-            gcLeaveScope();
+        auto fn = parent->lookup("__gc_leave_scope");
+        for (uint32_t depth = 0; depth < gcScopeDepth; ++depth) {
+            codegenContext.builder->CreateCall(fn->content, {});
         }
     }
 
@@ -126,9 +129,9 @@ namespace sakuraE::Codegen {
     llvm::AllocaInst* FunctionEmitter::createAlloca(llvm::Type* ty, llvm::Value* arraySize, fzlib::String n) {
         llvm::BasicBlock* currentBlock = codegenContext.builder->GetInsertBlock();
         llvm::BasicBlock::iterator currentPoint = codegenContext.builder->GetInsertPoint();
-        // 插在 entry 的第一条指令（codegen() 先发射的函数级 __gc_enter_scope 调用）之后；
-        // 依赖该指令已存在，否则对 end() 自增是未定义行为
-        codegenContext.builder->SetInsertPoint(entryBlock, ++ entryBlock->getFirstInsertionPt());
+        // 插在 entry 块的首个可插入位置（所有已有指令之前）：不依赖 entry 中已存在任何指令。
+        // alloca 不读取任何值，排在函数级 __gc_enter_scope 调用之前不影响语义
+        codegenContext.builder->SetInsertPoint(entryBlock, entryBlock->getFirstInsertionPt());
         llvm::AllocaInst* alloca = codegenContext.builder->CreateAlloca(ty, arraySize, n.c_str());
         // 恢复调用前的插入点，调用方的指令流不受影响
         codegenContext.builder->SetInsertPoint(currentBlock, currentPoint);
@@ -218,14 +221,15 @@ namespace sakuraE::Codegen {
 
         /* 允许 main 函数自然结束：源语言要求 main 返回 i32，而 LLVM ABI 返回装箱后的
          * RuntimeValue*，因此为每个缺少终结指令的基本块补上 ret（装箱的 0）。
-         * 这对只用于输出结果的小型运行时示例很有用。注意这里不会发射 __gc_leave_scope。
+         * 与显式 ret 一样，返回前先离开所有仍打开的 GC root scope（此时通常只剩函数级 scope）。
          */
         if (backend.sourceName == "main") {
             for (auto& block: *content) {
-                if (block.getTerminator()) {
+                if (block.hasTerminator()) {
                     continue;
                 }
                 codegenContext.builder->SetInsertPoint(&block);
+                gcLeaveAllScopes();
                 auto* boxedZero = codegenContext.boxRaw(
                     codegenContext.builder->getInt32(0),
                     *backend.returnRuntimeType, this);

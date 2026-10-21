@@ -152,8 +152,9 @@ namespace sakuraE::IR {
         const RuntimeTypeDescription& runtimeType(const IRValue* value) const;
         // 查询 gmem 指令的字段访问；缺失时抛异常
         const BackendFieldAccess& fieldAccess(const Instruction* instruction) const;
-        // 该值是否需要作为 GC root 追踪 / 该 alloca 槽位是否需要注册为 GC root
+        // 该值是否需要作为 GC root 追踪
         bool tracksRoot(const IRValue* value) const;
+        // 该 alloca 槽位是否需要注册为 GC root
         bool rootsSlot(const IRValue* value) const;
     };
 }
