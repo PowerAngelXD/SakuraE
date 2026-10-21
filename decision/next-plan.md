@@ -43,7 +43,7 @@ Backend IR，并维护语义对象到 Backend 对象的映射；Program 的 `IRC
 类型，各 Module 的 `NamingContext` 拥有命名结构体类型。Session 引用这些类型，不重复拥有。
 
 `BackendFunction`/`BackendModule` 位于 `Compiler/IR/Backend`，是唯一的 Backend 描述。
-`FunctionEmiiter`/`ModuleEmmiter` 是独立的 LLVM emitter，分别位于同名 .hpp/.cpp 文件；
+`FunctionEmitter`/`ModuleEmmiter` 是独立的 LLVM emitter，分别位于同名 .hpp/.cpp 文件；
 它们保存实际 LLVM 状态，不是 Backend 描述的别名，也不复制语义函数体。
 
 ## 核心原则
@@ -315,7 +315,7 @@ class ModuleEmmiter {
     llvm::Module* module;
 };
 
-class FunctionEmiiter {
+class FunctionEmitter {
     BackendFunction* source;
     llvm::Function* function;
     std::unordered_map<const IR::Block*, llvm::BasicBlock*> blocks;
@@ -488,7 +488,7 @@ valueTypes 和 typeOperands（sizeof/类型描述常量的 lowered 类型）。B
 导入环和菱形依赖按身份去重，不同函数的 source/linkage 符号冲突在 lowering 阶段拒绝。
 
 LLVMCodeGenerator 的入口为 BackendModule 与显式 LLVMContext，不再接收 Program 或调用
-Session。FunctionEmiiter/ModuleEmmiter 保存生成状态，消费 Backend ABI 与类型表；CLI 将
+Session。FunctionEmitter/ModuleEmmiter 保存生成状态，消费 Backend ABI 与类型表；CLI 将
 所有可达生成模块交给 JIT。Backend model 不保存 LLVM API 对象，也不复制函数体。
 阶段 6、7 已继续完成：常量表示来自 Backend 描述，LLVM 类型转换已外移，详见下节。
 
@@ -574,7 +574,7 @@ AST 断言未重复运行，该独立失败不作为本次迁移已修复项。
   使用原始 storage，嵌套结构体保持内嵌地址，内嵌数组支持带边界检查的元素读写。
 - 字符串/原生字符指针字段按原始 payload 读取，语言值边界装箱；字符串 wrapper 补齐长度。
 - 动态 null struct handle 在字段访问前 trap；未支持指令按操作名报错。typeof 明确暂缓。
-- LLVMFunction/LLVMModule 已更名并抽取为 FunctionEmiiter.hpp/.cpp、ModuleEmmiter.hpp/.cpp；
+- LLVMFunction/LLVMModule 已更名并抽取为 FunctionEmitter.hpp/.cpp、ModuleEmmiter.hpp/.cpp；
   头文件声明，方法在对应 cpp 实现，无旧类名兼容层。
 
 范围：未增加源语言结构体构造、完整 GC struct object 或字段反射；whole embedded array
@@ -636,7 +636,7 @@ AST
        IRFunction -> BackendFunction
        IRModule   -> BackendModule
   -> Backend IR Verification
-  -> LLVMTypeMapper / FunctionEmiiter / ModuleEmmiter
+  -> LLVMTypeMapper / FunctionEmitter / ModuleEmmiter
   -> LLVM IR
 ```
 
