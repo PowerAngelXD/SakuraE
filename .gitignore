@@ -12,3 +12,4 @@ docs
 !Compiler/IR/docs/context.md
 !Compiler/IR/docs/context-zh_cn.md
 node_modules
+decision/
