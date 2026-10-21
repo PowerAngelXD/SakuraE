@@ -493,9 +493,11 @@ namespace sakuraE::IR {
         // （而非旧值），这与 C 语义不同。
         if (node->hasNode(ASTTag::Op)) {
             auto op = (*node)[ASTTag::Op]->getToken();
+            IRValue* oldValue = nullptr;
             switch (op.type) {
                 case TokenType::AINC: {
                     resultValue = createLoad(resultAddr, op.info);
+                    oldValue = resultValue;
 
                     resultValue = curFunc()
                         ->curBlock()
@@ -511,6 +513,7 @@ namespace sakuraE::IR {
                 }
                 case TokenType::SDEC: {
                     resultValue = createLoad(resultAddr, op.info);
+                    oldValue = resultValue;
 
                     resultValue = curFunc()
                         ->curBlock()
@@ -527,6 +530,7 @@ namespace sakuraE::IR {
                 default:
                     break;
             }
+            return oldValue;
         }
 
         return resultValue;
@@ -1204,11 +1208,6 @@ namespace sakuraE::IR {
         int condBlockExitIndex = curFunc()->cur();
         //
 
-        // for.body：循环体基本块
-        IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "for.body");
-        int thenBlockExitIndex = curFunc()->cur();
-        //
-
         // for.step：循环步进基本块
         IRValue* stepBlock = curFunc()->buildBlock("for.step");
         visitWholeExprNode((*node)[ASTTag::HeadExpr]);
@@ -1220,9 +1219,13 @@ namespace sakuraE::IR {
         int mergeBlockIndex = curFunc()->cur();
         //
 
-        // 注意：循环信息在循环体生成之后才压栈，且 continue 目标为 cond 而非 step；
-        // 因此循环体内的 break/continue 看不到本循环（会作用于外层循环或报"不在循环中"）。
         curFunc()->enterLoop(condBlock, mergeBlock);
+
+        // for.body：循环体基本块
+        IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "for.body");
+        int thenBlockExitIndex = curFunc()->cur();
+        //
+
 
         // init -> cond
         curFunc()
@@ -1291,11 +1294,6 @@ namespace sakuraE::IR {
         int condBlockExitIndex = curFunc()->cur();
         //
 
-        // repeat.then：重复循环体基本块
-        IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.then");
-        int thenBlockExitIndex = curFunc()->cur();
-        //
-
         // repeat.step：重复循环步进基本块
         IRValue* stepBlock = curFunc()->buildBlock("repeat.step");
         IRValue* stepValue = curFunc()
@@ -1320,6 +1318,11 @@ namespace sakuraE::IR {
         // 与 for 相同：循环信息在循环体生成之后才压栈，循环体内的 break/continue 看不到本循环；
         // continue 目标为 cond（会跳过 step）。
         curFunc()->enterLoop(condBlock, mergeBlock);
+
+        // repeat.then：重复循环体基本块
+        IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.then");
+        int thenBlockExitIndex = curFunc()->cur();
+        //
 
         // before -> prepare
         curFunc()
