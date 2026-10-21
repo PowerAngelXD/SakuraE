@@ -226,16 +226,30 @@ namespace sakuraE::IR {
         return result;
     }
 
-    // 只打印字段类型，并会递归展开字段类型。lowering 已拒绝按值递归的结构体，
-    // 但经由指针自引用的结构体（如 Node { next: Node* }）在此会经 IRPointerType::toString 无限递归；
-    // BackendModule::toString 因此自行打印结构体名而不调用本方法展开布局
+    // 字段类型中出现的结构体（直接嵌入，或经由指针/引用/数组）只打印名字，不再展开其布局；
+    // 这样经由指针自引用的结构体（如 Node { next: Node* }）不会无限递归
+    namespace {
+        fzlib::String fieldTypeName(IRType* type) {
+            switch (type->getIRTypeID()) {
+                case StructTyID: return "struct " + static_cast<IRStructType*>(type)->getName();
+                case PointerTyID: return fieldTypeName(static_cast<IRPointerType*>(type)->getElementType()) + "*";
+                case RefTyID: return fieldTypeName(static_cast<IRRefType*>(type)->getElementType()) + "&";
+                case ArrayTyID: {
+                    auto* array = static_cast<IRArrayType*>(type);
+                    return fieldTypeName(array->getElementType()) + "[" + std::to_string(array->getNumElements()) + "]";
+                }
+                default: return type->toString();
+            }
+        }
+    }
+
+    // 输出 "struct {字段类型, ...}"，只展开本结构体一层，字段中的结构体以 "struct 名字" 表示
     fzlib::String IRStructType::toString() {
         fzlib::String result = "struct {";
         for (std::size_t i = 0; i < fields.size(); i ++) {
-            result += fields[i].type->toString();
+            result += fieldTypeName(fields[i].type);
             // 最后一个字段后不加分隔符
-            if (i == fields.size() - 1);
-            else result += ", ";
+            if (i + 1 < fields.size()) result += ", ";
         }
         result += "}";
         return result;

@@ -15,11 +15,20 @@ namespace sakuraE::IR {
         activeContext = this;
     }
 
-    // 只有自身仍是活动上下文时才恢复上一个；若嵌套上下文未按 LIFO 顺序销毁，则保持当前活动指针不变。
+    // 活动上下文构成一条按构造顺序的单链表（activeContext -> previousContext -> ...）。
+    // 析构时把自身从链上摘除：自身是活动上下文就恢复上一个；否则（未按 LIFO 顺序销毁）
+    // 找到以自身为 previousContext 的较新上下文并把它改接到自身的前驱，避免它日后恢复到已销毁的对象。
     // unique_ptr 成员随后释放全部驻留类型，外部持有的 IRType* 从此悬空
     IRContext::~IRContext() {
         if (activeContext == this) {
             activeContext = previousContext;
+            return;
+        }
+        for (IRContext* newer = activeContext; newer; newer = newer->previousContext) {
+            if (newer->previousContext == this) {
+                newer->previousContext = previousContext;
+                return;
+            }
         }
     }
 
@@ -60,8 +69,16 @@ namespace sakuraE::IR {
         return int64Type.get();
     }
 
-    // 任意位宽有符号整数：按位宽查表，缺失时创建。传入 1/8/32/64 时得到的是与单例不同的另一实例
+    // 任意位宽有符号整数：1/8/32/64 位转发到对应单例（bool/char/i32/i64），保证同一 storage 类型只有一个实例；
+    // 其余位宽按位宽查表，缺失时创建
     IRType* IRContext::getIntNTy(unsigned bitWidth) {
+        switch (bitWidth) {
+            case 1: return getBoolTy();
+            case 8: return getCharTy();
+            case 32: return getInt32Ty();
+            case 64: return getInt64Ty();
+            default: break;
+        }
         auto it = integerTypes.find(bitWidth);
         if (it == integerTypes.end()) {
             it = integerTypes.emplace(bitWidth, std::unique_ptr<IRIntegerType>(new IRIntegerType(bitWidth))).first;
@@ -79,8 +96,13 @@ namespace sakuraE::IR {
         return uint64Type.get();
     }
 
-    // 任意位宽无符号整数：按位宽查表，缺失时创建
+    // 任意位宽无符号整数：32/64 位转发到对应单例，其余位宽按位宽查表，缺失时创建
     IRType* IRContext::getUIntNTy(unsigned bitWidth) {
+        switch (bitWidth) {
+            case 32: return getUInt32Ty();
+            case 64: return getUInt64Ty();
+            default: break;
+        }
         auto it = uintegerTypes.find(bitWidth);
         if (it == uintegerTypes.end()) {
             it = uintegerTypes.emplace(bitWidth, std::unique_ptr<IRIntegerType>(new IRIntegerType(bitWidth, false))).first;

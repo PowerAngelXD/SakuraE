@@ -296,7 +296,7 @@ namespace sakuraE::IR {
             PositionInfo info;
         };
 
-        // 输出 "struct {字段类型, ...}"，只列字段类型，不含结构体名与字段名
+        // 输出 "struct {字段类型, ...}"，只展开本结构体一层；字段中的结构体（含经由指针/引用/数组）只打印 "struct 名字"
         fzlib::String toString() override;
 
         // 结构体名 / 声明所属模块 ID，二者共同构成结构体的 canonical identity

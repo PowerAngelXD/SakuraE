@@ -134,8 +134,14 @@ namespace sakuraE::IR {
             return *this;
         }
 
-        // 返回游标指向的当前函数（不做越界检查）。
+        // 返回游标指向的当前函数。模块中尚无函数（cursor 为 -1）或游标越界时报告 IR 生成错误，
+        // 例如顶层出现函数/结构体定义以外的语句时，不会再访问 fnList[-1]
         Function* curFunc() {
+            if (cursor < 0 || cursor >= static_cast<long>(fnList.size())) {
+                throw SakuraError(OccurredTerm::IR_GENERATING,
+                                    "No current function: statements must appear inside a function body",
+                                    createInfo);
+            }
             return fnList[cursor];
         }
 
