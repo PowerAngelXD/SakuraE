@@ -170,7 +170,7 @@ namespace sakuraE::IR {
 
         // 判断某语义类型的值是否为 GC 托管的堆对象（string object 或数组）；
         // 引用类型按其所指类型递归判定。指针（含原生 char*）不算托管对象。
-        bool isManagedHeapObjectType(const TypeInfo* ty) {
+        bool isGCHeapObjectType(const TypeInfo* ty) {
             if (!ty) {
                 return false;
             }
@@ -183,7 +183,7 @@ namespace sakuraE::IR {
             }
 
             if (ty->isRef()) {
-                return isManagedHeapObjectType(ty->getPointeeType());
+                return isGCHeapObjectType(ty->getPointeeType());
             }
 
             return false;
@@ -193,7 +193,7 @@ namespace sakuraE::IR {
         // 对托管对象做 indexing（数组/字符串元素）或 gmem（字段）得到的地址。
         // 编译器不会把这类派生的内部地址登记为 GC root（见 Runtime/GC-zh_cn.md），
         // 因此不能让它以语言层指针/引用的形式长期存活。
-        bool isInteriorGCManagedLValue(IRValue* value) {
+        bool isGCLValue(IRValue* value) {
             auto* inst = dynamic_cast<Instruction*>(value);
             if (!inst || !inst->isLValue()) {
                 return false;
@@ -203,13 +203,13 @@ namespace sakuraE::IR {
             // create_alloca/param/deref 等本身就是独立的存储槽位。
             switch (inst->getKind()) {
                 case OpKind::indexing: {
-                    return isManagedHeapObjectType(inst->arg(0)->getSemanticType());
+                    return isGCHeapObjectType(inst->arg(0)->getSemanticType());
                 }
                 case OpKind::gmem: {
                     /* 预留给后续 struct object：
                      * 一旦 gmem 的 base 成为 GC 托管对象，这里会统一拦截 field interior address。
                      */
-                    return isManagedHeapObjectType(inst->arg(0)->getSemanticType());
+                    return isGCHeapObjectType(inst->arg(0)->getSemanticType());
                 }
                 default:
                     return false;
@@ -218,8 +218,8 @@ namespace sakuraE::IR {
 
         // 供取地址（&，isRefOp=false）与取引用（ref，isRefOp=true）运算使用：
         // 若目标是 GC 托管对象的内部地址则抛错，错误文本按运算种类区分。
-        void ensureStableAddressableLValue(IRValue* value, PositionInfo info, bool isRefOp) {
-            if (!isInteriorGCManagedLValue(value)) {
+        void ensureAddressable(IRValue* value, PositionInfo info, bool isRefOp) {
+            if (!isGCLValue(value)) {
                 return;
             }
 

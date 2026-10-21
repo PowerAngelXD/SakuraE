@@ -417,7 +417,7 @@ namespace sakuraE::IR {
                 case TokenType::AND: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
                         if (inst->isLValue()) {
-                            ensureStableAddressableLValue(resultAddr, node->getPosInfo(), false);
+                            ensureAddressable(resultAddr, node->getPosInfo(), false);
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
@@ -437,7 +437,7 @@ namespace sakuraE::IR {
                 case TokenType::KEYWORD_REF: {
                     if (auto inst = dynamic_cast<Instruction*>(resultAddr)) {
                         if (inst->isLValue()) {
-                            ensureStableAddressableLValue(resultAddr, node->getPosInfo(), true);
+                            ensureAddressable(resultAddr, node->getPosInfo(), true);
                             return curFunc()
                                 ->curBlock()
                                 ->createInstruction(
@@ -802,7 +802,7 @@ namespace sakuraE::IR {
         auto opChain = (*node)[ASTTag::Ops]->getChildren();
         // testBlockIndex：本步要挂条件跳转的块；第一步是 lhs 求值完成后的块，之后是上一步的 join 块。
         // cond：本步的条件值，只在 testBlock 中定义和使用，不跨块引用，从而满足支配关系。
-        long testBlockIndex = curFunc()->cur();
+        long tmpBlockIndex = curFunc()->cur();
         IRValue* cond = lhs;
 
         for (std::size_t i = 1; i < chain.size(); i ++) {
@@ -819,10 +819,10 @@ namespace sakuraE::IR {
 
             // 在求右操作数之前挂条件跳转：testBlock 此时一定尚无终结指令
             if (isAnd) {
-                curFunc()->block(testBlockIndex)->createCondBr(cond, rhsBlock, joinBlock);
+                curFunc()->block(tmpBlockIndex)->createCondBr(cond, rhsBlock, joinBlock);
             }
             else {
-                curFunc()->block(testBlockIndex)->createCondBr(cond, joinBlock, rhsBlock);
+                curFunc()->block(tmpBlockIndex)->createCondBr(cond, joinBlock, rhsBlock);
             }
 
             // 右操作数可能自行建块（如嵌套短路），store 与 br 都必须写在其求值完成后的当前块
@@ -838,7 +838,7 @@ namespace sakuraE::IR {
                         ->createInstruction(OpKind::load,
                                             resultAddr->getSemanticType(),
                                             {resultAddr}, "load." + resultAddrName + "." + suffix);
-            testBlockIndex = joinBlockIndex;
+            tmpBlockIndex = joinBlockIndex;
         }
 
         // 游标停在最后一个 join 块，cond 即整条链的结果
@@ -1194,7 +1194,7 @@ namespace sakuraE::IR {
         int mergeBlockIndex = curFunc()->cur();
         //
 
-        curFunc()->enterLoop(condBlock, mergeBlock);
+        curFunc()->enterLoop(stepBlock, mergeBlock);
 
         // for.body：循环体基本块
         IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "for.body");
@@ -1292,7 +1292,7 @@ namespace sakuraE::IR {
 
         // 与 for 相同：循环信息在循环体生成之后才压栈，循环体内的 break/continue 看不到本循环；
         // continue 目标为 cond（会跳过 step）。
-        curFunc()->enterLoop(condBlock, mergeBlock);
+        curFunc()->enterLoop(stepBlock, mergeBlock);
 
         // repeat.then：重复循环体基本块
         IRValue* thenBlock = visitBlockStmtNode((*node)[ASTTag::Block], "repeat.then");
