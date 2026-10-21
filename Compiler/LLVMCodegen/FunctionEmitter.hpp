@@ -1,5 +1,5 @@
-#ifndef SAKURAE_FUNCTIONEmitter_HPP
-#define SAKURAE_FUNCTIONEmitter_HPP
+#ifndef SAKURAE_FUNCTION_EMITTER_HPP
+#define SAKURAE_FUNCTION_EMITTER_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -29,7 +29,7 @@ namespace sakuraE::Codegen {
     // 单个 BackendFunction 到 llvm::Function 的发射器。
     // 先由 impl() 按 ABI 声明 LLVM 函数，再由 codegen() 生成函数体（external 函数只声明）；
     // 同时负责函数内的 GC root scope、entry block 中的 alloca 槽位以及参数槽位管理。
-    // 由所属 ModuleEmmiter 创建并 delete。
+    // 由所属 ModuleEmitter 创建并 delete。
     struct FunctionEmitter {
         // 被发射的 Backend IR 函数（非拥有引用，由 LoweringSession 持有）
         const IR::BackendFunction& backend;
@@ -99,4 +99,4 @@ namespace sakuraE::Codegen {
     };
 }
 
-#endif /* !SAKURAE_FUNCTIONEmitter_HPP */
+#endif /* !SAKURAE_FUNCTION_EMITTER_HPP */

@@ -674,7 +674,7 @@ namespace sakuraE::Codegen {
     // LLVMCodegen 开始
     // 代码生成主入口：
     // 1. 从根 BackendModule 出发按 usingModules 广度优先收集所有可达模块（visited 去重，避免重复/循环依赖），
-    //    每个模块创建一个 ModuleEmmiter；
+    //    每个模块创建一个 ModuleEmitter；
     // 2. 先对所有模块执行 impl()：创建 llvm::Module 与全部函数声明，使跨模块调用可以先解析到函数；
     // 3. 再逐模块执行 codegen() 生成函数体，并用 verifyModule 校验，失败时抛出带全部模块 IR 的错误
     void LLVMCodeGenerator::start() {

@@ -239,7 +239,7 @@ The complete data flow is:
 1. The frontend creates an array literal IR instruction and string constant IR values.
 2. LLVMCodeGenerator materializes string constants through create_string. FunctionEmitter::createRootedTemporary spills live managed values into entry-block slots and registers them using the Backend runtime description.
 3. LLVMCodeGenerator handles create_array. Before allocation, each managed element is loaded from its root slot, preserving strings during collection.
-4. ModuleEmmiter::getRuntimeValueArrayGCType emits boxed-array metadata; its general llvmTy2GCType/getArrayGCType helpers emit __gc_get_array_type_with_length for raw layouts.
+4. ModuleEmitter::getRuntimeValueArrayGCType emits boxed-array metadata; its general llvmTy2GCType/getArrayGCType helpers emit __gc_get_array_type_with_length for raw layouts.
 5. FunctionEmitter::createHeapAlloc computes payload size and emits __gc_alloc; the result is protected in a root slot.
 6. For `concat_string(words[0], words[1])`, `instgen` spills managed call arguments with `createRootedTemporary` before emitting the call. The runtime `concat_string(const char*, const char*)` also roots both C pointers in a temporary runtime scope before allocating the result.
 7. The call result is protected in an entry-block root slot. If a later allocation crosses the GC threshold, `__gc_collect()` marks `words`, both strings reachable from the array, and `result`, then sweeps only unreachable objects.

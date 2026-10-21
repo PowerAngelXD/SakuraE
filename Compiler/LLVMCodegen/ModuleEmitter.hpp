@@ -1,5 +1,5 @@
-#ifndef SAKURAE_MODULEEMMITER_HPP
-#define SAKURAE_MODULEEMMITER_HPP
+#ifndef SAKURAE_MODULE_EMITTER_HPP
+#define SAKURAE_MODULE_EMITTER_HPP
 
 #include <cstdint>
 #include <map>
@@ -67,4 +67,4 @@ namespace sakuraE::Codegen {
     };
 }
 
-#endif /* !SAKURAE_MODULEEMMITER_HPP */
+#endif /* !SAKURAE_MODULE_EMITTER_HPP */

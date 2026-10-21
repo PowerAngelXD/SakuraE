@@ -77,6 +77,6 @@ The current struct factory receives stable nominal identity and a null layout; t
 
 `Compiler/LLVMCodegen/LLVMTypeMapper.hpp/.cpp` owns `Codegen::map(IRType*, llvm::LLVMContext&)`. IR types no longer expose toLLVMType. IRContext owns semantic/storage types only; the caller creates LLVMContext, supplies it to LLVMCodeGenerator, and transfers it with emitted modules to JIT.
 
-`FunctionEmitter.hpp/.cpp` and `ModuleEmmiter.hpp/.cpp` define namespace-level emitters (spelling follows the project API). All methods are out-of-line. LLVMCodeGenerator coordinates instruction generation and grants the emitters access to shared generation helpers; the old nested LLVMFunction/LLVMModule classes and aliases are gone.
+`FunctionEmitter.hpp/.cpp` and `ModuleEmitter.hpp/.cpp` define namespace-level emitters. All methods are out-of-line. LLVMCodeGenerator coordinates instruction generation and grants the emitters access to shared generation helpers; the old nested LLVMFunction/LLVMModule classes and aliases are gone.
 
 Program destruction releases Session/Backend descriptions first, then source modules/NamingContexts, then IRContext. Do not retain BackendFunction, RuntimeTypeDescription, or named storage pointers past their owner. See [Context design](context.md).

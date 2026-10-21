@@ -77,6 +77,6 @@ gmem 消费 BackendFieldAccess（原始 IRStructType 布局、字段索引、run
 
 `Compiler/LLVMCodegen/LLVMTypeMapper.hpp/.cpp` 提供 `Codegen::map(IRType*, llvm::LLVMContext&)`。IR 类型不再提供 toLLVMType；IRContext 仅拥有语义/storage 类型。调用方创建 LLVMContext，传给 LLVMCodeGenerator，再连同生成模块交给 JIT。
 
-FunctionEmitter.hpp/.cpp 与 ModuleEmmiter.hpp/.cpp 定义命名空间级 emitter，拼写遵循当前 API；所有方法在 cpp 实现。LLVMCodeGenerator 协调指令生成并向 emitter 开放共享 helper。旧嵌套 LLVMFunction/LLVMModule 类及兼容别名均已移除。
+FunctionEmitter.hpp/.cpp 与 ModuleEmitter.hpp/.cpp 定义命名空间级 emitter；所有方法在 cpp 实现。LLVMCodeGenerator 协调指令生成并向 emitter 开放共享 helper。旧嵌套 LLVMFunction/LLVMModule 类及兼容别名均已移除。
 
 Program 销毁时先释放 Session/Backend 描述，再释放源模块/NamingContext，最后释放 IRContext。不得在所有者销毁后继续使用 BackendFunction、RuntimeTypeDescription 或命名 storage 指针。详见 [Context 设计](context-zh_cn.md)。

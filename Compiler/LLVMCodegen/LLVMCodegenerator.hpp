@@ -49,9 +49,9 @@
 
 namespace sakuraE::Codegen {
     // LLVM 代码生成总驱动：把 lowering 产出的 Backend IR（BackendModule/BackendFunction）发射为 LLVM IR。
-    // 职责：从根模块出发收集所有可达模块并为每个模块创建 ModuleEmmiter；维护 IRValue -> llvm::Value 映射；
+    // 职责：从根模块出发收集所有可达模块并为每个模块创建 ModuleEmitter；维护 IRValue -> llvm::Value 映射；
     // 提供装箱(Boxed)/拆箱、运行时类型元数据(RuntimeTypeInfo) 工厂调用、算术/比较等指令生成辅助；
-    // 最后运行 mem2reg 优化。拥有 builder 与全部 ModuleEmmiter，不拥有 LLVMContext 与 Backend IR。
+    // 最后运行 mem2reg 优化。拥有 builder 与全部 ModuleEmitter，不拥有 LLVMContext 与 Backend IR。
     class LLVMCodeGenerator {
     public:
         // 入口 Backend 模块（非拥有引用）；start() 以它为起点遍历 usingModules
@@ -336,7 +336,7 @@ namespace sakuraE::Codegen {
             if (!module.context) throw std::invalid_argument("LLVM emission requires a backend storage context");
             builder = new llvm::IRBuilder<>(llvmContext);
         }
-        // 释放 builder 与全部 ModuleEmmiter；各 llvm::Module 不在此释放（见 ModuleEmmiter::content）
+        // 释放 builder 与全部 ModuleEmitter；各 llvm::Module 不在此释放（见 ModuleEmitter::content）
         ~LLVMCodeGenerator() {
             if (builder) delete builder;
 
