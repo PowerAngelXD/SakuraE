@@ -11,6 +11,9 @@
 #include <stdexcept>
 #include <string_view>
 
+// 验证 storage 类型(IRType) -> LLVM 类型的映射（Codegen::map）：基本整数/浮点/void/label，
+// 无符号与有符号同宽映射到同一 LLVM 整数类型，指针/引用/string/TypeInfo 统一为指针，
+// 数组与函数签名的结构正确；非法输入（空指针、0 位整数、void 元素、函数返回函数、void 形参）抛 invalid_argument。
 void testLLVMTypeMapping() {
     using namespace sakuraE::IR;
     using sakuraE::Codegen::map;
@@ -23,6 +26,7 @@ void testLLVMTypeMapping() {
     assert(map(integer, context)->isIntegerTy(32));
     assert(map(storage.getInt64Ty(), context)->isIntegerTy(64));
     assert(map(storage.getIntNTy(17), context)->isIntegerTy(17));
+    // LLVM 整数不区分符号，符号性只在指令选择时体现。
     assert(map(storage.getUIntNTy(17), context) == map(storage.getIntNTy(17), context));
     assert(map(storage.getUInt32Ty(), context) == map(integer, context));
     assert(map(storage.getUInt64Ty(), context) == map(storage.getInt64Ty(), context));
@@ -32,6 +36,7 @@ void testLLVMTypeMapping() {
     assert(map(storage.getPointerTo(integer), context)->isPointerTy());
     assert(map(storage.getRefTo(integer), context)->isPointerTy());
     assert(map(storage.getTypeInfoTy(), context)->isPointerTy());
+    // string 的 storage 类型就是 char*，且与上下文中缓存的同一实例相等。
     auto* string = IRType::getStringTy();
     assert(string == storage.getPointerTo(storage.getCharTy()));
     assert(map(string, context)->isPointerTy());
@@ -47,6 +52,7 @@ void testLLVMTypeMapping() {
     assert(function->getParamType(1) == map(string, context));
     assert(!function->isVarArg());
 
+    // 判断 action 是否抛出 invalid_argument。
     const auto rejects = [](auto action) {
         try {
             action();
@@ -63,12 +69,17 @@ void testLLVMTypeMapping() {
     assert(rejects([&] { map(storage.getFunctionTy(integer, {storage.getVoidTy()}), context); }));
 }
 
+// 验证结构体 lowering 的生命周期（对应 next-plan“测试与验收”中 opaque 结构体 / 跨模块 / 多 IRContext 条目）：
+// 前向声明的 opaque 结构体先被引用后补全且保持同一 IRStructType/LLVM StructType 身份；
+// 通过指针/引用的自引用与互引用可完成；按值递归、void/函数字段被拒绝；
+// 失败的 lowering 不会留下半完成状态，后续定义补齐后可重试；IRStructType::complete 具备原子性。
 void testStructLoweringLifecycle() {
     using namespace sakuraE::IR;
     IRContext first;
     llvm::LLVMContext firstLLVM;
     NamingContext names("lifecycle-test");
     const sakuraE::PositionInfo definitionInfo {1, 1, "struct lifecycle test"};
+    // 语义类型(TypeInfo)在池中按结构去重：相同函数签名返回同一实例。
     auto* firstTypeInfo = first.typeInfoPool().makeBasicTypeID(TypeID::Int32);
     assert(firstTypeInfo->isBasic());
     auto* signatureInfo = first.typeInfoPool().makeFunctionTypeID(firstTypeInfo, {firstTypeInfo});
@@ -89,6 +100,7 @@ void testStructLoweringLifecycle() {
         return false;
     };
 
+    // 情形 1：opaque 结构体 Forward 在实现前就被函数签名、数组指针、nullable 引用。
     names.declareOpaqueStruct("Forward", definitionInfo);
     auto* forwardInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Forward"));
     auto* forwardArrayInfo = first.typeInfoPool().makeArrayTypeID(forwardInfo, 2);
@@ -99,11 +111,14 @@ void testStructLoweringLifecycle() {
     auto* forwardPointer = firstLowering.lowerType(forwardPointerInfo);
     auto* forwardType = static_cast<IRStructType*>(firstLowering.lowerType(forwardInfo));
     auto* llvmForward = llvm::cast<llvm::StructType>(sakuraE::Codegen::map(forwardType, firstLLVM));
+    // 尚未实现时 lowering 得到不完整结构体，映射为 LLVM opaque 结构体。
     assert(!forwardType->isComplete());
     assert(llvmForward->isOpaque());
+    // 补全后再次 lowering：所有派生类型命中缓存不变，结构体原地补全，LLVM 侧同一 StructType 被设置 body。
     names.implStruct("Forward", {{"value", firstTypeInfo, definitionInfo}}, {}, definitionInfo);
     assert(firstLowering.lowerType(forwardPointerInfo) == forwardPointer);
     assert(firstLowering.lowerType(forwardFunctionInfo) == forwardFunction);
+    // nullable 不改变 storage 类型。
     assert(firstLowering.lowerType(nullableForwardInfo) == forwardType);
     assert(firstLowering.lowerType(forwardInfo) == forwardType);
     assert(forwardType->isComplete());
@@ -111,8 +126,10 @@ void testStructLoweringLifecycle() {
     assert(sakuraE::Codegen::map(forwardType, firstLLVM) == llvmForward);
     assert(!llvmForward->isOpaque());
     assert(llvmForward->getElementType(0) == sakuraE::Codegen::map(firstInt32, firstLLVM));
+    // 已完成的结构体不能重复 complete。
     assert(rejects([&] { forwardType->complete({}); }));
 
+    // 结构体 storage 类型由 NamingContext 持有，不随某个 LoweringSession 销毁而失效。
     {
         LoweringSession temporary(first, &names);
         assert(temporary.lowerType(forwardInfo) == forwardType);
@@ -121,9 +138,11 @@ void testStructLoweringLifecycle() {
     assert(names.getStructTy(first, names.lookupStructId("Forward")) == forwardType);
     assert(names.resolveNamingContext(names.lookupStructId("Forward")) == &names);
     assert(names.lookupStructType("Unknown") == nullptr);
+    // 同一 NamingContext 搭配另一个 IRContext 进行 lowering 必须被拒绝（storage 类型属于唯一 IRContext）。
     IRContext otherContext;
     LoweringSession wrongContext(otherContext, &names);
     assert(rejects([&] { wrongContext.lowerType(forwardInfo); }));
+    // 不同模块的同名结构体通过 StructDeclId 区分，lowering 出不同的类型。
     NamingContext otherNames("other-module");
     otherNames.defineStruct("Forward", {{"value", firstTypeInfo, definitionInfo}}, definitionInfo);
     auto* otherForwardInfo = first.typeInfoPool().makeStructTypeID(otherNames.lookupStructId("Forward"));
@@ -134,6 +153,7 @@ void testStructLoweringLifecycle() {
     assert(sakuraE::Codegen::map(otherForwardType, firstLLVM) != llvmForward);
     assert(forwardType->findMember("value").has_value());
 
+    // 情形 2：通过指针与引用的自引用结构体可以完成，且成员指向自身类型。
     names.declareOpaqueStruct("Node", definitionInfo);
     auto* nodeInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Node"));
     auto* nodePointerInfo = first.typeInfoPool().makePointerTypeID(nodeInfo);
@@ -146,6 +166,7 @@ void testStructLoweringLifecycle() {
     assert(static_cast<IRRefType*>(nodeType->findMember("parent")->type)->getElementType() == nodeType);
     assert(sakuraE::Codegen::map(nodeType, firstLLVM)->isSized());
 
+    // 情形 3：Outer 按值包含 Inner，Inner 通过指针引用 Outer —— 递归 lowering 可完成并得到 sized 类型。
     names.declareOpaqueStruct("Outer", definitionInfo);
     names.declareOpaqueStruct("Inner", definitionInfo);
     auto* outerInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Outer"));
@@ -156,6 +177,7 @@ void testStructLoweringLifecycle() {
     assert(outerType->isComplete());
     assert(sakuraE::Codegen::map(outerType, firstLLVM)->isSized());
 
+    // void 字段与函数类型字段不是合法的 storage 字段类型。
     names.defineStruct("VoidField", {{"value", first.typeInfoPool().makeBasicTypeID(TypeID::Void), definitionInfo}}, definitionInfo);
     auto* voidFieldInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("VoidField"));
     assert(rejects([&] { firstLowering.lowerType(voidFieldInfo); }));
@@ -163,12 +185,14 @@ void testStructLoweringLifecycle() {
     auto* functionFieldInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("FunctionField"));
     assert(rejects([&] { firstLowering.lowerType(functionFieldInfo); }));
 
+    // 按值包含自身会形成无限大小，必须报错，且失败后结构体仍保持未完成。
     names.declareOpaqueStruct("Self", definitionInfo);
     auto* selfInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Self"));
     names.implStruct("Self", {{"self", selfInfo, definitionInfo}}, {}, definitionInfo);
     assert(rejects([&] { firstLowering.lowerType(selfInfo); }));
     assert(!names.lookupStructType("Self")->isComplete());
 
+    // Left 包含 Right 数组时 Right 仍是 opaque，Left 可先完成；之后 Right 按值包含 Left 形成按值环，应被拒绝。
     names.declareOpaqueStruct("Left", definitionInfo);
     names.declareOpaqueStruct("Right", definitionInfo);
     auto* leftInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Left"));
@@ -181,6 +205,8 @@ void testStructLoweringLifecycle() {
     assert(rejects([&] { firstLowering.lowerType(leftInfo); }));
     assert(rejects([&] { firstLowering.lowerType(rightInfo); }));
 
+    // 情形 4：Container 按值包含仍为 opaque 的 Child；Child 实现后再次 lowering，Container 不变，
+    // Child 原地补全，LLVM 侧元素类型身份保持不变。
     names.declareOpaqueStruct("Container", definitionInfo);
     names.declareOpaqueStruct("Child", definitionInfo);
     auto* childInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Child"));
@@ -200,6 +226,8 @@ void testStructLoweringLifecycle() {
     assert(!llvmChild->isOpaque());
     assert(sakuraE::Codegen::map(containerType, firstLLVM)->isSized());
 
+    // 情形 5：字段引用了尚未分配的 StructDeclId（预测下一个 localId），lowering 失败；
+    // 该 id 随后被 defineStruct 占用，重试 lowering 成功。
     names.declareOpaqueStruct("Retry", definitionInfo);
     auto* retryInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Retry"));
     auto futureId = names.lookupStructId("Retry");
@@ -216,7 +244,9 @@ void testStructLoweringLifecycle() {
     assert(retryType->findMember("missing").has_value());
     assert(rejects([&] { firstLowering.lowerType(nullptr); }));
 
+    // 情形 6：complete 的原子性——非法字段（空类型、重复字段名）抛错时不留下任何部分字段。
     names.declareOpaqueStruct("Atomic", definitionInfo);
+    // 仅声明未 lowering 时 NamingContext 中还没有 storage 类型。
     assert(names.lookupStructType("Atomic") == nullptr);
     auto* atomicType = names.getStructTy(first, names.lookupStructId("Atomic"));
     assert(rejects([&] { atomicType->complete({{"bad", nullptr, definitionInfo}}); }));
@@ -227,10 +257,13 @@ void testStructLoweringLifecycle() {
     assert(!atomicType->findMember("same").has_value());
     atomicType->complete({{"good", firstInt32, definitionInfo}});
     assert(atomicType->isComplete());
+    // 未知模块的 StructDeclId 无法解析。
     assert(rejects([&] { names.getStructTy(first, {"missing-module", 0}); }));
 
 }
 
+// 入口：`--struct-lowering` 只运行结构体生命周期测试；默认依次验证类型映射、
+// IRContext 隔离与缓存、nullable 语义类型、跨上下文结构体 lowering，最后再跑生命周期测试。
 int main(int argc, char** argv) {
     if (argc == 2 && std::string_view(argv[1]) == "--struct-lowering") {
         testStructLoweringLifecycle();
@@ -239,6 +272,7 @@ int main(int argc, char** argv) {
     using namespace sakuraE::IR;
     testLLVMTypeMapping();
 
+    // 每个 IRContext 内 storage 类型唯一化，不同 IRContext 之间互不共享。
     IRContext first;
     IRContext second;
 
@@ -252,6 +286,7 @@ int main(int argc, char** argv) {
     llvm::LLVMContext secondLLVM;
     assert(sakuraE::Codegen::map(firstInt32, firstLLVM) != sakuraE::Codegen::map(secondInt32, secondLLVM));
 
+    // TypeInfo 池同样按上下文唯一化。
     auto* firstTypeInfo = first.typeInfoPool().makeBasicTypeID(TypeID::Int32);
     assert(firstTypeInfo == first.typeInfoPool().makeBasicTypeID(TypeID::Int32));
     assert(firstTypeInfo != second.typeInfoPool().makeBasicTypeID(TypeID::Int32));
@@ -265,6 +300,7 @@ int main(int argc, char** argv) {
         definitionInfo);
 
     assert(names.lookupStructDecl("Point") != nullptr);
+    // nullable 包装产生新的 TypeInfo，可解包回原类型，且重复包装同一类型得到同一实例。
     auto* pointTypeInfo = first.typeInfoPool().makeStructTypeID(names.lookupStructId("Point"));
     auto* nullablePointTypeInfo = first.typeInfoPool().wrapTypeAsNullable(pointTypeInfo, definitionInfo);
     assert(nullablePointTypeInfo != pointTypeInfo);
@@ -273,6 +309,8 @@ int main(int argc, char** argv) {
     assert(nullablePointTypeInfo->getBase() == pointTypeInfo);
     assert(nullablePointTypeInfo == first.typeInfoPool().wrapTypeAsNullable(pointTypeInfo, definitionInfo));
     LoweringSession firstLowering(first, &names);
+    // 两个独立的 IRContext/NamingContext（同模块名）各自 lowering 同名结构体，结果互不相同，
+    // 且映射后的 LLVM 类型属于各自的 LLVMContext。
     NamingContext secondNames("test-module");
     auto* secondTypeInfo = second.typeInfoPool().makeBasicTypeID(TypeID::Int32);
     secondNames.defineStruct("Point", {{"x", secondTypeInfo, definitionInfo},
@@ -289,11 +327,13 @@ int main(int argc, char** argv) {
     assert(firstLLVMPoint != secondLLVMPoint);
     assert(&firstLLVMPoint->getContext() == &firstLLVM);
     assert(&secondLLVMPoint->getContext() == &secondLLVM);
+    // 赋值兼容：非空可赋给 nullable，反之不行。
     assert(isAssignableTo(pointTypeInfo, pointTypeInfo));
     assert(isAssignableTo(nullablePointTypeInfo, nullablePointTypeInfo));
     assert(isAssignableTo(pointTypeInfo, nullablePointTypeInfo));
     assert(!isAssignableTo(nullablePointTypeInfo, pointTypeInfo));
 
+    // nullable 数组仍是数组，lowering 后与非 nullable 数组的 storage 类型相同。
     auto* pointArrayTypeInfo = first.typeInfoPool().makeArrayTypeID(pointTypeInfo, 4);
     auto* nullablePointArrayTypeInfo = first.typeInfoPool().wrapTypeAsNullable(pointArrayTypeInfo, definitionInfo);
     assert(nullablePointArrayTypeInfo->isArray());
@@ -302,6 +342,7 @@ int main(int argc, char** argv) {
     assert(nullablePointArrayTypeInfo->getElementType() == pointTypeInfo);
     assert(firstLowering.lowerType(nullablePointArrayTypeInfo) == firstLowering.lowerType(pointArrayTypeInfo));
 
+    // 标量类型不允许包装为 nullable。
     bool rejectedScalarNullable = false;
     try {
         first.typeInfoPool().wrapTypeAsNullable(firstTypeInfo, definitionInfo);
@@ -311,6 +352,7 @@ int main(int argc, char** argv) {
     }
     assert(rejectedScalarNullable);
 
+    // 不允许对 nullable 再次包装。
     bool rejectedRepeatedNullable = false;
     try {
         first.typeInfoPool().wrapTypeAsNullable(nullablePointTypeInfo, definitionInfo);
@@ -323,6 +365,7 @@ int main(int argc, char** argv) {
     assert(firstLowering.lowerType(first.typeInfoPool().makePointerTypeID(pointTypeInfo))->isPointer());
     assert(firstLowering.lowerType(first.typeInfoPool().makeArrayTypeID(pointTypeInfo, 4))->isArray());
 
+    // 同一 NamingContext 中重复定义结构体应报错。
     bool rejectedDuplicate = false;
     try {
         names.defineStruct("Point", {}, definitionInfo);
